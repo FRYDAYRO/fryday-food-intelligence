@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, LinieReteta, Reteta, UMCod, VanzareFapt } from './types';
+import type { AppState, Canal, ImportBatch, Ingredient, LinieReteta, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
 import { norm } from './engine';
 
-export type TipImport = 'PMIX' | 'SALES' | 'FC29' | 'COST_INGREDIENTE' | 'RETETAR' | 'PRETURI_FURNIZORI';
+export type TipImport = 'PMIX' | 'SALES' | 'FC29' | 'COST_INGREDIENTE' | 'RETETAR' | 'PRETURI_FURNIZORI' | 'WASTE';
 
 export const TIP_LABEL: Record<TipImport, string> = {
   PMIX: 'PMIX (vânzări pe produs)',
@@ -11,6 +11,7 @@ export const TIP_LABEL: Record<TipImport, string> = {
   COST_INGREDIENTE: 'Cost ingrediente',
   RETETAR: 'Rețetar',
   PRETURI_FURNIZORI: 'Prețuri Furnizori',
+  WASTE: 'Waste (risipă ingrediente)',
 };
 
 // sinonime de antet (normalizate) → câmp intern
@@ -56,6 +57,15 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     pret: ['pret', 'pret oferta', 'pret net', 'pret unitar', 'oferta'],
     validDeLa: ['valabil de la', 'de la', 'data', 'valabilitate'],
   },
+  WASTE: {
+    data: ['data', 'date', 'zi', 'ziua'],
+    locatie: ['locatie', 'location', 'restaurant', 'cod locatie', 'unitate', 'magazin'],
+    ingredient: ['cod ingredient', 'ingredient', 'cod', 'cod articol', 'produs'],
+    cant: ['cantitate risipita', 'cantitate', 'cant', 'qty', 'quantity', 'buc', 'bucati'],
+    um: ['um', 'unitate', 'u.m.', 'unitate masura'],
+    motiv: ['motiv', 'reason', 'cauza', 'tip risipa', 'categorie'],
+    valoare: ['valoare risipa', 'valoare', 'cost', 'suma'],
+  },
   RETETAR: {
     reteta: ['cod reteta', 'cod produs', 'reteta', 'cod'],
     tipReteta: ['tip reteta', 'tip'],
@@ -100,6 +110,7 @@ export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, 
 
 export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
   const nf = norm(numeFisier);
+  if (nf.includes('waste') || nf.includes('risip') || nf.includes('deseu')) return 'WASTE';
   if (nf.includes('2.9') || nf.includes('29')) return 'FC29';
   if (nf.includes('pmix')) return 'PMIX';
   if (nf.includes('sales')) return 'SALES';
@@ -113,6 +124,7 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
     COST_INGREDIENTE: ['cod', 'pret'],
     RETETAR: ['reteta', 'comp', 'cant'],
     PRETURI_FURNIZORI: ['furnizor', 'ing', 'pret'],
+    WASTE: ['data', 'ingredient', 'cant'],
   };
   const scoruri = (Object.keys(CAMPURI) as TipImport[]).map(t => {
     const m = mapeazaAntete(antete, t);
@@ -380,6 +392,45 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         importate++;
       }
       stateNou = { ...state, retete };
+    }
+  } else if (tip === 'WASTE') {
+    const lipsa = lipsesc(['data', 'ingredient', 'cant']);
+    if (lipsa.length) erori.push(`Coloane negăsite: ${lipsa.join(', ')}`);
+    else {
+      const cunoscute = new Set(state.ingrediente.map(x => x.cod));
+      const necunoscute = new Set<string>();
+      const noi: WasteFapt[] = [];
+      p.randuri.forEach((r, i) => {
+        const data = parseData(g(r, 'data'));
+        const ingCod = String(g(r, 'ingredient')).trim();
+        const cant = parseNumar(g(r, 'cant'));
+        if (!data || !ingCod || cant == null) { if (ingCod || g(r, 'cant')) avert.push(`Rând ${i + 2}: date incomplete — ignorat`); return; }
+        if (!cunoscute.has(ingCod)) { necunoscute.add(ingCod); return; }
+        const ing = state.ingrediente.find(x => x.cod === ingCod)!;
+        const locatie = String(g(r, 'locatie')).trim() || state.locatii[0].cod;
+        const umRaw = norm(String(g(r, 'um')));
+        const um = (['g', 'kg', 'ml', 'l', 'buc'] as UMCod[]).find(u => umRaw === u || umRaw.startsWith(u)) ?? ing.um;
+        const motiv = String(g(r, 'motiv')).trim() || undefined;
+        let valoare = parseNumar(g(r, 'valoare'));
+        if (valoare == null) {
+          const pret = ing.preturi.length ? ing.preturi[ing.preturi.length - 1].pret : 0;
+          valoare = pret * cant;   // estimare la ultimul preț cunoscut (presupune aceeași UM)
+        }
+        noi.push({ data, locatie, ingredient: ingCod, cant, um, motiv, valoare });
+      });
+      necunoscute.forEach(c => avert.push(`Ingredient necunoscut: ${c} — rânduri ignorate`));
+      // agregăm dublurile din fișier pe cheie și înlocuim intrările existente pe aceeași cheie
+      const cheie = (w: WasteFapt) => `${w.data}|${w.locatie}|${w.ingredient}|${w.motiv ?? ''}`;
+      const agg = new Map<string, WasteFapt>();
+      for (const w of noi) {
+        const k = cheie(w);
+        const e = agg.get(k);
+        if (e) { e.cant += w.cant; e.valoare = (e.valoare ?? 0) + (w.valoare ?? 0); } else agg.set(k, { ...w });
+      }
+      const chei = new Set(agg.keys());
+      const pastrate = state.waste.filter(w => !chei.has(cheie(w)));
+      importate = agg.size;
+      stateNou = { ...state, waste: [...pastrate, ...agg.values()] };
     }
   }
 

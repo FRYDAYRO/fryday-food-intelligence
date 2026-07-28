@@ -308,6 +308,7 @@ export function genereazaSeed(): AppState {
       randuri: vanzari.length, importate: vanzari.length, avertismente: [], erori: [], status: 'IMPORTAT',
     }],
     scenarii: [],
+    waste: [],
     setari: { tvaImplicit: 10, tintaLaborPct: 24, tolerantaReconciliere: 0.5, pragAlertaPret: 25 },
   };
 }

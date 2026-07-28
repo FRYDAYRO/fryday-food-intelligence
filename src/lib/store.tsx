@@ -49,6 +49,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             parsed.setari = { ...d.setari, ...parsed.setari };
             parsed.scenarii = parsed.scenarii ?? [];
             parsed.salesReport = parsed.salesReport ?? [];
+            parsed.waste = parsed.waste ?? [];
             parsed.pretFurnizori = parsed.pretFurnizori ?? d.pretFurnizori;
             parsed.rnd = parsed.rnd ?? [];
             parsed.labor = parsed.labor ?? d.labor;

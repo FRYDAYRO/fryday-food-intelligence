@@ -12,6 +12,7 @@ const COLOANE_ASTEPTATE: Record<TipImport, string> = {
   COST_INGREDIENTE: 'cod ingredient · denumire · categorie · tip · UM · preț net · valabil de la · furnizor',
   RETETAR: 'cod rețetă · tip rețetă · denumire · cod componentă · tip componentă · cantitate · UM · pierdere % · canal · randament',
   PRETURI_FURNIZORI: 'furnizor · cod ingredient · preț ofertă · valabil de la',
+  WASTE: 'data · locație · cod ingredient · cantitate · UM · motiv · valoare',
 };
 
 function TabImport() {
