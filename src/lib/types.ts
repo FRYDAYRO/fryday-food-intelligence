@@ -68,6 +68,16 @@ export interface SalesReportRand {
 
 export interface Linie29 { perioada: string; locatie: string; categorie: string; valoare: number; }
 
+export interface WasteFapt {
+  data: string;                 // YYYY-MM-DD
+  locatie: string;
+  ingredient: string;           // cod ingredient
+  cant: number;                 // cantitate risipită (în UM indicată)
+  um: UMCod;
+  motiv?: string;               // ex: expirat, deteriorat, supraproducție
+  valoare?: number;             // cost estimat (lei) — calculat din ultimul preț dacă lipsește
+}
+
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';
 export interface RegulaClasificare { pattern: string; clasa: Clasa29; }
 
@@ -136,6 +146,7 @@ export interface AppState {
   vanzari: VanzareFapt[];
   salesReport: SalesReportRand[];
   linii29: Linie29[];
+  waste: WasteFapt[];
   reguli: RegulaClasificare[];
   tinte: Tinta[];
   importuri: ImportBatch[];
