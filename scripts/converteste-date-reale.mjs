@@ -16,7 +16,8 @@ const DIR = resolve(process.cwd(), 'date-sursa');
 const F_XLSX = join(DIR, 'FRYDAY_FC_Initial_Corectat.xlsx');
 const F_47 = join(DIR, '4.7_Sales_Mix.pdf');
 const F_29 = join(DIR, '2.9_Cluj_Memo.pdf');
-const F_CRIT = join(DIR, 'CR_IT_CENTRALIZAT.xlsx');   // etapa de prețuri 03.08.2026
+const F_CRIT = join(DIR, 'CR_IT_CENTRALIZAT.xlsx');       // etapa de prețuri 03.08.2026
+const F_DELIV = join(DIR, 'PRETURI_DELIVERY_UPDATE.xlsx'); // revizia ulterioară a prețurilor delivery
 const IESIRE = resolve(process.cwd(), 'src/lib/date-reale.ts');
 
 const LUNA = '2026-07';
@@ -249,60 +250,103 @@ for (const p of produseMap.values()) {
 
 
 
-// ── 4b. CR–IT „8. Preturi INSTORE RO" → prețul instore ─────────────────────
-// Etapa de preț intră în vigoare la 03.08.2026; păstrăm și prețul anterior, datat.
+// ── 4b. Prețuri de listă (etapa 03.08.2026) ────────────────────────────────
+// Prețul nou intră în vigoare la 03.08.2026; îl păstrăm pe cel anterior, datat,
+// ca să nu se rescrie istoricul (invarianta 1).
 const DATA_PRET_NOU = '2026-08-03';
-let pretIn = { potrivite: 0, total: 0, schimbate: 0 };
-const pretNepotrivit = [];
+
+// „1. Denumiri RO": denumire ACTUALĂ → NOUĂ. Nomenclatorul nostru are denumirile
+// actuale, iar foile de prețuri le folosesc pe cele noi → indexăm invers.
+const redenumiri = new Map();
 if (existsSync(F_CRIT)) {
-  const wbc = XLSX.readFile(F_CRIT);
-  // „1. Denumiri RO": denumire ACTUALĂ → NOUĂ. Nomenclatorul nostru are denumirile
-  // actuale, iar foaia de prețuri le folosește pe cele noi → indexăm invers.
-  const redenumiri = new Map();
-  {
-    const wsD = wbc.Sheets['1. Denumiri RO'];
-    if (wsD) {
-      for (const r of XLSX.utils.sheet_to_json(wsD, { header: 1, blankrows: false }).slice(4)) {
-        const vechi = r[0] == null ? '' : String(r[0]).trim();
-        const nou = r[1] == null ? '' : String(r[1]).trim();
-        if (!vechi || !nou) continue;
-        const kNou = norm(nou.replace(/\s+D$/, ''));
-        const kVechi = norm(vechi.replace(/\s+D$/, ''));
-        if (kNou && kVechi && kNou !== kVechi) redenumiri.set(kNou, kVechi);
-      }
+  const wsD = XLSX.readFile(F_CRIT).Sheets['1. Denumiri RO'];
+  if (wsD) {
+    for (const r of XLSX.utils.sheet_to_json(wsD, { header: 1, blankrows: false }).slice(4)) {
+      const vechi = r[0] == null ? '' : String(r[0]).trim();
+      const nou = r[1] == null ? '' : String(r[1]).trim();
+      if (!vechi || !nou) continue;
+      const kNou = norm(nou.replace(/\s+D$/, ''));
+      const kVechi = norm(vechi.replace(/\s+D$/, ''));
+      if (kNou && kVechi && kNou !== kVechi) redenumiri.set(kNou, kVechi);
     }
   }
-  const ws = wbc.Sheets['8. Preturi INSTORE RO'];
-  if (!ws) W('CR–IT: lipsește foaia „8. Preturi INSTORE RO".');
-  else {
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false }).slice(4);
-    for (const r of rows) {
-      const den = r[0] == null ? '' : String(r[0]).trim();
-      const actual = num(r[1]);
-      const nou = num(r[2]);
-      if (!den || (actual == null && nou == null)) continue;   // rânduri-titlu de secțiune
-      pretIn.total++;
-      const k = norm(den);
-      const kAlt = redenumiri.get(k) ?? null;                 // denumirea dinaintea redenumirii
-      let cod = produsPeNume.get(k) ?? produsFaraGramaj.get(k)
-        ?? (kAlt ? (produsPeNume.get(kAlt) ?? produsFaraGramaj.get(kAlt)) : null)
-        ?? produsFaraGramaj.get(faraGramaj(k)) ?? null;
-      if (!cod) { pretNepotrivit.push(den); continue; }
-      const p = produseMap.get(cod);
-      if (!p) { pretNepotrivit.push(den); continue; }
-      pretIn.potrivite++;
-      const inVigoare = nou ?? actual;
-      const ist = [];
-      if (actual != null) ist.push({ data: VALID_DE_LA, canal: 'INSTORE', pret: actual, nota: 'preț anterior (CR–IT)' });
-      if (nou != null && actual != null && Math.abs(nou - actual) > 1e-9) {
-        ist.push({ data: DATA_PRET_NOU, canal: 'INSTORE', pret: nou, nota: 'etapa 03.08.2026 (CR–IT)' });
-        pretIn.schimbate++;
-      }
-      p.pretInstore = inVigoare;
-      if (ist.length) p.istoricPret = [...(p.istoricPret ?? []), ...ist];
+}
+
+const gasesteProdus = den => {
+  // „(REȚETA NOUĂ)" e un calificativ, nu alt produs — gramajul din paranteze rămâne
+  const curatat = String(den).replace(/\(\s*RETETA\s+NOUA\s*\)/ig, ' ');
+  const k = norm(curatat.replace(/\s+D$/, ''));
+  const kAlt = redenumiri.get(k) ?? null;
+  const cod = produsPeNume.get(k) ?? produsFaraGramaj.get(k)
+    ?? (kAlt ? (produsPeNume.get(kAlt) ?? produsFaraGramaj.get(kAlt)) : null)
+    ?? produsFaraGramaj.get(faraGramaj(k)) ?? null;
+  return cod ? produseMap.get(cod) ?? null : null;
+};
+
+// Aplică o foaie de prețuri pe un canal. `colActual`/`colNou` sunt indici de coloană.
+function aplicaPreturi({ fisier, foaie, canal, colActual, colNou, antet, sursa }) {
+  const stat = { potrivite: 0, total: 0, schimbate: 0, nepotrivite: [] };
+  if (!existsSync(fisier)) { W(`${sursa}: fișierul lipsește, prețurile ${canal} rămân cele din FOOD COST.`); return stat; }
+  const ws = XLSX.readFile(fisier).Sheets[foaie];
+  if (!ws) { W(`${sursa}: lipsește foaia „${foaie}".`); return stat; }
+  for (const r of XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false }).slice(antet)) {
+    const den = r[0] == null ? '' : String(r[0]).trim();
+    const actual = num(r[colActual]);
+    const nou = num(r[colNou]);
+    if (!den || (actual == null && nou == null)) continue;   // rânduri-titlu de secțiune
+    stat.total++;
+    const p = gasesteProdus(den);
+    if (!p) { stat.nepotrivite.push(den); continue; }
+    stat.potrivite++;
+    const ist = [];
+    if (actual != null) ist.push({ data: VALID_DE_LA, canal, pret: actual, nota: `preț anterior (${sursa})` });
+    if (nou != null && actual != null && Math.abs(nou - actual) > 1e-9) {
+      ist.push({ data: DATA_PRET_NOU, canal, pret: nou, nota: `etapa 03.08.2026 (${sursa})` });
+      stat.schimbate++;
     }
+    if (canal === 'INSTORE') p.pretInstore = nou ?? actual; else p.pretDelivery = nou ?? actual;
+    if (ist.length) p.istoricPret = [...(p.istoricPret ?? []), ...ist];
   }
-} else W('CR–IT: fișierul lipsește, prețurile instore rămân cele din FOOD COST.');
+  return stat;
+}
+
+const pretIn = aplicaPreturi({
+  fisier: F_CRIT, foaie: '8. Preturi INSTORE RO', canal: 'INSTORE',
+  colActual: 1, colNou: 2, antet: 4, sursa: 'CR–IT',
+});
+
+// Delivery: se listează prețurile DUPĂ discount (col. 1 = actual, col. 3 = nou).
+// PRETURI_DELIVERY_UPDATE.xlsx este revizia ulterioară a foii „9. Preturi DELIVERY RO"
+// din CR–IT; unde diferă, are prioritate.
+const pretDel = aplicaPreturi({
+  fisier: F_DELIV, foaie: 'Preturi DELIVERY RO', canal: 'DELIVERY',
+  colActual: 1, colNou: 3, antet: 5, sursa: 'UPDATE delivery',
+});
+
+// semnalăm divergențele față de foaia mai veche din CR–IT
+if (existsSync(F_DELIV) && existsSync(F_CRIT)) {
+  const cit = XLSX.readFile(F_CRIT).Sheets['9. Preturi DELIVERY RO'];
+  const upd = XLSX.readFile(F_DELIV).Sheets['Preturi DELIVERY RO'];
+  if (cit && upd) {
+    const cheie = (rows, n) => {
+      const m = new Map();
+      for (const r of XLSX.utils.sheet_to_json(rows, { header: 1, blankrows: false }).slice(n)) {
+        const d = r[0] == null ? '' : String(r[0]).trim();
+        if (d && (typeof r[1] === 'number' || typeof r[3] === 'number')) m.set(d, [r[1], r[3]]);
+      }
+      return m;
+    };
+    const a = cheie(upd, 5), b = cheie(cit, 4);
+    const cf = [];
+    for (const [k, v] of a) {
+      const w = b.get(k);
+      if (w && (String(v[0]) !== String(w[0]) || String(v[1]) !== String(w[1]))) {
+        cf.push(`${k}: UPDATE ${v[1]} vs CR–IT ${w[1]}`);
+      }
+    }
+    if (cf.length) W(`Delivery — ${cf.length} produse diferă între UPDATE și CR–IT „9. Preturi DELIVERY RO"; s-a folosit UPDATE: ${cf.join(' · ')}`);
+  }
+}
 
 const produse = [...produseMap.values()].map(({ _ret, ...p }) => p);
 
@@ -454,8 +498,10 @@ console.log(`produse            ${produse.length}`);
 console.log(`rețete             ${retete.length}   (fără rețetă: ${faraReteta})`);
 console.log(`vânzări (4.7)      ${vanzari.length} rânduri, brut ${totalBrut47 ? (100 * (totalBrut47 - nepotrivitVal) / totalBrut47).toFixed(1) : '0'}% potrivit`);
 console.log(`  nepotrivite      ${nepotrivite.length} articole, ${nepotrivitVal.toFixed(2)} lei`);
-console.log(`preț instore CR–IT ${pretIn.potrivite}/${pretIn.total} potrivite, ${pretIn.schimbate} modificate la 03.08.2026`);
-if (pretNepotrivit.length) console.log(`  fără corespondent  ${pretNepotrivit.length}: ${pretNepotrivit.slice(0, 6).join(' · ')}${pretNepotrivit.length > 6 ? ' …' : ''}`);
+for (const [et, st] of [['instore CR–IT', pretIn], ['delivery UPDATE', pretDel]]) {
+  console.log(`preț ${et.padEnd(15)} ${st.potrivite}/${st.total} potrivite, ${st.schimbate} modificate la 03.08.2026`);
+  if (st.nepotrivite.length) console.log(`  fără corespondent  ${st.nepotrivite.length}: ${st.nepotrivite.slice(0, 5).join(' · ')}${st.nepotrivite.length > 5 ? ' …' : ''}`);
+}
 console.log(`linii 2.9          ${linii29Agg.length} categorii, total ${linii29Agg.reduce((s, l) => s + l.valoare, 0).toFixed(2)}`);
 console.log(`salesReport        ${salesReport.length}`);
 if (avert.length) {

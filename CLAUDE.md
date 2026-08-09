@@ -84,6 +84,17 @@ De aceea vederea „Toată rețeaua" (`RETEA` = fără filtru) **nu** e un FC re
 consumul lunar al unei locații la vânzările pe 5 zile ale rețelei. Aplicația pornește pe `NET`,
 iar Executive Cockpit respectă locația selectată (nu mai e fixat pe `RETEA`).
 
+Prețurile de listă vin din etapa **03.08.2026**, pe canale:
+
+- **instore** — `CR_IT_CENTRALIZAT.xlsx`, foaia „8. Preturi INSTORE RO";
+- **delivery** — `PRETURI_DELIVERY_UPDATE.xlsx`, coloanele **după discount**
+  („Preț actual (după discount)" → „Preț NOU DUPĂ discount"). Fișierul e revizia
+  ulterioară a foii „9. Preturi DELIVERY RO" din CR–IT; unde diferă, are prioritate,
+  iar divergențele sunt raportate ca avertisment de convertor.
+
+Prețul anterior și cel nou se adaugă **datate** în `istoricPret`; `pretInstore`/`pretDelivery`
+țin doar valoarea în vigoare. Nu se suprascrie nimic (invarianta 1).
+
 Verificări care trebuie să rămână adevărate:
 - suma categoriilor 2.9 = totalul raportului (248.655) — verificată în convertor;
 - `CLUJ` → `fcOp` = 44,85% și net = 554.382, adică exact cifrele din antetul raportului 2.9;

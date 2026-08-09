@@ -2153,6 +2153,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 8,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 10,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2164,7 +2170,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14.99,
-        "pretDelivery": 16,
+        "pretDelivery": 16.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2177,6 +2183,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2188,7 +2206,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 11.49,
-        "pretDelivery": 13,
+        "pretDelivery": 13.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2201,6 +2219,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 11.49,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 13.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2212,7 +2242,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17.99,
-        "pretDelivery": 19,
+        "pretDelivery": 19.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2225,6 +2255,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 19,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 19.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2243,6 +2285,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2261,6 +2309,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 16,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 19,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2279,6 +2333,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 22,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 25,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2290,7 +2350,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 21.99,
-        "pretDelivery": 24.5,
+        "pretDelivery": 25.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2303,6 +2363,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 21.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 24.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 25.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2314,7 +2386,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 28.99,
-        "pretDelivery": 30.5,
+        "pretDelivery": 32.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2327,6 +2399,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 28.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 30.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 32.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2338,7 +2422,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 22.99,
-        "pretDelivery": 25,
+        "pretDelivery": 25.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2351,6 +2435,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 22.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 25,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 25.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2362,7 +2458,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 29.99,
-        "pretDelivery": 31,
+        "pretDelivery": 32.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2375,6 +2471,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 29.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 31,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 32.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2386,7 +2494,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 26.99,
-        "pretDelivery": 29,
+        "pretDelivery": 29.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2399,6 +2507,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 26.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 29,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 29.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2410,7 +2530,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 33.99,
-        "pretDelivery": 35,
+        "pretDelivery": 36.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2423,6 +2543,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 33.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 35,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 36.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2434,7 +2566,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 22.99,
-        "pretDelivery": 25,
+        "pretDelivery": 27.990000000000002,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2447,6 +2579,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 22.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 25,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 27.990000000000002,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2465,6 +2609,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 7,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 10,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2476,7 +2626,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15.49,
-        "pretDelivery": 18,
+        "pretDelivery": 18.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2489,6 +2639,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.49,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 18.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2500,7 +2662,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 26.99,
-        "pretDelivery": 28.5,
+        "pretDelivery": 29.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2513,6 +2675,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 26.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 29.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2524,7 +2698,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 26.99,
-        "pretDelivery": 28,
+        "pretDelivery": 28.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2537,6 +2711,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 26.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2558,7 +2744,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14.49,
-        "pretDelivery": 16,
+        "pretDelivery": 16.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2571,6 +2757,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.49,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2582,7 +2780,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 19.99,
-        "pretDelivery": 21,
+        "pretDelivery": 21.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2595,6 +2793,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 19.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 21,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 21.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2623,7 +2833,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 26.99,
-        "pretDelivery": 28,
+        "pretDelivery": 28.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2636,6 +2846,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 26.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2647,7 +2869,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 26.99,
-        "pretDelivery": 28,
+        "pretDelivery": 28.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2660,6 +2882,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 26.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2724,6 +2958,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 20,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2742,6 +2982,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 20,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2760,6 +3006,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 20,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2778,6 +3030,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 20,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2796,6 +3054,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 20,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 23,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -2807,7 +3071,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 25.99,
-        "pretDelivery": 28,
+        "pretDelivery": 28.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2820,6 +3084,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 25.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2831,7 +3107,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20.99,
-        "pretDelivery": 23,
+        "pretDelivery": 23.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2844,6 +3120,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 20.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 23,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 23.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2855,7 +3143,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 9.5,
-        "pretDelivery": 12,
+        "pretDelivery": 12.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2868,6 +3156,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 9.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 12,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 12.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2879,7 +3179,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 16.5,
-        "pretDelivery": 19,
+        "pretDelivery": 19.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2892,6 +3192,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 16.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 19,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 19.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2903,7 +3215,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 22.5,
-        "pretDelivery": 26,
+        "pretDelivery": 26.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2916,6 +3228,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 22.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 26,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 26.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2927,7 +3251,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 17,
+        "pretDelivery": 17.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2940,6 +3264,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 17,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 17.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2951,7 +3287,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 21.5,
-        "pretDelivery": 27.5,
+        "pretDelivery": 28,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2964,6 +3300,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 21.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 27.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2975,7 +3323,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 27,
-        "pretDelivery": 30.5,
+        "pretDelivery": 31,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -2988,6 +3336,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 27,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 30.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 31,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -2999,7 +3359,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 32,
-        "pretDelivery": 36,
+        "pretDelivery": 36.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3012,6 +3372,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 32,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 36,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 36.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3023,7 +3395,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 17,
+        "pretDelivery": 17.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3036,6 +3408,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 17,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 17.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3047,7 +3431,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 21.5,
-        "pretDelivery": 27.5,
+        "pretDelivery": 28,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3060,6 +3444,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 21.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 27.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3071,7 +3467,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 27,
-        "pretDelivery": 30.5,
+        "pretDelivery": 31,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3084,6 +3480,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 27,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 30.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 31,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3095,7 +3503,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 32,
-        "pretDelivery": 36,
+        "pretDelivery": 36.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3108,6 +3516,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 32,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 36,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 36.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3119,7 +3539,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 18.5,
-        "pretDelivery": 20.5,
+        "pretDelivery": 21,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3132,6 +3552,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 18.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 20.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 21,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3143,7 +3575,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 24.5,
-        "pretDelivery": 28,
+        "pretDelivery": 28.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3156,6 +3588,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 24.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 28,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 28.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3167,7 +3611,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 30.5,
-        "pretDelivery": 34,
+        "pretDelivery": 34.5,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3180,6 +3624,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 30.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 34,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 34.5,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3191,7 +3647,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 101.24,
-        "pretDelivery": 120,
+        "pretDelivery": 121.24,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3204,6 +3660,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 101.24,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 120,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 121.24,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3215,7 +3683,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 101.24,
-        "pretDelivery": 120,
+        "pretDelivery": 121.24,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3228,6 +3696,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 101.24,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 120,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 121.24,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3239,7 +3719,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 101.24,
-        "pretDelivery": 120,
+        "pretDelivery": 121.24,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3252,6 +3732,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 101.24,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 120,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 121.24,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3286,7 +3778,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15.5,
-        "pretDelivery": 13.65,
+        "pretDelivery": 14.15,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3299,6 +3791,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.5,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13.65,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.15,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3309,7 +3813,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretDelivery": 13.99
+        "pretDelivery": 14.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14.49,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "CARTOFI_PRAJITI_IN_ULEI_DE_ALUNE_150_G",
@@ -3318,7 +3836,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretDelivery": 15.99
+        "pretDelivery": 16.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16.49,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "CARTOFI_PRAJITI_IN_ULEI_DE_ALUNE_SUPERSIZE_250_G",
@@ -3327,7 +3859,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretDelivery": 22.99
+        "pretDelivery": 23.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 23.49,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 23.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "MAC_CHEESY_BITES",
@@ -3344,6 +3890,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 16.5,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16.5,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3355,7 +3907,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 10.25,
-        "pretDelivery": 10,
+        "pretDelivery": 10.25,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3368,6 +3920,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.25,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 10,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 10.25,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3379,7 +3943,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5,
-        "pretDelivery": 2
+        "pretDelivery": 2,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 2,
+            "nota": "preț anterior (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "ADD_FELIE_CHEDDAR",
@@ -3389,7 +3961,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 3,
-        "pretDelivery": 3
+        "pretDelivery": 3,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 3,
+            "nota": "preț anterior (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "PUNGA",
@@ -3422,7 +4002,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 0.75,
-        "pretDelivery": 0.5,
+        "pretDelivery": 0.75,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3435,6 +4015,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 0.75,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 0.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 0.75,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3446,7 +4038,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 2,
-        "pretDelivery": 1.5,
+        "pretDelivery": 2,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3459,6 +4051,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 2,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 1.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 2,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3470,7 +4074,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 2,
-        "pretDelivery": 2
+        "pretDelivery": 2,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 2,
+            "nota": "preț anterior (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "EXTRA_HOMESTYLE_CRISPY",
@@ -3487,6 +4099,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 7,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 7,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3505,6 +4123,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 5,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3523,6 +4147,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 5,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3534,7 +4164,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 6.1,
-        "pretDelivery": 6,
+        "pretDelivery": 6.1,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3547,6 +4177,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 6.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 6,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3558,7 +4200,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 6.1,
-        "pretDelivery": 6,
+        "pretDelivery": 6.1,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3571,6 +4213,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 6.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 6,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3582,7 +4236,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 6.1,
-        "pretDelivery": 6,
+        "pretDelivery": 6.1,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3595,6 +4249,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 6.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 6,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3606,7 +4272,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 6.1,
-        "pretDelivery": 6.5,
+        "pretDelivery": 6.6,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3619,6 +4285,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 6.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 6.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 6.6,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3630,7 +4308,21 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 6,
-        "pretDelivery": 6
+        "pretDelivery": 6.1,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 6,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "SOS_KETCHUP_10_ML",
@@ -3640,7 +4332,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 3.1,
-        "pretDelivery": 3.5,
+        "pretDelivery": 3.6,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3653,6 +4345,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 3.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 3.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 3.6,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3664,7 +4368,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 3.1,
-        "pretDelivery": 3.5,
+        "pretDelivery": 3.6,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3677,6 +4381,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 3.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 3.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 3.6,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3688,7 +4404,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5.1,
-        "pretDelivery": 5.2,
+        "pretDelivery": 5.3,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3701,6 +4417,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 5.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5.2,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 5.3,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3712,7 +4440,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5.1,
-        "pretDelivery": 5.2,
+        "pretDelivery": 5.3,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3725,6 +4453,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 5.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5.2,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 5.3,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3736,7 +4476,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5.1,
-        "pretDelivery": 5.2,
+        "pretDelivery": 5.3,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3749,6 +4489,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 5.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5.2,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 5.3,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3783,7 +4535,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14.08,
-        "pretDelivery": 13.98,
+        "pretDelivery": 14.08,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3796,6 +4548,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.08,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13.98,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3807,7 +4571,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14.08,
-        "pretDelivery": 13.98,
+        "pretDelivery": 14.08,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3820,6 +4584,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.08,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13.98,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3831,7 +4607,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 25.1,
-        "pretDelivery": 25,
+        "pretDelivery": 25.1,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3844,6 +4620,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 25.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 25,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 25.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3855,7 +4643,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 35.1,
-        "pretDelivery": 35,
+        "pretDelivery": 35.1,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3868,6 +4656,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 35.1,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 35,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 35.1,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3879,7 +4679,7 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14.08,
-        "pretDelivery": 13.98,
+        "pretDelivery": 14.08,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -3892,6 +4692,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.08,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13.98,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -3920,6 +4732,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 12,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3938,6 +4756,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -3956,6 +4780,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4166,6 +4996,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4184,6 +5020,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4202,6 +5044,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4220,6 +5068,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4238,6 +5092,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4256,6 +5116,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4320,7 +5186,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.99,
-        "pretDelivery": 11,
+        "pretDelivery": 11.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4333,6 +5199,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 11,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 11.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4344,7 +5222,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.99,
-        "pretDelivery": 11,
+        "pretDelivery": 11.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4357,6 +5235,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 11,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 11.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4368,7 +5258,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.99,
-        "pretDelivery": 12,
+        "pretDelivery": 12.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4381,6 +5271,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 12,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 12.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4392,7 +5294,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 11.99,
-        "pretDelivery": 12,
+        "pretDelivery": 12.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4405,6 +5307,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 11.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 12,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 12.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4416,7 +5330,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15.99,
-        "pretDelivery": 17,
+        "pretDelivery": 17.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4429,6 +5343,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 17,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 17.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4440,7 +5366,21 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 19
+        "pretDelivery": 19.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 19,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 19.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "BUDWEISER",
@@ -4450,7 +5390,21 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 18
+        "pretDelivery": 18.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 18.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "APA_EVIAN",
@@ -4460,7 +5414,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15.99,
-        "pretDelivery": 17,
+        "pretDelivery": 17.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4473,6 +5427,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 17,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 17.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4576,7 +5542,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.49,
-        "pretDelivery": 9.5,
+        "pretDelivery": 10.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4589,6 +5555,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.49,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 9.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 10.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4600,7 +5578,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.49,
-        "pretDelivery": 9.5,
+        "pretDelivery": 10.49,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4613,6 +5591,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.49,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 9.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 10.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4623,7 +5613,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretDelivery": 5.49
+        "pretDelivery": 5.49,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 5.49,
+            "nota": "preț anterior (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "DOZE_PEPSI_330_ML_TWIST_ZERO_330_ML_7_UP_330_ML_",
@@ -4632,7 +5630,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretDelivery": 9.5
+        "pretDelivery": 10.49,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 9.5,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 10.49,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
+          }
+        ]
       },
       {
         "cod": "TORT_CIOCOLATA_ZMEURA",
@@ -4649,6 +5661,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4667,6 +5685,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4685,6 +5709,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4703,6 +5733,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4721,6 +5757,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4739,6 +5781,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4757,6 +5805,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4775,6 +5829,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4793,6 +5853,12 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 17,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 18,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -4804,7 +5870,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 8.99,
-        "pretDelivery": 9,
+        "pretDelivery": 9.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4817,6 +5883,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 8.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 9,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 9.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4828,7 +5906,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.99,
-        "pretDelivery": 11,
+        "pretDelivery": 11.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4841,6 +5919,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 11,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 11.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4852,7 +5942,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 13.99,
-        "pretDelivery": 14,
+        "pretDelivery": 14.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4865,6 +5955,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 13.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4876,7 +5978,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 10.99,
-        "pretDelivery": 11,
+        "pretDelivery": 11.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4889,6 +5991,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 10.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 11,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 11.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4900,7 +6014,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 12.99,
-        "pretDelivery": 14,
+        "pretDelivery": 14.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4913,6 +6027,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4924,7 +6050,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 12.99,
-        "pretDelivery": 13,
+        "pretDelivery": 13.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4937,6 +6063,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 13,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4948,7 +6086,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 14.99,
-        "pretDelivery": 15,
+        "pretDelivery": 15.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4961,6 +6099,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 15,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4972,7 +6122,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 12.99,
-        "pretDelivery": 14,
+        "pretDelivery": 14.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -4985,6 +6135,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 12.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -4996,7 +6158,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 14.99,
-        "pretDelivery": 15,
+        "pretDelivery": 15.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5009,6 +6171,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 14.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 15,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5020,7 +6194,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 13.99,
-        "pretDelivery": 14,
+        "pretDelivery": 14.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5033,6 +6207,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 13.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5044,7 +6230,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15.99,
-        "pretDelivery": 16,
+        "pretDelivery": 16.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5057,6 +6243,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5068,7 +6266,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 13.99,
-        "pretDelivery": 14,
+        "pretDelivery": 14.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5081,6 +6279,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 13.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 14,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5092,7 +6302,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15.99,
-        "pretDelivery": 16,
+        "pretDelivery": 16.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5105,6 +6315,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5116,7 +6338,7 @@ export function genereazaDateReale(): AppState {
         "tva": 21,
         "activ": true,
         "pretInstore": 15.99,
-        "pretDelivery": 16,
+        "pretDelivery": 16.99,
         "istoricPret": [
           {
             "data": "2026-07-01",
@@ -5129,6 +6351,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 15.99,
             "nota": "etapa 03.08.2026 (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 16,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "DELIVERY",
+            "pret": 16.99,
+            "nota": "etapa 03.08.2026 (UPDATE delivery)"
           }
         ]
       },
@@ -5195,13 +6429,19 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20,
-        "pretDelivery": 20,
+        "pretDelivery": 21,
         "istoricPret": [
           {
             "data": "2026-07-01",
             "canal": "INSTORE",
             "pret": 20,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 21,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -5213,13 +6453,19 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20,
-        "pretDelivery": 20,
+        "pretDelivery": 21,
         "istoricPret": [
           {
             "data": "2026-07-01",
             "canal": "INSTORE",
             "pret": 20,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 21,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -5256,6 +6502,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 39,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -5274,6 +6532,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 39,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       },
@@ -5292,6 +6562,18 @@ export function genereazaDateReale(): AppState {
             "canal": "INSTORE",
             "pret": 39,
             "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
+          },
+          {
+            "data": "2026-07-01",
+            "canal": "DELIVERY",
+            "pret": 39,
+            "nota": "preț anterior (UPDATE delivery)"
           }
         ]
       }
@@ -14848,7 +16130,9 @@ export function genereazaDateReale(): AppState {
         "data": "2026-07-01",
         "randuri": 434,
         "importate": 471,
-        "avertismente": [],
+        "avertismente": [
+          "Delivery — 6 produse diferă între UPDATE și CR–IT „9. Preturi DELIVERY RO\"; s-a folosit UPDATE: CARTOFI CRISS CUT 140G: UPDATE 14.15 vs CR–IT 13.9 · Cartofi prajiti in ulei de alune 112g: UPDATE 14.99 vs CR–IT 14.24 · Cartofi prajiti in ulei de alune 150g: UPDATE 16.99 vs CR–IT 16.24 · Cartofi prajiti in ulei de alune SuperSize 250g: UPDATE 23.99 vs CR–IT 23.24 · Punga Mica: UPDATE 0.75 vs CR–IT 0.5 · Sacosa: UPDATE 2 vs CR–IT 1.5"
+        ],
         "erori": [],
         "status": "IMPORTAT"
       },
