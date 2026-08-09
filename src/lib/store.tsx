@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppState } from './types';
 import { genereazaSeed, stareGoala } from './seed';
 import { genereazaSeedNBO } from './seed-nbo';
+import { genereazaDateReale } from './date-reale';
 import { buildCtx, type Ctx } from './engine';
 
 const KEY = 'fryday:ffi:v1';
@@ -11,7 +12,7 @@ interface Store {
   ctx: Ctx;                 // contextul de calcul, memorat o singură dată per schimbare de stare
   update: (fn: (s: AppState) => AppState) => void;
   reset: () => void;
-  incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL') => void;
+  incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL' | 'REAL') => void;
   persistent: boolean;
 }
 
@@ -103,8 +104,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     salveaza(s);
   }, [salveaza]);
 
-  const incarcaSet = useCallback((set: 'DEMO' | 'NBO' | 'GOL') => {
-    const s = set === 'NBO' ? genereazaSeedNBO() : set === 'GOL' ? stareGoala() : genereazaSeed();
+  const incarcaSet = useCallback((set: 'DEMO' | 'NBO' | 'GOL' | 'REAL') => {
+    const s = set === 'REAL' ? genereazaDateReale()
+      : set === 'NBO' ? genereazaSeedNBO()
+      : set === 'GOL' ? stareGoala()
+      : genereazaSeed();
     setState(s);
     salveaza(s);
   }, [salveaza]);

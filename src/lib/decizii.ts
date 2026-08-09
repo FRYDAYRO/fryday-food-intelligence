@@ -625,10 +625,10 @@ function statePreturiInainte(state: AppState, lunaSel: string): AppState {
   };
 }
 
-export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string): Narativ {
+export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string, locatie: string | 'RETEA' = 'RETEA'): Narativ {
   const prec = lunaPrec(lunaSel);
-  const acum = fcPerioada(state, ctx, lunaSel, 'RETEA');
-  const inainte = fcPerioada(state, ctx, prec, 'RETEA');
+  const acum = fcPerioada(state, ctx, lunaSel, locatie);
+  const inainte = fcPerioada(state, ctx, prec, locatie);
   const fcAcum = acum.fcCurat ?? acum.fcTeoretic;
   const fcInainte = inainte.fcCurat ?? inainte.fcTeoretic;
   const deltaPP = fcAcum != null && fcInainte != null ? fcAcum - fcInainte : null;
@@ -722,8 +722,8 @@ export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string): Nar
 
 export interface Raspuns { intrebare: string; raspuns: string; detaliu: string; impact: string; unde: string; }
 
-export function cockpit(state: AppState, ctx: Ctx, lunaSel: string): { raspunsuri: Raspuns[]; narativ: Narativ } {
-  const narativ = narativExecutiv(state, ctx, lunaSel);
+export function cockpit(state: AppState, ctx: Ctx, lunaSel: string, locatie: string | 'RETEA' = 'RETEA'): { raspunsuri: Raspuns[]; narativ: Narativ } {
+  const narativ = narativExecutiv(state, ctx, lunaSel, locatie);
   const dr = driveriProfit(state, ctx, lunaSel);
   const optim = optimizariMeniu(state, ctx, lunaSel);
   const cons = consumuriLuna(state, ctx, lunaSel);

@@ -147,14 +147,21 @@ export default function Setari() {
             <b className="ml-2">NBO real</b> — rețetele exacte din recipe cards NBO (07.01.2026): SAMURAI CHICKEN,
             CHICKEN LEMON, CHICKEN PESTO și Chicken Pesto Burger, cu costurile reproduse la bănuț.
             PMIX-ul din acest set este estimat, nu importat.
+            <b className="ml-2">Rapoarte reale iulie 2026</b> — nomenclator, rețetar și prețuri din xlsx-ul FC,
+            vânzările din 4.7 Sales Mix (rețea, 27–31 iul) și consumul din 2.9 (doar FRYDAY CLUJ MEMO, luna
+            întreagă), plus prețurile instore și delivery din etapa 03.08.2026. Cele două rapoarte stau pe
+            locații separate: alege „Rețea FRYDAY" sau „FRYDAY CLUJ MEMO", nu „Toată rețeaua" — agregatul
+            ar împărți consumul lunar al unei locații la vânzările pe 5 zile ale rețelei.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Btn varianta="linie" onClick={() => incarcaSet('REAL')}>Încarcă rapoartele reale (iulie 2026)</Btn>
             <Btn varianta="linie" onClick={() => incarcaSet('NBO')}>Încarcă rețetele NBO reale</Btn>
             <Btn varianta="pericol" onClick={() => incarcaSet('GOL')}>Start curat (fără date demo)</Btn>
             <Btn varianta="discret" onClick={() => incarcaSet('DEMO')}>Revino la setul demo</Btn>
             <span className="text-xs text-muted-foreground">
               Încărcat acum: <b>{
-                state.importuri.some(b => b.id === 'seed') ? 'setul demo'
+                state.importuri.some(b => b.id === 'IMP-47') ? 'rapoartele reale (iulie 2026)'
+                  : state.importuri.some(b => b.id === 'seed') ? 'setul demo'
                   : state.importuri.some(b => b.id === 'NBO1') ? 'setul NBO de referință'
                   : state.produse.length === 0 ? 'gol — pregătit pentru importuri'
                   : 'datele tale importate'
