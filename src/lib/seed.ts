@@ -29,12 +29,14 @@ export function stareGoala(): AppState {
   return {
     locatii: [], furnizori: [], ingrediente: [], produse: [], retete: [],
     vanzari: [], salesReport: [], linii29: [],
-    reguli: d.reguli, tinte: d.tinte,
+    reguli: d.reguli,
+    // țintele FRYDAY: Food Cost 45% pe rețea (nu cele din demo, legate de locații fictive)
+    tinte: [{ locatie: 'RETEA', fcCurat: 45 }],
     importuri: [], scenarii: [], pretFurnizori: [], rnd: [],
     labor: [], costuriOperare: [], reguliBusiness: d.reguliBusiness,
     // 5% e pragul potrivit pentru monitorizarea periodică a prețurilor la reîncărcarea rețetarelor;
     // setul demo păstrează 25%, unde exemplul de alertă a fost validat numeric.
-    setari: { ...d.setari, tvaImplicit: 11, pragAlertaPret: 5 },
+    setari: { ...d.setari, tvaImplicit: 11, pragAlertaPret: 5, tintaLaborPct: 17.5 },
   };
 }
 

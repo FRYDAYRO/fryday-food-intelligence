@@ -20,6 +20,8 @@ t('fără locații (se creează din PMIX)', gol.locatii.length === 0);
 t('fără istoric de importuri', gol.importuri.length === 0);
 t('păstrează TVA 11%', gol.setari.tvaImplicit === 11);
 t('păstrează regulile de clasificare și ținta', gol.reguli.length > 0 && gol.tinte.length > 0);
+t('țintele FRYDAY: FC 45% pe rețea, fără ținte pe locații demo', gol.tinte.length === 1 && gol.tinte[0].locatie === 'RETEA' && gol.tinte[0].fcCurat === 45);
+t('ținta de labor implicită: 17,5%', gol.setari.tintaLaborPct === 17.5);
 t('păstrează regulile de business', gol.reguliBusiness.length > 0);
 
 console.log('— Import pe stare goală: nimic demo nu contaminează —');
