@@ -16,6 +16,7 @@ const DIR = resolve(process.cwd(), 'date-sursa');
 const F_XLSX = join(DIR, 'FRYDAY_FC_Initial_Corectat.xlsx');
 const F_47 = join(DIR, '4.7_Sales_Mix.pdf');
 const F_29 = join(DIR, '2.9_Cluj_Memo.pdf');
+const F_CRIT = join(DIR, 'CR_IT_CENTRALIZAT.xlsx');   // etapa de prețuri 03.08.2026
 const IESIRE = resolve(process.cwd(), 'src/lib/date-reale.ts');
 
 const LUNA = '2026-07';
@@ -220,24 +221,18 @@ for (const p of produseMap.values()) {
   retete.push({ cod: p.cod, tip: 'PRODUS', denumire: p.denumire, activa: 1, versiuni: [{ nr: 1, data: VALID_DE_LA, nota: 'Import xlsx FC inițial', linii }] });
 }
 
-const produse = [...produseMap.values()].map(({ _ret, ...p }) => p);
-
-// ── 5. 4.7 Sales Mix → vânzări ─────────────────────────────────────────────
-const t47 = pdfText(F_47);
-const vanzari = [];
-const nepotrivite = [];
 const produsPeNume = new Map();
-for (const p of produse) produsPeNume.set(norm(p.denumire), p.cod);
+for (const p of produseMap.values()) produsPeNume.set(norm(p.denumire), p.cod);
 // index secundar, fără gramaj — folosit doar dacă e neambiguu
 const produsFaraGramaj = new Map();
-for (const p of produse) {
+for (const p of produseMap.values()) {
   const k = faraGramaj(norm(p.denumire));
   if (!k || produsPeNume.has(k)) continue;
   produsFaraGramaj.set(k, produsFaraGramaj.has(k) ? null : p.cod);   // null = ambiguu
 }
 // SKU-uri grupate: „Pepsi /PEPSI ZERO/7UP ZERO/LIPTON 500ML" enumeră chiar în denumire
 // variantele acoperite → înregistrăm fiecare variantă ca alias către același produs.
-for (const p of produse) {
+for (const p of produseMap.values()) {
   if (!p.denumire.includes('/')) continue;
   const parti = p.denumire.split('/').map(s => s.trim()).filter(Boolean);
   if (parti.length < 2) continue;
@@ -252,6 +247,69 @@ for (const p of produse) {
   }
 }
 
+
+
+// ── 4b. CR–IT „8. Preturi INSTORE RO" → prețul instore ─────────────────────
+// Etapa de preț intră în vigoare la 03.08.2026; păstrăm și prețul anterior, datat.
+const DATA_PRET_NOU = '2026-08-03';
+let pretIn = { potrivite: 0, total: 0, schimbate: 0 };
+const pretNepotrivit = [];
+if (existsSync(F_CRIT)) {
+  const wbc = XLSX.readFile(F_CRIT);
+  // „1. Denumiri RO": denumire ACTUALĂ → NOUĂ. Nomenclatorul nostru are denumirile
+  // actuale, iar foaia de prețuri le folosește pe cele noi → indexăm invers.
+  const redenumiri = new Map();
+  {
+    const wsD = wbc.Sheets['1. Denumiri RO'];
+    if (wsD) {
+      for (const r of XLSX.utils.sheet_to_json(wsD, { header: 1, blankrows: false }).slice(4)) {
+        const vechi = r[0] == null ? '' : String(r[0]).trim();
+        const nou = r[1] == null ? '' : String(r[1]).trim();
+        if (!vechi || !nou) continue;
+        const kNou = norm(nou.replace(/\s+D$/, ''));
+        const kVechi = norm(vechi.replace(/\s+D$/, ''));
+        if (kNou && kVechi && kNou !== kVechi) redenumiri.set(kNou, kVechi);
+      }
+    }
+  }
+  const ws = wbc.Sheets['8. Preturi INSTORE RO'];
+  if (!ws) W('CR–IT: lipsește foaia „8. Preturi INSTORE RO".');
+  else {
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false }).slice(4);
+    for (const r of rows) {
+      const den = r[0] == null ? '' : String(r[0]).trim();
+      const actual = num(r[1]);
+      const nou = num(r[2]);
+      if (!den || (actual == null && nou == null)) continue;   // rânduri-titlu de secțiune
+      pretIn.total++;
+      const k = norm(den);
+      const kAlt = redenumiri.get(k) ?? null;                 // denumirea dinaintea redenumirii
+      let cod = produsPeNume.get(k) ?? produsFaraGramaj.get(k)
+        ?? (kAlt ? (produsPeNume.get(kAlt) ?? produsFaraGramaj.get(kAlt)) : null)
+        ?? produsFaraGramaj.get(faraGramaj(k)) ?? null;
+      if (!cod) { pretNepotrivit.push(den); continue; }
+      const p = produseMap.get(cod);
+      if (!p) { pretNepotrivit.push(den); continue; }
+      pretIn.potrivite++;
+      const inVigoare = nou ?? actual;
+      const ist = [];
+      if (actual != null) ist.push({ data: VALID_DE_LA, canal: 'INSTORE', pret: actual, nota: 'preț anterior (CR–IT)' });
+      if (nou != null && actual != null && Math.abs(nou - actual) > 1e-9) {
+        ist.push({ data: DATA_PRET_NOU, canal: 'INSTORE', pret: nou, nota: 'etapa 03.08.2026 (CR–IT)' });
+        pretIn.schimbate++;
+      }
+      p.pretInstore = inVigoare;
+      if (ist.length) p.istoricPret = [...(p.istoricPret ?? []), ...ist];
+    }
+  }
+} else W('CR–IT: fișierul lipsește, prețurile instore rămân cele din FOOD COST.');
+
+const produse = [...produseMap.values()].map(({ _ret, ...p }) => p);
+
+// ── 5. 4.7 Sales Mix → vânzări ─────────────────────────────────────────────
+const t47 = pdfText(F_47);
+const vanzari = [];
+const nepotrivite = [];
 {
   // Denumirile lungi se rup pe mai multe rânduri, iar continuarea vine DUPĂ rândul
   // cu cifre (ex. „AMERICAN DUBLU CHEESEBURGER" / „new D"). O atașăm ca sufix.
@@ -396,6 +454,8 @@ console.log(`produse            ${produse.length}`);
 console.log(`rețete             ${retete.length}   (fără rețetă: ${faraReteta})`);
 console.log(`vânzări (4.7)      ${vanzari.length} rânduri, brut ${totalBrut47 ? (100 * (totalBrut47 - nepotrivitVal) / totalBrut47).toFixed(1) : '0'}% potrivit`);
 console.log(`  nepotrivite      ${nepotrivite.length} articole, ${nepotrivitVal.toFixed(2)} lei`);
+console.log(`preț instore CR–IT ${pretIn.potrivite}/${pretIn.total} potrivite, ${pretIn.schimbate} modificate la 03.08.2026`);
+if (pretNepotrivit.length) console.log(`  fără corespondent  ${pretNepotrivit.length}: ${pretNepotrivit.slice(0, 6).join(' · ')}${pretNepotrivit.length > 6 ? ' …' : ''}`);
 console.log(`linii 2.9          ${linii29Agg.length} categorii, total ${linii29Agg.reduce((s, l) => s + l.valoare, 0).toFixed(2)}`);
 console.log(`salesReport        ${salesReport.length}`);
 if (avert.length) {

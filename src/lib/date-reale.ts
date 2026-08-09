@@ -2146,7 +2146,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 8,
-        "pretDelivery": 10
+        "pretDelivery": 10,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 8,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_HAMBURGER",
@@ -2155,8 +2163,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 14,
-        "pretDelivery": 16
+        "pretInstore": 14.99,
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CHEESEBURGER",
@@ -2165,8 +2187,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 11,
-        "pretDelivery": 13
+        "pretInstore": 11.49,
+        "pretDelivery": 13,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 11,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 11.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_CHEESEBURGER",
@@ -2175,8 +2211,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 17,
-        "pretDelivery": 19
+        "pretInstore": 17.99,
+        "pretDelivery": 19,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 17.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICAN_CHEESEBURGER",
@@ -2186,7 +2236,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 10,
-        "pretDelivery": 13
+        "pretDelivery": 13,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICAN_DUBLU_CHEESEBURGER",
@@ -2196,7 +2254,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 16,
-        "pretDelivery": 19
+        "pretDelivery": 19,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 16,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICAN_TRIPLU_CHEESEBURGER",
@@ -2206,7 +2272,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 22,
-        "pretDelivery": 25
+        "pretDelivery": 25,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 22,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SMASHED_BURGER",
@@ -2215,8 +2289,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 20.99,
-        "pretDelivery": 24.5
+        "pretInstore": 21.99,
+        "pretDelivery": 24.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20.99,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 21.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_SMASHED_BURGER",
@@ -2225,8 +2313,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26.99,
-        "pretDelivery": 30.5
+        "pretInstore": 28.99,
+        "pretDelivery": 30.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 28.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "BLACK_TRUFFLE_SMASHED",
@@ -2235,8 +2337,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 22,
-        "pretDelivery": 25
+        "pretInstore": 22.99,
+        "pretDelivery": 25,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 22,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 22.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_BLACK_TRUFFLE_SMASHED",
@@ -2245,8 +2361,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 28,
-        "pretDelivery": 31
+        "pretInstore": 29.99,
+        "pretDelivery": 31,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 28,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 29.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "RED_PEPPER_SMASHED",
@@ -2255,8 +2385,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26,
-        "pretDelivery": 29
+        "pretInstore": 26.99,
+        "pretDelivery": 29,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_RED_PEPPER_SMASHED",
@@ -2265,8 +2409,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 32,
-        "pretDelivery": 35
+        "pretInstore": 33.99,
+        "pretDelivery": 35,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 32,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 33.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICAN_TRIPLU_CHEESEBURGER_LETTUCE_WRAP",
@@ -2275,8 +2433,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 22,
-        "pretDelivery": 25
+        "pretInstore": 22.99,
+        "pretDelivery": 25,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 22,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 22.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PUI_BURGER",
@@ -2286,7 +2458,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 7,
-        "pretDelivery": 10
+        "pretDelivery": 10,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 7,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_PUI_BURGER",
@@ -2295,8 +2475,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 18
+        "pretInstore": 15.49,
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CHICKEN_PESTO",
@@ -2305,8 +2499,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26,
-        "pretDelivery": 28.5
+        "pretInstore": 26.99,
+        "pretDelivery": 28.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CHICKEN_LEMON",
@@ -2315,8 +2523,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26,
-        "pretDelivery": 28
+        "pretInstore": 26.99,
+        "pretDelivery": 28,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CHICKEN_RANCH",
@@ -2335,8 +2557,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 14,
-        "pretDelivery": 16
+        "pretInstore": 14.49,
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DUBLU_CHICKEN_TRUFFLE",
@@ -2345,8 +2581,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 19,
-        "pretDelivery": 21
+        "pretInstore": 19.99,
+        "pretDelivery": 21,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 19,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 19.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CHICKEN_FRYRANCH_XREMUS",
@@ -2355,7 +2605,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 18
+        "pretInstore": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 18,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CHICKEN_FRYRANCH_LETTUCE_WRAP",
@@ -2364,8 +2622,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26,
-        "pretDelivery": 28
+        "pretInstore": 26.99,
+        "pretDelivery": 28,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CHICKEN_LEMON_LETTUCE_WRAP",
@@ -2374,8 +2646,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26,
-        "pretDelivery": 28
+        "pretInstore": 26.99,
+        "pretDelivery": 28,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 26.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TRIPLU_PUI_BURGER",
@@ -2384,7 +2670,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 20
+        "pretInstore": 20.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 20.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TRIPLU_CHICKEN_TRUFFLE",
@@ -2393,7 +2693,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 24
+        "pretInstore": 24.49,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 24,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 24.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ALMETTE_FRESH_PUI",
@@ -2403,7 +2717,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ALMETTE_BASIL_PUI",
@@ -2413,7 +2735,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ALMETTE_FRESH_PORC",
@@ -2423,7 +2753,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ALMETTE_BASIL_PORC",
@@ -2433,7 +2771,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ROSTI_SAUSAGE_BURGER",
@@ -2443,7 +2789,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20,
-        "pretDelivery": 23
+        "pretDelivery": 23,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SHRIMP_BURGER",
@@ -2452,8 +2806,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 25,
-        "pretDelivery": 28
+        "pretInstore": 25.99,
+        "pretDelivery": 28,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 25,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 25.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "BURGER_VEGETARIAN",
@@ -2462,8 +2830,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 20,
-        "pretDelivery": 23
+        "pretInstore": 20.99,
+        "pretDelivery": 23,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 20.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "4_NUGGETS",
@@ -2472,8 +2854,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 9,
-        "pretDelivery": 12
+        "pretInstore": 9.5,
+        "pretDelivery": 12,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 9,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 9.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "6_NUGGETS",
@@ -2482,8 +2878,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 16,
-        "pretDelivery": 19
+        "pretInstore": 16.5,
+        "pretDelivery": 19,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 16,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 16.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "9_NUGGETS",
@@ -2492,8 +2902,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 22,
-        "pretDelivery": 26
+        "pretInstore": 22.5,
+        "pretDelivery": 26,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 22,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 22.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "3_COUNTRY_WINGS",
@@ -2502,8 +2926,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 14.5,
-        "pretDelivery": 17
+        "pretInstore": 15,
+        "pretDelivery": 17,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "5_COUNTRY_WINGS",
@@ -2512,8 +2950,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 21,
-        "pretDelivery": 27.5
+        "pretInstore": 21.5,
+        "pretDelivery": 27.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 21,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 21.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "7_COUNTRY_WINGS",
@@ -2522,8 +2974,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26.5,
-        "pretDelivery": 30.5
+        "pretInstore": 27,
+        "pretDelivery": 30.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 27,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "9_COUNTRY_WINGS",
@@ -2532,8 +2998,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 31.5,
-        "pretDelivery": 36
+        "pretInstore": 32,
+        "pretDelivery": 36,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 31.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 32,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "3_HOT_COUNTRY_WINGS",
@@ -2542,8 +3022,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 14.5,
-        "pretDelivery": 17
+        "pretInstore": 15,
+        "pretDelivery": 17,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "5_HOT_COUNTRY_WINGS",
@@ -2552,8 +3046,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 21,
-        "pretDelivery": 27.5
+        "pretInstore": 21.5,
+        "pretDelivery": 27.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 21,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 21.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "7_HOT_COUNTRY_WINGS",
@@ -2562,8 +3070,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 26.5,
-        "pretDelivery": 30.5
+        "pretInstore": 27,
+        "pretDelivery": 30.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 26.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 27,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "9_HOT_COUNTRY_WINGS",
@@ -2572,8 +3094,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 31.5,
-        "pretDelivery": 36
+        "pretInstore": 32,
+        "pretDelivery": 36,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 31.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 32,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CRISPY_3_180_G",
@@ -2582,8 +3118,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 18,
-        "pretDelivery": 20.5
+        "pretInstore": 18.5,
+        "pretDelivery": 20.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 18,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 18.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CRISPY_4_240_G",
@@ -2592,8 +3142,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 24,
-        "pretDelivery": 28
+        "pretInstore": 24.5,
+        "pretDelivery": 28,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 24,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 24.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "HOMESTYLE_CRISPY_5_300_G",
@@ -2602,8 +3166,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 30,
-        "pretDelivery": 34
+        "pretInstore": 30.5,
+        "pretDelivery": 34,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 30,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 30.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PACK_HOMESTYLE_CRISPY_20_1200_G",
@@ -2612,8 +3190,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 100,
-        "pretDelivery": 120
+        "pretInstore": 101.24,
+        "pretDelivery": 120,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 100,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 101.24,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PACK_COUNTRY_WINGS_30_1050_G",
@@ -2622,8 +3214,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 100,
-        "pretDelivery": 120
+        "pretInstore": 101.24,
+        "pretDelivery": 120,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 100,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 101.24,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PACK_COUNTRY_HOT_WINGS_30_1050_G",
@@ -2632,8 +3238,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 100,
-        "pretDelivery": 120
+        "pretInstore": 101.24,
+        "pretDelivery": 120,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 100,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 101.24,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "REALLY_CRUNCHY_FRIES_170_G",
@@ -2642,7 +3262,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 11.9
+        "pretInstore": 12.4,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 11.9,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 12.4,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CARTOFI_CRISS_CUT_140_G",
@@ -2651,8 +3285,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 13.65
+        "pretInstore": 15.5,
+        "pretDelivery": 13.65,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CARTOFI_PRAJITI_IN_ULEI_DE_ALUNE_112_G",
@@ -2689,7 +3337,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 16.5,
-        "pretDelivery": 16.5
+        "pretDelivery": 16.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 16.5,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SALATA_COLESLAW",
@@ -2698,8 +3354,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 10
+        "pretInstore": 10.25,
+        "pretDelivery": 10,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.25,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ADD_BACON",
@@ -2728,7 +3398,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 1
+        "pretInstore": 1.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 1,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 1.5,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PUNGA_MICA",
@@ -2737,8 +3421,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 0.5,
-        "pretDelivery": 0.5
+        "pretInstore": 0.75,
+        "pretDelivery": 0.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 0.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 0.75,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SACOSA",
@@ -2747,8 +3445,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 1.5,
-        "pretDelivery": 1.5
+        "pretInstore": 2,
+        "pretDelivery": 1.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 1.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 2,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ADD_JALAPENO",
@@ -2768,7 +3480,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 7,
-        "pretDelivery": 7
+        "pretDelivery": 7,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 7,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRY_SHAKER_PARMEZAN_USTUROI",
@@ -2778,7 +3498,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5,
-        "pretDelivery": 5
+        "pretDelivery": 5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRY_SHAKER_CAJUN",
@@ -2788,7 +3516,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 5,
-        "pretDelivery": 5
+        "pretDelivery": 5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_TRUFFLE_MAYO",
@@ -2797,8 +3533,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 6,
-        "pretDelivery": 6
+        "pretInstore": 6.1,
+        "pretDelivery": 6,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 6,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_SAMURAI",
@@ -2807,8 +3557,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 6,
-        "pretDelivery": 6
+        "pretInstore": 6.1,
+        "pretDelivery": 6,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 6,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_USTUROI",
@@ -2817,8 +3581,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 6,
-        "pretDelivery": 6
+        "pretInstore": 6.1,
+        "pretDelivery": 6,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 6,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SIDE_CHEDDAR_40_ML",
@@ -2827,8 +3605,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 6,
-        "pretDelivery": 6.5
+        "pretInstore": 6.1,
+        "pretDelivery": 6.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 6,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 6.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SIDE_FRYRANCH_40_G",
@@ -2847,8 +3639,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3,
-        "pretDelivery": 3.5
+        "pretInstore": 3.1,
+        "pretDelivery": 3.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 3.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_MAYONEZA_10_ML",
@@ -2857,8 +3663,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3,
-        "pretDelivery": 3.5
+        "pretInstore": 3.1,
+        "pretDelivery": 3.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 3.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_BARBEQUE_25_G",
@@ -2867,8 +3687,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 5,
-        "pretDelivery": 5.2
+        "pretInstore": 5.1,
+        "pretDelivery": 5.2,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 5.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_HONEY_MUSTARD_25_G",
@@ -2877,8 +3711,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 5,
-        "pretDelivery": 5.2
+        "pretInstore": 5.1,
+        "pretDelivery": 5.2,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 5.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "SOS_SWEET_CHILLI_25_G",
@@ -2887,8 +3735,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 5,
-        "pretDelivery": 5.2
+        "pretInstore": 5.1,
+        "pretDelivery": 5.2,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 5.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "2_X_SOS_KETCHUP_10_ML_MAYONEZA_10_ML",
@@ -2897,7 +3759,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 5
+        "pretInstore": 5.1,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 5.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DIP_N_CHEDDAR_100_ML",
@@ -2906,8 +3782,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 13.98,
-        "pretDelivery": 13.98
+        "pretInstore": 14.08,
+        "pretDelivery": 13.98,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13.98,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DIP_N_FRYRANCH_100_G",
@@ -2916,8 +3806,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 13.98,
-        "pretDelivery": 13.98
+        "pretInstore": 14.08,
+        "pretDelivery": 13.98,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13.98,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DIP_N_FRYRANCH_250_G",
@@ -2926,8 +3830,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 25,
-        "pretDelivery": 25
+        "pretInstore": 25.1,
+        "pretDelivery": 25,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 25,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 25.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DIP_N_FRYRANCH_400_G",
@@ -2936,8 +3854,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 35,
-        "pretDelivery": 35
+        "pretInstore": 35.1,
+        "pretDelivery": 35,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 35,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 35.1,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DIP_N_TRUFFLE_100_G",
@@ -2946,8 +3878,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 13.98,
-        "pretDelivery": 13.98
+        "pretInstore": 14.08,
+        "pretDelivery": 13.98,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13.98,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.08,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "APPLE_PIE_TOFFIE",
@@ -2967,7 +3913,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 10,
-        "pretDelivery": 12
+        "pretDelivery": 12,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "NUTELLA_BURGER_CAPSUNI",
@@ -2977,7 +3931,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 12,
-        "pretDelivery": 14
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "NUTELLA_BURGER_BANANE",
@@ -2987,7 +3949,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 12,
-        "pretDelivery": 14
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_BISCOFF_300_G",
@@ -3060,7 +4030,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3
+        "pretInstore": 3,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ADD_ON_BANANE",
@@ -3069,7 +4047,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3
+        "pretInstore": 3,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TOPPING_BISCOFF",
@@ -3078,7 +4064,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 4
+        "pretInstore": 4,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 4,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TOPPING_OREO",
@@ -3087,7 +4081,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 4
+        "pretInstore": 4,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 4,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TOPPING_KITKAT",
@@ -3096,7 +4098,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 4
+        "pretInstore": 4,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 4,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TOPPING_APPLE_CINNAMON",
@@ -3105,7 +4115,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3
+        "pretInstore": 3,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ADD_NUTELLA_MILKSHAKE",
@@ -3123,7 +4141,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 3
+        "pretInstore": 3,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 3,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_VANILIE_200_G",
@@ -3133,7 +4159,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 12,
-        "pretDelivery": 14
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_CIOCOLATA_200_G",
@@ -3143,7 +4177,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_CAPSUNI_200_G",
@@ -3153,7 +4195,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_BANANE_200_G",
@@ -3163,7 +4213,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_BISCOFF_210_G",
@@ -3173,7 +4231,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_APPLE_CINNAMON_220_G",
@@ -3183,7 +4249,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 14,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILKSHAKE_CIRESE_CAN",
@@ -3210,7 +4284,15 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 11,
         "activ": true,
-        "pretInstore": 19.9
+        "pretInstore": 19.9,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 19.9,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PEPSI_PEPSI_ZERO_7_UP_ZERO_MIRINDA_ZERO_LIPTON_2",
@@ -3237,8 +4319,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 11
+        "pretInstore": 10.99,
+        "pretDelivery": 11,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "APA_MINERALA_AQUA_CARPATICA",
@@ -3247,8 +4343,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 11
+        "pretInstore": 10.99,
+        "pretDelivery": 11,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PRIGAT_PORTOCALE_CAPSUNI_BANANE",
@@ -3257,8 +4367,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 12
+        "pretInstore": 10.99,
+        "pretDelivery": 12,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DR_PEPPER",
@@ -3267,8 +4391,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 11,
-        "pretDelivery": 12
+        "pretInstore": 11.99,
+        "pretDelivery": 12,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 11,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 11.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "RED_BULL",
@@ -3277,8 +4415,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 17
+        "pretInstore": 15.99,
+        "pretDelivery": 17,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CORONA",
@@ -3307,8 +4459,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 17
+        "pretInstore": 15.99,
+        "pretDelivery": 17,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRYZZZ_CAPSUNI",
@@ -3317,7 +4483,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13
+        "pretInstore": 13.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRYZZZ_GRAPEFRUIT",
@@ -3326,7 +4506,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13
+        "pretInstore": 13.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRYZZZ_PINACOLADA",
@@ -3335,7 +4529,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13
+        "pretInstore": 13.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "FRYZZZ_PEPENE_ROSU",
@@ -3344,7 +4552,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13
+        "pretInstore": 13.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PEPSI_CU_GUST_DE_C_P_UNI_I_FRI_C",
@@ -3353,8 +4575,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 9.5,
-        "pretDelivery": 9.5
+        "pretInstore": 10.49,
+        "pretDelivery": 9.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 9.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PEPSI_CU_GUST_DE_NGHE_AT_DE_VANILIE",
@@ -3363,8 +4599,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 9.5,
-        "pretDelivery": 9.5
+        "pretInstore": 10.49,
+        "pretDelivery": 9.5,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 9.5,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.49,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "DOZA_PEPSI_ZERO",
@@ -3392,7 +4642,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PROFITEROL_CIOCOLATA",
@@ -3402,7 +4660,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CARROT_CAKE",
@@ -3412,7 +4678,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TORT_PUFOS_CAPSUNI",
@@ -3422,7 +4696,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PRAJITURA_VANILIE_BEZEA",
@@ -3432,7 +4714,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 15,
-        "pretDelivery": 16
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TIRAMISU",
@@ -3442,7 +4732,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PRAJITURA_MASCARPONE_CAPSUNI",
@@ -3452,7 +4750,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "PRAJITURA_MARITOZZO",
@@ -3462,7 +4768,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MILLEFOGLIE",
@@ -3472,7 +4786,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 17,
-        "pretDelivery": 18
+        "pretDelivery": 18,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 17,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ESPRESSO",
@@ -3481,8 +4803,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 8,
-        "pretDelivery": 9
+        "pretInstore": 8.99,
+        "pretDelivery": 9,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 8,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 8.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ESPRESSO_GRANDE",
@@ -3491,8 +4827,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 11
+        "pretInstore": 10.99,
+        "pretDelivery": 11,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "LATTE_MACHIATO",
@@ -3501,8 +4851,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13,
-        "pretDelivery": 14
+        "pretInstore": 13.99,
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICANO",
@@ -3511,8 +4875,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10,
-        "pretDelivery": 11
+        "pretInstore": 10.99,
+        "pretDelivery": 11,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "AMERICANO_GRANDE",
@@ -3521,8 +4899,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13,
-        "pretDelivery": 14
+        "pretInstore": 12.99,
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 12.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CAPPUCINO",
@@ -3531,8 +4923,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 12,
-        "pretDelivery": 13
+        "pretInstore": 12.99,
+        "pretDelivery": 13,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 12.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CAPPUCINO_GRANDE",
@@ -3541,8 +4947,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 14,
-        "pretDelivery": 15
+        "pretInstore": 14.99,
+        "pretDelivery": 15,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CAFFE_LATTE",
@@ -3551,8 +4971,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 12,
-        "pretDelivery": 14
+        "pretInstore": 12.99,
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 12,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 12.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CAFFE_LATTE_GRANDE",
@@ -3561,8 +4995,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 14,
-        "pretDelivery": 15
+        "pretInstore": 14.99,
+        "pretDelivery": 15,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 14,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 14.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CIOCO_CAPPUCINO",
@@ -3571,8 +5019,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13,
-        "pretDelivery": 14
+        "pretInstore": 13.99,
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CIOCO_CAPPUCINO_GRANDE",
@@ -3581,8 +5043,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 16
+        "pretInstore": 15.99,
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "VANILLA_LATTE",
@@ -3591,8 +5067,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13,
-        "pretDelivery": 14
+        "pretInstore": 13.99,
+        "pretDelivery": 14,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "VANILLA_LATTE_GRANDE",
@@ -3601,8 +5091,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 16
+        "pretInstore": 15.99,
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "CARAMEL_MACHIATO",
@@ -3611,8 +5115,22 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 15,
-        "pretDelivery": 16
+        "pretInstore": 15.99,
+        "pretDelivery": 16,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 15,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 15.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "ICED_COFFEE_LATTE",
@@ -3621,7 +5139,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 13
+        "pretInstore": 13.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 13,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 13.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "LIMONADA_350_ML",
@@ -3630,7 +5162,21 @@ export function genereazaDateReale(): AppState {
         "tip": "SIMPLU",
         "tva": 21,
         "activ": true,
-        "pretInstore": 10
+        "pretInstore": 10.99,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 10,
+            "nota": "preț anterior (CR–IT)"
+          },
+          {
+            "data": "2026-08-03",
+            "canal": "INSTORE",
+            "pret": 10.99,
+            "nota": "etapa 03.08.2026 (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "LIMONADA_400_ML",
@@ -3649,7 +5195,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "TIRAMISU_CU_FISTIC",
@@ -3659,7 +5213,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 20,
-        "pretDelivery": 20
+        "pretDelivery": 20,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 20,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "MANDARINA_CU_SORBET",
@@ -3669,7 +5231,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 21,
-        "pretDelivery": 21
+        "pretDelivery": 21,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 21,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "JUNIOR_MEAL_HAMBURGER",
@@ -3679,7 +5249,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 39,
-        "pretDelivery": 39
+        "pretDelivery": 39,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 39,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "JUNIOR_MEAL_PUI_BURGER",
@@ -3689,7 +5267,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 39,
-        "pretDelivery": 39
+        "pretDelivery": 39,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 39,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       },
       {
         "cod": "JUNIOR_MEAL_4_NUGGETS",
@@ -3699,7 +5285,15 @@ export function genereazaDateReale(): AppState {
         "tva": 11,
         "activ": true,
         "pretInstore": 39,
-        "pretDelivery": 39
+        "pretDelivery": 39,
+        "istoricPret": [
+          {
+            "data": "2026-07-01",
+            "canal": "INSTORE",
+            "pret": 39,
+            "nota": "preț anterior (CR–IT)"
+          }
+        ]
       }
     ],
     "retete": [
