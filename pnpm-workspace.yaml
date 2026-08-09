@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+# Permite rularea scriptului de build al esbuild (necesar pentru vite și suita de teste).
+onlyBuiltDependencies:
+  - esbuild
