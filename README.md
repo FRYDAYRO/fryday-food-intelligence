@@ -99,6 +99,8 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 
 ## Publicarea online
 
+**Aplicația live: https://valentin845.github.io/fryday-fi/** — build-ul de producție, publicat din repository-ul public `fryday-fi` (doar aplicația compilată; sursa și testele rămân în acest repository privat). Republicare după modificări: `GH_TOKEN=... bash scripts/publica-app.sh`.
+
 Aplicația e un singur fișier static — orice găzduire de fișiere statice o poate servi.
 
 **GitHub Pages (recomandat, automat).** Workflow-ul `.github/workflows/pages.yml` e inclus, iar `scripts/publica.sh` face totul dintr-o comandă:
