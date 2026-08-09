@@ -7,8 +7,8 @@ import { Titlu, cx } from '../lib/ui';
 export default function ExecutiveCockpit() {
   const { state, ctx } = useStore();
   const { sel } = useSel();
-  const { raspunsuri, narativ } = useMemo(() => cockpit(state, ctx, sel.luna), [state, ctx, sel.luna]);
-  const fc = useMemo(() => fcPerioada(state, ctx, sel.luna, 'RETEA'), [state, ctx, sel.luna]);
+  const { raspunsuri, narativ } = useMemo(() => cockpit(state, ctx, sel.luna, sel.locatie), [state, ctx, sel.luna, sel.locatie]);
+  const fc = useMemo(() => fcPerioada(state, ctx, sel.luna, sel.locatie), [state, ctx, sel.luna, sel.locatie]);
 
   const inTarget = fc.tinta != null && (fc.fcCurat ?? fc.fcTeoretic ?? 0) <= fc.tinta;
 

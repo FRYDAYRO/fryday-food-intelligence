@@ -117,7 +117,7 @@ function Continut() {
 }
 
 export default function App() {
-  const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
+  const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'NET', vedere: 'TOTAL' });
   return (
     <StoreProvider>
       <SelCtx.Provider value={{ sel, setSel }}>

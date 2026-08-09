@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AppState } from './types';
-import { genereazaSeed } from './seed';
+import { genereazaDateReale } from './date-reale';
 import { buildCtx, type Ctx } from './engine';
 
-const KEY = 'fryday:ffi:v1';
+// v2: datele demo au fost înlocuite cu rapoartele reale (iulie 2026)
+const KEY = 'fryday:ffi:v2';
 
 interface Store {
   state: AppState;
@@ -45,7 +46,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (r?.value) {
             const parsed = JSON.parse(r.value) as AppState;
             // migrare ușoară: câmpuri adăugate în versiuni noi primesc valori implicite
-            const d = genereazaSeed();
+            const d = genereazaDateReale();
             parsed.setari = { ...d.setari, ...parsed.setari };
             parsed.scenarii = parsed.scenarii ?? [];
             parsed.salesReport = parsed.salesReport ?? [];
@@ -61,7 +62,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setPersistent(true);
         }
       } catch { /* cheie inexistentă sau storage indisponibil */ }
-      setState(genereazaSeed());
+      setState(genereazaDateReale());
     })();
   }, []);
 
@@ -85,7 +86,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [salveaza]);
 
   const reset = useCallback(() => {
-    const s = genereazaSeed();
+    const s = genereazaDateReale();
     setState(s);
     salveaza(s);
   }, [salveaza]);
@@ -117,7 +118,7 @@ import type { Vedere } from './types';
 
 export interface Selectie { luna: string; locatie: string | 'RETEA'; vedere: Vedere; }
 export const SelCtx = createContext<{ sel: Selectie; setSel: (s: Selectie) => void }>({
-  sel: { luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' },
+  sel: { luna: '2026-07', locatie: 'NET', vedere: 'TOTAL' },
   setSel: () => undefined,
 });
 export const useSel = () => useContext(SelCtx);
