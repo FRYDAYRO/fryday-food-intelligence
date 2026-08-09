@@ -118,10 +118,9 @@ function TabImport() {
   const alegeFisier = async (f: File) => {
     setRezumat(null);
     try {
-      const p = await citesteFisier(f);
-      setParsat(p);
+      const p = /\.pdf$/i.test(f.name) ? null : await citesteFisier(f);
       setNumeFisier(f.name);
-      setTip(detecteazaTip(p.antete, f.name));
+      if (p) { setParsat(p); setTip(detecteazaTip(p.antete, f.name)); }
       setMapare({});
       try {
         const a = await analizeazaFisier(f);
@@ -140,7 +139,7 @@ function TabImport() {
     setAnaliza(null);
     setJurnalAuto(null);
       setAnaliza(null);
-      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls și .csv.');
+      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls, .csv și .pdf (raportul 4.7).');
     }
   };
 
@@ -196,9 +195,9 @@ function TabImport() {
       >
         <div className="font-semibold">Trage fișierele aici (poți selecta mai multe) sau</div>
         <Btn className="mt-2" onClick={() => fileRef.current?.click()}>Alege fișier…</Btn>
-        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden multiple
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.pdf" hidden multiple
           onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length > 1) void alegeLot(fs); else if (fs[0]) void alegeFisier(fs[0]); }} />
-        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
+        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 (Excel sau PDF) · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
       </div>
 
       {schimbari && (

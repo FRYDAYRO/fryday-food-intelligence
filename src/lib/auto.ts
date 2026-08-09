@@ -3,6 +3,8 @@
 // iar numele coloanelor nu seamănă cu nimic cunoscut. Când numele nu ajută, se uită la conținut.
 import * as XLSX from 'xlsx';
 import { mapeazaAntete, type Parsat, type TipImport } from './importer';
+import { matriceDinText, parseSalesMix } from './salesmix';
+import { textDinPdf } from './pdf';
 import { norm } from './engine';
 import { umNBO } from './nbo';
 
@@ -310,7 +312,53 @@ function analizeazaFoaie(foaie: string, matrice: unknown[][], numeFisier: string
 }
 
 /** Analizează toate foile unui fișier și spune, pentru fiecare, ce este și cum se mapează. */
+/** PDF: singurul format PDF din fluxul FRYDAY e raportul 4.7 Sales Mix — se validează pe propriile totaluri. */
+async function analizeazaPdf(file: File): Promise<FoaieAnalizata[]> {
+  let text: string;
+  try {
+    text = await textDinPdf(await file.arrayBuffer());
+  } catch (e) {
+    console.warn('Citirea PDF a eșuat:', e);
+    return [{
+      foaie: 'PDF', randAntet: 0, parsat: { foaie: 'PDF', antete: [], randuri: [], matrice: [] },
+      tip: null, mapare: {}, dinContinut: [], lipsa: [], incredere: 0,
+      note: ['Citirea PDF nu e disponibilă în varianta fișier-unic deschisă de pe disc. '
+        + 'Folosește versiunea online (aceeași aplicație) sau exportul Excel al raportului — se importă identic.'],
+    }];
+  }
+  const matrice = matriceDinText(text);
+  const sm = parseSalesMix(matrice);
+  const note: string[] = [];
+  const q = sm.linii.reduce((s, l) => s + l.qty, 0);
+  const e = sm.linii.reduce((s, l) => s + l.ext, 0);
+  const validat = sm.totalQty != null && sm.totalExt != null
+    && q === sm.totalQty && Math.abs(e - sm.totalExt) < 0.5;
+  if (sm.perioadaDe) note.push(`Perioada raportului: ${sm.perioadaDe} → ${sm.perioadaLa}`);
+  if (sm.magazine.length === 1) note.push(`Restaurant: ${sm.magazine[0]}`);
+  else if (sm.magazine.length > 1) note.push(`Raport agregat pe ${sm.magazine.length} restaurante`);
+  note.push(validat
+    ? `Verificat pe totalul raportului: ${q.toLocaleString('ro-RO')} buc · ${e.toLocaleString('ro-RO', { maximumFractionDigits: 2 })} lei — diferență zero`
+    : sm.totalQty != null
+      ? `ATENȚIE: totalul calculat (${q.toLocaleString('ro-RO')} buc) diferă de cel declarat (${sm.totalQty.toLocaleString('ro-RO')}) — verifică PDF-ul`
+      : 'PDF fără rând de total — nu s-a putut verifica încrucișat');
+  if (!sm.linii.length) {
+    return [{
+      foaie: 'PDF', randAntet: 0, parsat: { foaie: 'PDF', antete: [], randuri: [], matrice },
+      tip: null, mapare: {}, dinContinut: [], lipsa: ['linii de vânzare'],
+      incredere: 0,
+      note: ['Nicio linie de vânzare recognoscibilă — PDF-urile acceptate sunt rapoartele 4.7 Sales Mix. Pentru alte date, folosește exportul Excel/CSV.'],
+    }];
+  }
+  return [{
+    foaie: `PDF · ${sm.linii.length} linii de vânzare`, randAntet: 0,
+    parsat: { foaie: 'PDF', antete: [], randuri: [], matrice },
+    tip: 'SALES_MIX', mapare: {}, dinContinut: [], lipsa: [],
+    incredere: validat ? 100 : 70, note,
+  }];
+}
+
 export async function analizeazaFisier(file: File): Promise<FoaieAnalizata[]> {
+  if (/\.pdf$/i.test(file.name)) return analizeazaPdf(file);
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   const foi: Record<string, unknown[][]> = {};
