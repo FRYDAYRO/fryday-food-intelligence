@@ -639,7 +639,17 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       }
       if (topNepot.length > 25) avert.push(`… și alte ${topNepot.length - 25} denumiri nemapate`);
 
-      stateNou = { ...state, produse, locatii, vanzari };
+      // ——— maparea asistată: lista persistentă a denumirilor fără produs
+      const rezolvabile = new Set([...dupaCheie.keys()]);
+      const nemapateNoi = [
+        // intrările vechi rămân doar dacă încă nu se pot rezolva și nu reapar în importul curent
+        ...state.nemapate.filter(n => !rezolvabile.has(cheieDenumire(n.denumire)) && !nepotrivite.has(n.denumire)),
+        ...[...nepotrivite.entries()].map(([den, v]) => ({
+          denumire: den, categorie: v.categorie, cant: v.cant, valoare: v.valoare, fisier: numeFisier,
+        })),
+      ].sort((a, b) => b.valoare - a.valoare);
+
+      stateNou = { ...state, produse, locatii, vanzari, nemapate: nemapateNoi };
       perioade.add(data.slice(0, 7));
     }
   } else if (tip === 'PMIX') {

@@ -126,6 +126,8 @@ export default function Dashboard() {
       </Titlu>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi eticheta="Vânzări nete" valoare={`${fmtInt(fc.net)} lei`} sub={`numitor: ${fc.numitor}`} />
+        <Kpi eticheta="Comision Delivery" valoare={fc.comisionLei > 0 ? `−${fmtInt(fc.comisionLei)} lei` : '—'}
+          sub={fc.comisionLei > 0 ? `${state.setari.comisionDeliveryPct ?? 0}% din ${fmtInt(fc.netDelivery)} lei Delivery · profit real ${fc.profitReal != null ? fmtInt(fc.profitReal) : '—'} lei` : 'fără vânzări Delivery în perioadă'} />
         <Kpi eticheta="Food Cost teoretic" valoare={fmtPct(fc.fcTeoreticAcoperit)}
           sub={(fc.acoperire ?? 100) < 99.5
             ? `pe ${fmtPct(fc.acoperire, 1)} din vânzări care au rețetă · restul nu are cost calculabil`

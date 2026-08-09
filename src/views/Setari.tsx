@@ -65,6 +65,10 @@ export default function Setari() {
             <In type="number" step="0.1" defaultValue={state.setari.tintaLaborPct ?? 24}
               onBlur={e => update(s => ({ ...s, setari: { ...s.setari, tintaLaborPct: Number(e.target.value) || s.setari.tintaLaborPct } }))} />
           </Camp>
+          <Camp eticheta="Comision Delivery (agregator) %">
+            <In type="number" step="0.5" defaultValue={state.setari.comisionDeliveryPct ?? 16}
+              onBlur={e => update(s => ({ ...s, setari: { ...s.setari, comisionDeliveryPct: Number(e.target.value) >= 0 ? Number(e.target.value) : s.setari.comisionDeliveryPct } }))} />
+          </Camp>
           <p className="mt-2 text-xs text-muted-foreground">Prag informativ pentru controlul totalurilor.</p>
         </div>
       </div>

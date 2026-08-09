@@ -45,6 +45,7 @@ export function migreaza(brut: unknown): AppState {
   p.labor = p.labor ?? d.labor;
   p.costuriOperare = p.costuriOperare ?? d.costuriOperare;
   p.reguliBusiness = p.reguliBusiness ?? d.reguliBusiness;
+  p.nemapate = p.nemapate ?? [];
   return p;
 }
 

@@ -126,8 +126,17 @@ export interface VariantaRnD {
 export interface Setari {
   tvaImplicit: number;
   tintaLaborPct?: number;         // ținta de Labor % din vânzări nete (pentru Prime Cost)
+  comisionDeliveryPct?: number;   // comisionul agregatorului pe vânzările Delivery (FRYDAY: 16%)
   tolerantaReconciliere: number;  // %
   pragAlertaPret: number;         // %
+}
+
+export interface Nemapat {
+  denumire: string;          // denumirea POS care nu s-a potrivit cu nomenclatorul
+  categorie: string;
+  cant: number;              // din ultimul import în care a apărut
+  valoare: number;           // lei bruti — criteriul de prioritizare
+  fisier: string;
 }
 
 export interface AppState {
@@ -148,5 +157,6 @@ export interface AppState {
   costuriOperare: CostOperare[];
   reguliBusiness: RegulaBusiness[];
   rnd: VariantaRnD[];
+  nemapate: Nemapat[];       // denumirile din Sales Mix rămase fără produs — pentru maparea asistată
   setari: Setari;
 }

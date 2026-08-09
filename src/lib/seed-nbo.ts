@@ -175,13 +175,13 @@ export function genereazaSeedNBO(): AppState {
     }],
     scenarii: [],
     pretFurnizori: [],
-    rnd: [],
+    rnd: [], nemapate: [],
     labor: [],
     costuriOperare: [],
     reguliBusiness: [
       { id: 'R1', tip: 'FC_MAX_CATEGORIE', nume: 'Food Cost maxim pe categorie', valoare: 32, activ: true },
       { id: 'R2', tip: 'MARJA_MIN', nume: 'Marjă minimă pe produs', valoare: 62, activ: true },
     ],
-    setari: { tvaImplicit: TVA_FRYDAY, tintaLaborPct: 24, pragAlertaPret: 5, tolerantaReconciliere: 1 },
+    setari: { tvaImplicit: TVA_FRYDAY, tintaLaborPct: 17.5, comisionDeliveryPct: 16, pragAlertaPret: 5, tolerantaReconciliere: 1 },
   };
 }

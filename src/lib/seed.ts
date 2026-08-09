@@ -32,11 +32,11 @@ export function stareGoala(): AppState {
     reguli: d.reguli,
     // țintele FRYDAY: Food Cost 45% pe rețea (nu cele din demo, legate de locații fictive)
     tinte: [{ locatie: 'RETEA', fcCurat: 45 }],
-    importuri: [], scenarii: [], pretFurnizori: [], rnd: [],
+    importuri: [], scenarii: [], pretFurnizori: [], rnd: [], nemapate: [],
     labor: [], costuriOperare: [], reguliBusiness: d.reguliBusiness,
     // 5% e pragul potrivit pentru monitorizarea periodică a prețurilor la reîncărcarea rețetarelor;
     // setul demo păstrează 25%, unde exemplul de alertă a fost validat numeric.
-    setari: { ...d.setari, tvaImplicit: 11, pragAlertaPret: 5, tintaLaborPct: 17.5 },
+    setari: { ...d.setari, tvaImplicit: 11, pragAlertaPret: 5, tintaLaborPct: 17.5, comisionDeliveryPct: 16 },
   };
 }
 
@@ -323,7 +323,7 @@ export function genereazaSeed(): AppState {
       { furnizor: 'F06', ingredient: 'A002', pret: 0.82, validDeLa: '2026-07-12' },
       { furnizor: 'F06', ingredient: 'A001', pret: 0.23, validDeLa: '2026-07-12' },
     ],
-    rnd: [],
+    rnd: [], nemapate: [],
     importuri: [{
       id: 'seed', tip: 'DATE DEMO', fisier: 'seed intern', data: new Date().toISOString(),
       randuri: vanzari.length, importate: vanzari.length, avertismente: [], erori: [], status: 'IMPORTAT',
@@ -332,6 +332,6 @@ export function genereazaSeed(): AppState {
     // TVA implicit 11% (cota FRYDAY confirmată) — se aplică produselor create de acum înainte:
     // importuri, R&D Lab, produse noi din simulări. Produsele demo își păstrează cota lor de 10%,
     // pentru că exemplul numeric de referință (Crispy Burger, FC 18,4%) a fost validat la acea cotă.
-    setari: { tvaImplicit: 11, tintaLaborPct: 24, tolerantaReconciliere: 0.5, pragAlertaPret: 25 },
+    setari: { tvaImplicit: 11, tintaLaborPct: 24, comisionDeliveryPct: 16, tolerantaReconciliere: 0.5, pragAlertaPret: 25 },
   };
 }

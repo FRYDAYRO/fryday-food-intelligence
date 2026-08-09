@@ -72,7 +72,7 @@ export default function Topuri() {
   );
 }
 
-type Cheie = 'denumire' | 'buc' | 'net' | 'cost' | 'fc' | 'profit' | 'marja' | 'mix';
+type Cheie = 'denumire' | 'buc' | 'net' | 'cost' | 'fc' | 'fcReal' | 'comision' | 'profit' | 'profitReal' | 'marja' | 'mix';
 
 // Tabelul cu TOATE produsele, sortabil — completează topurile, care arată doar primele 8.
 function TabelComplet({ randuri, instore, delivery }: { randuri: RandProdus[]; instore: RandProdus[]; delivery: RandProdus[] }) {
@@ -110,7 +110,7 @@ function TabelComplet({ randuri, instore, delivery }: { randuri: RandProdus[]; i
         </div>
       }>Toate produsele — {lista.length} poziții</Titlu>
       <T dens>
-        <thead><tr><Th>#</Th>{col('denumire', 'Produs', false)}<Th>Categorie</Th>{col('buc', 'Bucăți')}{col('net', 'Vânzări nete')}{col('cost', 'Cost')}{col('fc', 'Food Cost %')}{col('profit', 'Profit')}{col('marja', 'Marjă')}{col('mix', 'Mix %')}</tr></thead>
+        <thead><tr><Th>#</Th>{col('denumire', 'Produs', false)}<Th>Categorie</Th>{col('buc', 'Bucăți')}{col('net', 'Vânzări nete')}{col('cost', 'Cost')}{col('fc', 'Food Cost %')}{col('fcReal', 'FC real')}{col('comision', 'Comision')}{col('profit', 'Profit')}{col('profitReal', 'Profit real')}{col('marja', 'Marjă')}{col('mix', 'Mix %')}</tr></thead>
         <tbody>
           {lista.map((r, i) => (
             <tr key={r.cod} className={r.faraReteta ? 'bg-danger/5' : ''}>
@@ -120,8 +120,11 @@ function TabelComplet({ randuri, instore, delivery }: { randuri: RandProdus[]; i
               <Td dr>{fmtInt(r.buc)}</Td>
               <Td dr>{fmtInt(r.net)}</Td>
               <Td dr>{fmtInt(r.cost)}</Td>
-              <Td dr className={cx(r.fc != null && r.fc > 40 ? 'text-danger font-semibold' : r.fc != null && r.fc < 25 ? 'text-ok' : '')}>{fmtPct(r.fc)}</Td>
+              <Td dr className={cx(r.fc != null && r.fc > 45 ? 'text-danger font-semibold' : r.fc != null && r.fc < 30 ? 'text-ok' : '')}>{fmtPct(r.fc)}</Td>
+              <Td dr className="text-muted-foreground">{r.comision > 0 ? fmtPct(r.fcReal) : '—'}</Td>
+              <Td dr className="text-muted-foreground">{r.comision > 0 ? `−${fmtInt(r.comision)}` : '—'}</Td>
               <Td dr>{fmtInt(r.profit)}</Td>
+              <Td dr className="font-semibold">{fmtInt(r.profitReal)}</Td>
               <Td dr>{fmtPct(r.marja)}</Td>
               <Td dr>{fmtPct(r.mix)}</Td>
             </tr>
@@ -130,13 +133,15 @@ function TabelComplet({ randuri, instore, delivery }: { randuri: RandProdus[]; i
             <Td /><Td>TOTAL</Td><Td />
             <Td dr>{fmtInt(tot.buc)}</Td><Td dr>{fmtInt(tot.net)}</Td><Td dr>{fmtInt(tot.cost)}</Td>
             <Td dr>{fmtPct(netAcoperit > 0 ? (costAcoperit / netAcoperit) * 100 : null)}</Td>
-            <Td dr>{fmtInt(tot.net - tot.cost)}</Td><Td dr /><Td dr />
+            <Td dr /><Td dr className="text-muted-foreground">−{fmtInt(lista.reduce((a, r) => a + r.comision, 0))}</Td>
+            <Td dr>{fmtInt(tot.net - tot.cost)}</Td>
+            <Td dr className="font-semibold">{fmtInt(lista.reduce((a, r) => a + r.profitReal, 0))}</Td><Td dr /><Td dr />
           </tr>
         </tbody>
       </T>
       <p className="mt-1.5 text-xs text-muted-foreground">
         Food Cost-ul de pe rândul TOTAL se calculează pe vânzările produselor care au rețetă ({fmtInt(netAcoperit)} din {fmtInt(tot.net)} lei).
-        Rândurile roșii sunt produse vândute fără rețetă — nu au cost și trebuie completate. Click pe antet pentru sortare, în ambele sensuri.
+        FC real și Profit real scad comisionul agregatorului din partea Delivery (pe InStore nu se aplică). Rândurile roșii sunt produse vândute fără rețetă — nu au cost și trebuie completate. Click pe antet pentru sortare, în ambele sensuri.
       </p>
     </div>
   );

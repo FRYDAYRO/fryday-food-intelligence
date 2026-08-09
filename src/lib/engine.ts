@@ -22,10 +22,12 @@ export interface Ctx {
   ingrediente: Map<string, Ingredient>;
   retete: Map<string, Reteta>;
   produse: Map<string, Produs>;
+  comisionDeliveryPct: number;    // comisionul agregatorului, aplicat vânzărilor nete Delivery
 }
 
-export function buildCtx(s: Pick<AppState, 'ingrediente' | 'retete' | 'produse'>): Ctx {
+export function buildCtx(s: Pick<AppState, 'ingrediente' | 'retete' | 'produse'> & { setari?: { comisionDeliveryPct?: number } }): Ctx {
   return {
+    comisionDeliveryPct: s.setari?.comisionDeliveryPct ?? 0,
     ingrediente: new Map(s.ingrediente.map(i => [i.cod, i])),
     retete: new Map(s.retete.map(r => [r.cod, r])),
     produse: new Map(s.produse.map(p => [p.cod, p])),
@@ -182,23 +184,26 @@ export interface Agregat {
   buc: number; net: number; cost: number;
   costFood: number; costPaper: number; paperPct: number | null;
   fc: number | null; profit: number; marja: number | null;
-  acoperire: number | null; netFaraReteta: number;
+  acoperire: number | null; netFaraReteta: number; netDelivery: number;
 }
 
 export function agregatePerioada(vanzari: VanzareFapt[], ctx: Ctx, f: FiltruPerioada,
   memo: Map<string, unknown> = new Map()): Agregat {
-  let buc = 0, net = 0, cost = 0, costFood = 0, costPaper = 0, netCuReteta = 0;
+  let buc = 0, net = 0, cost = 0, costFood = 0, costPaper = 0, netCuReteta = 0, netDelivery = 0;
   for (const v of vanzari) {
     if (luna(v.data) !== f.luna) continue;
     if (f.locatie && v.locatie !== f.locatie) continue;
     if (f.vedere !== 'TOTAL' && v.canal !== f.vedere) continue;
     buc += v.cant; net += v.net;
     const c = costProdus(v.produs, v.canal, ctx, v.data, memo);
-    if (c) { cost += c.total * v.cant; costFood += c.food * v.cant; costPaper += c.paper * v.cant; netCuReteta += v.net; }
+    if (c) {
+      cost += c.total * v.cant; costFood += c.food * v.cant; costPaper += c.paper * v.cant; netCuReteta += v.net;
+      if (v.canal === 'DELIVERY') netDelivery += v.net;   // baza comisionului: partea acoperită de rețetar
+    }
   }
   const profit = net - cost;
   return {
-    buc, net, cost, costFood, costPaper,
+    buc, net, cost, costFood, costPaper, netDelivery,
     paperPct: netCuReteta > 0 ? (costPaper / netCuReteta) * 100 : null,
     profit,
     fc: netCuReteta > 0 ? (cost / netCuReteta) * 100 : null,
@@ -219,17 +224,22 @@ export interface RandProdus {
   mixCost: number;                // % din Food Cost-ul total
   mixFood: number;                // % din costul ingredientelor (food)
   rang: number; faraReteta: boolean;
+  netDelivery: number;            // partea de vânzări nete de pe Delivery (baza comisionului)
+  comision: number;               // lei plătiți agregatorului
+  profitReal: number;             // profit − comision: economia reală, nu cea aparentă
+  fcReal: number | null;          // cost / (net − comision): Food Cost pe banii care chiar rămân
 }
 
 export function perProdus(vanzari: VanzareFapt[], ctx: Ctx, f: FiltruPerioada): RandProdus[] {
   const memo = new Map<string, unknown>();
-  const acc = new Map<string, { buc: number; net: number; cost: number; food: number; paper: number; fara: boolean }>();
+  const acc = new Map<string, { buc: number; net: number; netD: number; cost: number; food: number; paper: number; fara: boolean }>();
   for (const v of vanzari) {
     if (luna(v.data) !== f.luna) continue;
     if (f.locatie && v.locatie !== f.locatie) continue;
     if (f.vedere !== 'TOTAL' && v.canal !== f.vedere) continue;
-    const a = acc.get(v.produs) ?? { buc: 0, net: 0, cost: 0, food: 0, paper: 0, fara: false };
+    const a = acc.get(v.produs) ?? { buc: 0, net: 0, netD: 0, cost: 0, food: 0, paper: 0, fara: false };
     a.buc += v.cant; a.net += v.net;
+    if (v.canal === 'DELIVERY') a.netD += v.net;
     const c = costProdus(v.produs, v.canal, ctx, v.data, memo);
     if (c) { a.cost += c.total * v.cant; a.food += c.food * v.cant; a.paper += c.paper * v.cant; } else a.fara = true;
     acc.set(v.produs, a);
@@ -241,7 +251,11 @@ export function perProdus(vanzari: VanzareFapt[], ctx: Ctx, f: FiltruPerioada): 
   const rows: RandProdus[] = [...acc.entries()].map(([cod, a]) => {
     const p = ctx.produse.get(cod);
     const profit = a.net - a.cost;
+    const comision = a.netD * (ctx.comisionDeliveryPct / 100);
+    const netReal = a.net - comision;
     return {
+      netDelivery: a.netD, comision, profitReal: profit - comision,
+      fcReal: !a.fara && netReal > 0 ? (a.cost / netReal) * 100 : null,
       cod, denumire: p?.denumire ?? cod, categorie: p?.categorie ?? '—',
       buc: a.buc, net: a.net, cost: a.cost, costFood: a.food, costPaper: a.paper, profit,
       fc: !a.fara && a.net > 0 ? (a.cost / a.net) * 100 : null,
@@ -334,6 +348,10 @@ export interface RezultatFC {
   fcTeoretic: number | null;          // cost / TOATE vânzările nete
   fcTeoreticAcoperit: number | null;  // cost / vânzările PMIX ale produselor care au rețetă — cifra comparabilă
   netAcoperit: number; netFaraReteta: number;   // ambele pe baza PMIX
+  netDelivery: number; comisionLei: number;     // comisionul agregatorului pe partea Delivery
+  profitReal: number | null;                    // net acoperit − cost − comision (economia reală)
+  fcDeliveryAparent: number | null;             // pe Delivery: cost / net, fără comision
+  fcRealDelivery: number | null;                // pe Delivery: cost / (net − comision)
   consumOp: number; fcOp: number | null;
   consumCurat: number; fcCurat: number | null;
   excluderi: number; variancePP: number | null; varianceLei: number | null;
@@ -370,6 +388,10 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
   // în ecranul de reconciliere.
   const netAcoperit = ag.net - ag.netFaraReteta;
   const fcTeoreticAcoperit = netAcoperit > 0 ? (ag.cost / netAcoperit) * 100 : null;
+  const comisionLei = ag.netDelivery * ((state.setari.comisionDeliveryPct ?? 0) / 100);
+  const agD = agregatePerioada(state.vanzari, ctx, { luna: lunaSel, locatie: loc, vedere: 'DELIVERY' }, memo);
+  const comD = agD.netDelivery * ((state.setari.comisionDeliveryPct ?? 0) / 100);
+  const netRealD = agD.netDelivery - comD;
   const fcOp = are29 && net > 0 ? (consumOp / net) * 100 : null;
   const fcCurat = are29 && net > 0 ? (consumCurat / net) * 100 : null;
   const tinta = state.tinte.find(t => t.locatie === locatie)?.fcCurat
@@ -380,12 +402,19 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
     fcPaper: net > 0 ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
     costTeoretic: ag.cost, fcTeoretic, fcTeoreticAcoperit,
     netAcoperit, netFaraReteta: ag.netFaraReteta,
+    netDelivery: ag.netDelivery, comisionLei,
+    profitReal: netAcoperit > 0 ? netAcoperit - ag.cost - comisionLei : null,
+    fcDeliveryAparent: agD.fc,
+    fcRealDelivery: netRealD > 0 ? (agD.cost / netRealD) * 100 : null,
     consumOp, fcOp, consumCurat, fcCurat,
     excluderi: consumOp - consumCurat,
     variancePP: fcCurat != null && fcTeoretic != null ? fcCurat - fcTeoretic : null,
     varianceLei: are29 ? consumCurat - ag.cost : null,
     profitEstimat: fcCurat != null ? net * (1 - fcCurat / 100) : null,
-    tinta, abatere: fcCurat != null && tinta != null ? fcCurat - tinta : null,
+    tinta,
+    // abaterea față de țintă: pe FC Curat când există 2.9, altfel pe FC-ul teoretic acoperit —
+    // altfel clasamentul restaurantelor rămâne gol până la primul import 2.9
+    abatere: tinta != null && (fcCurat ?? fcTeoreticAcoperit) != null ? (fcCurat ?? fcTeoreticAcoperit)! - tinta : null,
     acoperire: ag.acoperire, are29,
   };
 }
@@ -463,9 +492,43 @@ export function aplicaScenariu(state: AppState, schimbari: Schimbare[]): { ctx: 
     }
   }
   return {
-    ctx: { ingrediente: new Map(ingrediente.map(i => [i.cod, i])), retete: new Map(retete.map(r => [r.cod, r])), produse: new Map(produse.map(p => [p.cod, p])) },
+    ctx: { comisionDeliveryPct: state.setari.comisionDeliveryPct ?? 0, ingrediente: new Map(ingrediente.map(i => [i.cod, i])), retete: new Map(retete.map(r => [r.cod, r])), produse: new Map(produse.map(p => [p.cod, p])) },
     produseNoi, preturiVanzare,
   };
+}
+
+export interface RandInflatie {
+  cod: string; denumire: string; um: string;
+  pretVechi: number; pretNou: number; variatiePct: number;
+  dataVechi: string; dataNou: string;
+  consumLunar: number;             // în UM de bază, pe luna analizată
+  impactLunar: number;             // (nou − vechi) × consum: lei/lună
+  impactAnual: number;
+}
+
+/**
+ * Inflația ingredientelor: primul vs ultimul preț din istoric, cu impactul în lei
+ * pe consumul lunii date. Reîncărcarea periodică a rețetarelor construiește istoricul;
+ * acest raport îl transformă într-un radar de scumpiri, ordonat după bani, nu după procente.
+ */
+export function inflatiaIngredientelor(state: AppState, ctx: Ctx, lunaSel: string): RandInflatie[] {
+  const cons = consumuriLuna(state, ctx, lunaSel);
+  const rez: RandInflatie[] = [];
+  for (const ing of state.ingrediente) {
+    if (ing.preturi.length < 2) continue;
+    const v = ing.preturi[0], n = ing.preturi[ing.preturi.length - 1];
+    if (Math.abs(n.pret - v.pret) < 0.0005) continue;
+    const consum = cons.get(ing.cod)?.cant ?? 0;
+    const impact = (n.pret - v.pret) * consum;
+    rez.push({
+      cod: ing.cod, denumire: ing.denumire, um: ing.um,
+      pretVechi: v.pret, pretNou: n.pret,
+      variatiePct: v.pret > 0 ? ((n.pret - v.pret) / v.pret) * 100 : 0,
+      dataVechi: v.validDeLa, dataNou: n.validDeLa,
+      consumLunar: consum, impactLunar: impact, impactAnual: impact * 12,
+    });
+  }
+  return rez.sort((a, b) => Math.abs(b.impactLunar) - Math.abs(a.impactLunar) || Math.abs(b.variatiePct) - Math.abs(a.variatiePct));
 }
 
 export interface ImpactRetea {

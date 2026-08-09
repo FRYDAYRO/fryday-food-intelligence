@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useSel, useStore } from '../lib/store';
 import {
-  consumLunarIngredient, pretCurent, utilizariIngredient, fmtInt, fmtLei, fmtPP, fmtPct,
+  consumLunarIngredient, inflatiaIngredientelor, pretCurent, utilizariIngredient, fmtInt, fmtLei, fmtPP, fmtPct,
 } from '../lib/engine';
 import { impactIngredient } from '../lib/decizii';
 import GrafDependente from './impact/GrafDependente';
@@ -46,6 +46,8 @@ export default function IngredientIntelligence() {
     for (const p of whatIf.produse) m.set(p.cod, p.dLunar);
     return m;
   }, [whatIf]);
+
+  const inflatie = useMemo(() => inflatiaIngredientelor(state, ctx, sel.luna), [state, ctx, sel.luna]);
 
   if (!ing) return <Gol titlu="Niciun ingredient" />;
   const varUltima = lista.find(l => l.cod === ing.cod)?.varPct ?? null;
@@ -188,6 +190,37 @@ export default function IngredientIntelligence() {
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <Titlu>Inflația ingredientelor — {sel.luna}</Titlu>
+        {inflatie.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Niciun ingredient nu are încă istoric de prețuri (minim două prețuri datate). Istoricul se construiește la fiecare reîncărcare a rețetarelor sau a corecțiilor de cost.</p>
+        ) : (
+          <>
+            <T dens>
+              <thead><tr><Th>#</Th><Th>Ingredient</Th><Th dr>Preț vechi</Th><Th dr>Preț nou</Th><Th dr>Variație</Th><Th dr>Consum lunar</Th><Th dr>Impact lei/lună</Th><Th dr>Impact lei/an</Th></tr></thead>
+              <tbody>
+                {inflatie.slice(0, 20).map((r, i) => (
+                  <tr key={r.cod}>
+                    <Td className="num text-muted-foreground">{i + 1}</Td>
+                    <Td className="font-semibold">{r.denumire}<span className="ml-1.5 text-xs text-muted-foreground">{r.dataVechi} → {r.dataNou}</span></Td>
+                    <Td dr>{r.pretVechi.toFixed(3)}</Td>
+                    <Td dr className="font-semibold">{r.pretNou.toFixed(3)} <span className="text-xs text-muted-foreground">lei/{r.um}</span></Td>
+                    <Td dr className={r.variatiePct > 0 ? 'text-danger font-semibold' : 'text-ok font-semibold'}>{r.variatiePct > 0 ? '+' : ''}{r.variatiePct.toFixed(1)}%</Td>
+                    <Td dr>{fmtInt(r.consumLunar)} {r.um}</Td>
+                    <Td dr className={r.impactLunar > 0 ? 'text-danger' : 'text-ok'}>{r.impactLunar > 0 ? '+' : ''}{fmtInt(r.impactLunar)}</Td>
+                    <Td dr className={r.impactLunar > 0 ? 'text-danger font-semibold' : 'text-ok font-semibold'}>{r.impactAnual > 0 ? '+' : ''}{fmtInt(r.impactAnual)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </T>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Primul vs ultimul preț din istoric, cu impactul pe consumul lunii selectate — ordonat după bani, nu după procente.
+              Radarul se hrănește din reîncărcarea periodică a rețetarelor: fiecare import cu prețuri noi adaugă un punct în istoric.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

@@ -253,6 +253,19 @@ function TabImport() {
         </div>
       )}
 
+      {state.nemapate.length > 0 && (
+        <div className="mt-6">
+          <Titlu actiuni={<Btn varianta="discret" onClick={() => update(s => ({ ...s, nemapate: [] }))}>Golește lista</Btn>}>
+            Mapare asistată — {state.nemapate.length} denumiri POS fără produs
+          </Titlu>
+          <p className="mb-2 text-sm text-muted-foreground">
+            Denumirile din Sales Mix care nu s-au potrivit cu nomenclatorul, ordonate după valoarea vânzărilor.
+            Alege produsul corect: aliasul se salvează definitiv și se aplică automat la <b>următorul import</b> al raportului.
+          </p>
+          <MapareAsistata />
+        </div>
+      )}
+
       {jurnalLot && (
         <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
           <div className="font-semibold">Rezultatul importului în bloc</div>
@@ -594,5 +607,45 @@ export default function Importuri() {
       </div>
       {tab === 'import' ? <TabImport /> : <TabReconciliere />}
     </div>
+  );
+}
+
+function MapareAsistata() {
+  const { state, update } = useStore();
+  const [alocari, setAlocari] = useState<Record<string, string>>({});
+  const produseSortate = useMemo(() => [...state.produse].sort((a, b) => a.denumire.localeCompare(b.denumire)), [state.produse]);
+
+  const atribuie = (den: string) => {
+    const cod = alocari[den];
+    if (!cod) return;
+    update(s => ({
+      ...s,
+      produse: s.produse.map(p => p.cod !== cod ? p : { ...p, aliasuri: [...new Set([...(p.aliasuri ?? []), den])] }),
+      nemapate: s.nemapate.filter(n => n.denumire !== den),
+    }));
+  };
+
+  return (
+    <T dens>
+      <thead><tr><Th>Denumirea din raport</Th><Th>Categorie</Th><Th dr>Bucăți</Th><Th dr>Valoare (lei)</Th><Th>Produsul corect</Th><Th /></tr></thead>
+      <tbody>
+        {state.nemapate.slice(0, 60).map(n => (
+          <tr key={n.denumire}>
+            <Td className="font-semibold">{n.denumire}</Td>
+            <Td className="text-xs text-muted-foreground">{n.categorie}</Td>
+            <Td dr>{n.cant.toLocaleString('ro-RO')}</Td>
+            <Td dr>{Math.round(n.valoare).toLocaleString('ro-RO')}</Td>
+            <Td>
+              <Sel className="h-8 max-w-64" value={alocari[n.denumire] ?? ''}
+                onChange={e => setAlocari(a => ({ ...a, [n.denumire]: e.target.value }))}>
+                <option value="">— alege produsul —</option>
+                {produseSortate.map(p => <option key={p.cod} value={p.cod}>{p.denumire}</option>)}
+              </Sel>
+            </Td>
+            <Td><Btn className="h-8" disabled={!alocari[n.denumire]} onClick={() => atribuie(n.denumire)}>Atribuie</Btn></Td>
+          </tr>
+        ))}
+      </tbody>
+    </T>
   );
 }

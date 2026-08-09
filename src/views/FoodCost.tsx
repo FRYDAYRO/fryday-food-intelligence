@@ -11,7 +11,16 @@ export default function FoodCost() {
   const [clasa, setClasa] = useState<Clasa29>('EXCLUS');
 
   const rezRetea = useMemo(() => fcPerioada(state, ctx, sel.luna, 'RETEA'), [state, ctx, sel.luna]);
-  const rezLoc = useMemo(() => state.locatii.map(l => fcPerioada(state, ctx, sel.luna, l.cod)), [state, ctx, sel.luna]);
+  const rezLoc = useMemo(() => state.locatii.map(l => fcPerioada(state, ctx, sel.luna, l.cod))
+    .filter(r => r.net > 0)
+    .sort((a, b) => (b.fcCurat ?? b.fcTeoreticAcoperit ?? -1) - (a.fcCurat ?? a.fcTeoreticAcoperit ?? -1)), [state, ctx, sel.luna]);
+  const clasament = useMemo(() => {
+    const cuFc = rezLoc.filter(r => (r.fcCurat ?? r.fcTeoreticAcoperit) != null);
+    const sub = cuFc.filter(r => r.abatere != null && r.abatere <= 0).length;
+    return { total: cuFc.length, sub, peste: cuFc.length - sub,
+      slab: cuFc[0], bun: cuFc[cuFc.length - 1] };
+  }, [rezLoc]);
+  const numeLoc = (cod: string) => state.locatii.find(l => l.cod === cod)?.nume ?? cod;
 
   const linii = useMemo(() => state.linii29
     .filter(l => l.perioada === sel.luna && (sel.locatie === 'RETEA' || l.locatie === sel.locatie))
@@ -27,15 +36,22 @@ export default function FoodCost() {
   return (
     <div>
       <Titlu>Food Cost Engine — {sel.luna}</Titlu>
+      {clasament.total > 1 && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border bg-card px-4 py-2.5 text-sm">
+          <span><b className="text-ok">{clasament.sub}</b> restaurante sub țintă · <b className={clasament.peste ? 'text-danger' : ''}>{clasament.peste}</b> peste</span>
+          {clasament.bun && <span>cel mai bun: <b>{numeLoc(clasament.bun.locatie)}</b> ({fmtPct(clasament.bun.fcCurat ?? clasament.bun.fcTeoreticAcoperit)})</span>}
+          {clasament.slab && clasament.slab !== clasament.bun && <span>cel mai slab: <b>{numeLoc(clasament.slab.locatie)}</b> ({fmtPct(clasament.slab.fcCurat ?? clasament.slab.fcTeoreticAcoperit)})</span>}
+        </div>
+      )}
       <T>
-        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic (pe partea acoperită)</Th><Th dr>Acoperire</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Excluderi (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th></tr></thead>
+        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic (pe partea acoperită)</Th><Th dr>Acoperire</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Pierdere 2.9 (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th></tr></thead>
         <tbody>
-          {[rezRetea, ...rezLoc].map(r => {
+          {[rezRetea, ...rezLoc].map((r, idx) => {
             const nume = r.locatie === 'RETEA' ? 'Rețea (toate locațiile)' : state.locatii.find(l => l.cod === r.locatie)?.nume ?? r.locatie;
             const ok = r.abatere != null && r.abatere <= 0;
             return (
               <tr key={r.locatie} className={r.locatie === 'RETEA' ? 'bg-muted/40 font-semibold' : ''}>
-                <Td>{nume}</Td>
+                <Td>{r.locatie !== 'RETEA' && rezLoc.length > 1 && <span className="mr-1.5 text-xs text-muted-foreground">#{idx}</span>}{nume}</Td>
                 <Td dr>{fmtInt(r.net)}</Td>
                 <Td dr>{fmtPct(r.fcTeoreticAcoperit)}</Td>
                 <Td dr className={(r.acoperire ?? 100) < 95 ? 'text-danger font-semibold' : ''}>{fmtPct(r.acoperire, 1)}</Td>
@@ -43,7 +59,7 @@ export default function FoodCost() {
                 <Td dr>{fmtPct(r.fcOp)}</Td>
                 <Td dr>{fmtPct(r.fcPaper)}</Td>
                 <Td dr className={r.variancePP != null && r.variancePP > 2 ? 'text-danger' : ''}>{fmtPP(r.variancePP)}</Td>
-                <Td dr>{r.are29 ? fmtInt(r.excluderi) : '—'}</Td>
+                <Td dr className={r.varianceLei != null && r.varianceLei > 0 ? 'text-danger font-semibold' : ''}>{r.are29 && r.varianceLei != null ? fmtInt(r.varianceLei) : '—'}</Td>
                 <Td dr>{fmtPct(r.tinta)}</Td>
                 <Td dr className={r.abatere == null ? '' : ok ? 'text-ok' : 'text-danger'}>{fmtPP(r.abatere)}</Td>
               </tr>
@@ -52,8 +68,34 @@ export default function FoodCost() {
         </tbody>
       </T>
       <p className="mt-2 text-xs text-muted-foreground">
-        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic. Numitor: {rezRetea.numitor}.
+        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic · <b>Pierdere 2.9</b> = consumul Curat − costul teoretic, în lei: partea de consum pe care rețetele nu o explică (waste, porționare, erori). Numitor: {rezRetea.numitor}. Clasamentul e ordonat de la cel mai mare Food Cost la cel mai mic.
       </p>
+
+      {rezRetea.netDelivery > 0 && (
+        <div className="mt-6">
+          <Titlu>Economia Delivery — comision agregator {state.setari.comisionDeliveryPct ?? 0}%</Titlu>
+          <T dens>
+            <thead><tr><Th>Nivel</Th><Th dr>Net Delivery (acoperit)</Th><Th dr>Comision (lei)</Th><Th dr>FC Delivery aparent</Th><Th dr>FC Delivery real</Th><Th dr>Diferența</Th><Th dr>Profit real (total)</Th></tr></thead>
+            <tbody>
+              {[rezRetea, ...rezLoc].filter(r => r.netDelivery > 0).map(r => (
+                <tr key={r.locatie} className={r.locatie === 'RETEA' ? 'bg-muted/40 font-semibold' : ''}>
+                  <Td>{r.locatie === 'RETEA' ? 'Rețea' : numeLoc(r.locatie)}</Td>
+                  <Td dr>{fmtInt(r.netDelivery)}</Td>
+                  <Td dr className="text-danger">−{fmtInt(r.comisionLei)}</Td>
+                  <Td dr>{fmtPct(r.fcDeliveryAparent)}</Td>
+                  <Td dr className="font-semibold">{fmtPct(r.fcRealDelivery)}</Td>
+                  <Td dr>{r.fcRealDelivery != null && r.fcDeliveryAparent != null ? fmtPP(r.fcRealDelivery - r.fcDeliveryAparent) : '—'}</Td>
+                  <Td dr>{r.profitReal != null ? fmtInt(r.profitReal) : '—'}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </T>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            FC aparent = cost / net · FC real = cost / (net − comision): procentul pe banii care chiar rămân după agregator.
+            Profitul real = net acoperit − cost − comision, pe toate canalele. Comisionul se schimbă din Setări.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_360px]">
         <div>
