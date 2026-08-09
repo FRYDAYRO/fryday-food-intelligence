@@ -95,3 +95,20 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 - Waste și inventarul nu sunt încă în model, deci variance-ul nu poate fi descompus pe cauze.
 - AOV și numărul de bonuri există în Sales Report, dar nu sunt încă folosite.
 - Aplicația este mono-utilizator, fără autentificare — datele stau în browser.
+
+
+## Publicarea online
+
+Aplicația e un singur fișier static — orice găzduire de fișiere statice o poate servi.
+
+**GitHub Pages (recomandat, automat).** Workflow-ul `.github/workflows/pages.yml` e inclus, iar `scripts/publica.sh` face totul dintr-o comandă:
+```bash
+GH_TOKEN=ghp_xxx bash scripts/publica.sh          # repository privat
+GH_TOKEN=ghp_xxx PUBLIC=1 bash scripts/publica.sh # repository public (necesar pe contul gratuit)
+```
+Tokenul se creează la github.com/settings/tokens/new (clasic, bifele „repo" + „workflow") și poate fi revocat imediat după.
+De la primul push încolo, fiecare `git push` republică automat aplicația la `https://<utilizator>.github.io/<repo>/`.
+
+**Netlify / Vercel (fără cod).** Trage arhiva `FRYDAY-FI-publicare-online.zip` (sau folderul `dist/` după `npx vite build --base ./`) în Netlify Drop — primești un URL pe loc.
+
+**Important:** găzduirea online publică *aplicația*, nu datele. Datele rămân în browserul fiecărui utilizator; pentru aceleași cifre la CEO se folosește instantaneul din Setări (Descarcă / Încarcă). Date comune în timp real = faza de server (NestJS + PostgreSQL), pentru care motorul pur e deja pregătit.

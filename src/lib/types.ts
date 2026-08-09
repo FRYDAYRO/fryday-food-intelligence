@@ -23,6 +23,8 @@ export interface IntrarePret { data: string; canal: Canal; pret: number; nota?: 
 
 export interface Produs {
   cod: string; denumire: string; categorie: string;
+  codPos?: string;          // numărul POS din NBO, când diferă de Product ID; folosit la maparea PMIX
+  aliasuri?: string[];      // denumiri din rapoartele POS (4.7 Sales Mix) care trimit la acest produs
   tip: 'SIMPLU' | 'COMBO';
   pretInstore?: number;   // brut, cu TVA
   pretDelivery?: number;  // brut, cu TVA
@@ -74,6 +76,7 @@ export interface RegulaClasificare { pattern: string; clasa: Clasa29; }
 export interface Tinta { locatie: string | 'RETEA'; fcCurat: number; }
 
 export interface ImportBatch {
+  perioada?: string;        // luna de date atinsă de import (YYYY-MM), pentru mutarea selecției globale
   id: string; tip: string; fisier: string; data: string;
   randuri: number; importate: number;
   avertismente: string[]; erori: string[];

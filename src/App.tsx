@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SelCtx, StoreProvider, useSel, useStore, type Selectie } from './lib/store';
 import { Sel } from './lib/ui';
 import Dashboard from './views/Dashboard';
@@ -76,6 +76,26 @@ function Antet() {
   );
 }
 
+/**
+ * Ține selecția globală ancorată în date. Fără asta, după un import pe o lună nouă
+ * toate modulele rămân pe luna veche și par „neactualizate".
+ */
+function AliniazaSelectia() {
+  const { state } = useStore();
+  const { sel, setSel } = useSel();
+  const luni = useMemo(() => [...new Set(state.vanzari.map(v => v.data.slice(0, 7)))].sort().reverse(), [state.vanzari]);
+  const locuri = useMemo(() => new Set(state.locatii.map(l => l.cod)), [state.locatii]);
+
+  useEffect(() => {
+    const patch: Partial<typeof sel> = {};
+    if (luni.length && !luni.includes(sel.luna)) patch.luna = luni[0];
+    if (sel.locatie !== 'RETEA' && !locuri.has(sel.locatie)) patch.locatie = 'RETEA';
+    if (Object.keys(patch).length) setSel({ ...sel, ...patch });
+  }, [luni, locuri, sel, setSel]);
+
+  return null;
+}
+
 function Continut() {
   const [modul, setModul] = useState<(typeof MODULE)[number]['id']>('cockpit');
   const Activ = MODULE.find(m => m.id === modul)!.C;
@@ -95,7 +115,7 @@ function Continut() {
           ))}
         </nav>
         <div className="px-4 py-4 text-[11px] leading-relaxed text-stone-400">
-          Beta · 2 canale: InStore & Delivery<br />Formulele §3 din logica de business
+          <b>{VERSIUNE}</b> · construit {DATA_BUILD}<br />2 canale: InStore &amp; Delivery
         </div>
       </aside>
 
@@ -107,6 +127,7 @@ function Continut() {
             {MODULE.map(m => <option key={m.id} value={m.id} className="text-black">{m.nume}</option>)}
           </select>
         </div>
+        <AliniazaSelectia />
         <Antet />
         <main className="p-4 md:p-6">
           <Activ />
@@ -116,8 +137,12 @@ function Continut() {
   );
 }
 
+// Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai nou.
+export const VERSIUNE = 'RC 10.3';
+export const DATA_BUILD = '08.08.2026';
+
 export default function App() {
-  const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'NET', vedere: 'TOTAL' });
+  const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
   return (
     <StoreProvider>
       <SelCtx.Provider value={{ sel, setSel }}>

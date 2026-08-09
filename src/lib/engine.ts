@@ -330,7 +330,10 @@ export interface RezultatFC {
   luna: string; locatie: string | 'RETEA';
   net: number; numitor: 'Sales Report' | 'PMIX';
   paperTeoretic: number; paper29: number; fcPaper: number | null;
-  costTeoretic: number; fcTeoretic: number | null;
+  costTeoretic: number;
+  fcTeoretic: number | null;          // cost / TOATE vânzările nete
+  fcTeoreticAcoperit: number | null;  // cost / vânzările PMIX ale produselor care au rețetă — cifra comparabilă
+  netAcoperit: number; netFaraReteta: number;   // ambele pe baza PMIX
   consumOp: number; fcOp: number | null;
   consumCurat: number; fcCurat: number | null;
   excluderi: number; variancePP: number | null; varianceLei: number | null;
@@ -360,6 +363,13 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
     if (cls === 'PAPER') paper29 += l.valoare;
   }
   const fcTeoretic = net > 0 ? (ag.cost / net) * 100 : null;
+  // Când acoperirea rețetarului nu e completă, raportul cost/vânzări totale subestimează Food Cost-ul:
+  // numitorul include produse fără cost calculabil. Cifra comparabilă se raportează la partea acoperită.
+  // Se calculează strict pe PMIX (unde se măsoară și costul, și acoperirea), nu pe numitorul oficial:
+  // altfel o divergență PMIX ↔ Sales Report ar deforma rezultatul. Divergența se raportează separat,
+  // în ecranul de reconciliere.
+  const netAcoperit = ag.net - ag.netFaraReteta;
+  const fcTeoreticAcoperit = netAcoperit > 0 ? (ag.cost / netAcoperit) * 100 : null;
   const fcOp = are29 && net > 0 ? (consumOp / net) * 100 : null;
   const fcCurat = are29 && net > 0 ? (consumCurat / net) * 100 : null;
   const tinta = state.tinte.find(t => t.locatie === locatie)?.fcCurat
@@ -368,7 +378,8 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
     luna: lunaSel, locatie, net, numitor,
     paperTeoretic: ag.costPaper, paper29,
     fcPaper: net > 0 ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
-    costTeoretic: ag.cost, fcTeoretic,
+    costTeoretic: ag.cost, fcTeoretic, fcTeoreticAcoperit,
+    netAcoperit, netFaraReteta: ag.netFaraReteta,
     consumOp, fcOp, consumCurat, fcCurat,
     excluderi: consumOp - consumCurat,
     variancePP: fcCurat != null && fcTeoretic != null ? fcCurat - fcTeoretic : null,

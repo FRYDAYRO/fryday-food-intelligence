@@ -56,7 +56,7 @@ export default function Dashboard() {
     return {
       luna: l,
       'FC Curat': r.fcCurat != null ? +r.fcCurat.toFixed(2) : null,
-      'FC teoretic': r.fcTeoretic != null ? +r.fcTeoretic.toFixed(2) : null,
+      'FC teoretic': r.fcTeoreticAcoperit != null ? +r.fcTeoreticAcoperit.toFixed(2) : null,
       'Profit (lei)': Math.round(r.profitEstimat ?? (r.net - r.costTeoretic)),
     };
   }), [luni, state, ctx, sel.locatie]);
@@ -126,7 +126,10 @@ export default function Dashboard() {
       </Titlu>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi eticheta="Vânzări nete" valoare={`${fmtInt(fc.net)} lei`} sub={`numitor: ${fc.numitor}`} />
-        <Kpi eticheta="Food Cost teoretic" valoare={fmtPct(fc.fcTeoretic)} sub={`din care Paper ${fmtPct(fc.fcPaper)} · acoperire ${fmtPct(fc.acoperire, 1)}`} />
+        <Kpi eticheta="Food Cost teoretic" valoare={fmtPct(fc.fcTeoreticAcoperit)}
+          sub={(fc.acoperire ?? 100) < 99.5
+            ? `pe ${fmtPct(fc.acoperire, 1)} din vânzări care au rețetă · restul nu are cost calculabil`
+            : `din care Paper ${fmtPct(fc.fcPaper)} · acoperire completă`} />
         <Kpi eticheta="Food Cost total (operațional)" valoare={fmtPct(fc.fcOp)} sub={fc.are29 ? `${fmtInt(fc.consumOp)} lei din 2.9` : 'importă raportul 2.9'} />
         <Kpi eticheta="Food Cost Curat" valoare={fmtPct(fc.fcCurat)} ton={tonAbatere}
           sub={fc.tinta != null ? `țintă ${fmtPct(fc.tinta)} · ${fmtPP(fc.abatere)}` : 'fără țintă'} />
@@ -134,6 +137,20 @@ export default function Dashboard() {
           sub={fc.varianceLei != null ? `${fmtInt(fc.varianceLei)} lei` : '—'} />
         <Kpi eticheta="Profit estimat (după F&P)" valoare={fc.profitEstimat != null ? `${fmtInt(fc.profitEstimat)} lei` : '—'} sub="vânzări × (1 − FC Curat)" />
       </div>
+
+      {(fc.acoperire ?? 100) < 95 && (
+        <div className="mt-4 rounded-md border-2 border-danger/60 bg-danger/5 p-4">
+          <div className="font-display text-sm font-extrabold text-danger">
+            Food Cost incomplet: rețetarul acoperă doar {fmtPct(fc.acoperire, 1)} din vânzări
+          </div>
+          <p className="mt-1 text-sm">
+            {fmtInt(fc.netFaraReteta)} lei din vânzările nete provin de la produse care nu au rețetă în aplicație,
+            deci nu au cost calculabil. Cifrele afișate sunt calculate <b>doar pe partea acoperită</b>
+            ({fmtInt(fc.netAcoperit)} lei) — nu sunt Food Cost-ul rețelei.
+            Importă rețetarul pentru produsele lipsă; lista lor e în <b>Importuri → Reconciliere</b>.
+          </p>
+        </div>
+      )}
 
       {insights && (
         <div className="mt-4 rounded-md border-2 border-primary/50 bg-card p-4">

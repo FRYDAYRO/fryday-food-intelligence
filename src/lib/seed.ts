@@ -19,6 +19,25 @@ const ing = (cod: string, denumire: string, categorie: string, tip: 'FOOD' | 'PA
     : [{ validDeLa: '2026-01-01', pret }],
 });
 
+/**
+ * Stare curată, pentru lucrul cu datele reale. Păstrează doar parametrii de calcul
+ * (TVA, ținte, reguli de clasificare, reguli de business) — restul se populează din importuri.
+ * Fără asta, importurile s-ar adăuga peste datele demo și analizele le-ar amesteca.
+ */
+export function stareGoala(): AppState {
+  const d = genereazaSeed();
+  return {
+    locatii: [], furnizori: [], ingrediente: [], produse: [], retete: [],
+    vanzari: [], salesReport: [], linii29: [],
+    reguli: d.reguli, tinte: d.tinte,
+    importuri: [], scenarii: [], pretFurnizori: [], rnd: [],
+    labor: [], costuriOperare: [], reguliBusiness: d.reguliBusiness,
+    // 5% e pragul potrivit pentru monitorizarea periodică a prețurilor la reîncărcarea rețetarelor;
+    // setul demo păstrează 25%, unde exemplul de alertă a fost validat numeric.
+    setari: { ...d.setari, tvaImplicit: 11, pragAlertaPret: 5 },
+  };
+}
+
 export function genereazaSeed(): AppState {
   const rnd = mulberry32(20260726);
 
@@ -308,6 +327,9 @@ export function genereazaSeed(): AppState {
       randuri: vanzari.length, importate: vanzari.length, avertismente: [], erori: [], status: 'IMPORTAT',
     }],
     scenarii: [],
-    setari: { tvaImplicit: 10, tintaLaborPct: 24, tolerantaReconciliere: 0.5, pragAlertaPret: 25 },
+    // TVA implicit 11% (cota FRYDAY confirmată) — se aplică produselor create de acum înainte:
+    // importuri, R&D Lab, produse noi din simulări. Produsele demo își păstrează cota lor de 10%,
+    // pentru că exemplul numeric de referință (Crispy Burger, FC 18,4%) a fost validat la acea cotă.
+    setari: { tvaImplicit: 11, tintaLaborPct: 24, tolerantaReconciliere: 0.5, pragAlertaPret: 25 },
   };
 }

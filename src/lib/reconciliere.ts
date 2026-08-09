@@ -25,6 +25,14 @@ export interface Reconciliere {
   verdict: 'FIABIL' | 'CU_REZERVE' | 'INSUFICIENT';
 }
 
+/** Datele demo încă prezente amestecă rezultatele cu datele reale importate. */
+export function areDateDemo(state: AppState): { demo: boolean; produse: number; vanzari: number } {
+  const coduriDemo = new Set(['P001', 'P002', 'P003', 'P004', 'P005', 'P006', 'P007', 'P008']);
+  const produse = state.produse.filter(p => coduriDemo.has(p.cod)).length;
+  const vanzari = state.vanzari.filter(v => coduriDemo.has(v.produs)).length;
+  return { demo: produse > 0 || vanzari > 0 || state.importuri.some(b => b.tip === 'DATE DEMO'), produse, vanzari };
+}
+
 export function reconciliaza(state: AppState, ctx: Ctx, lunaSel: string, locatie?: string): Reconciliere {
   const rows = perProdus(state.vanzari, ctx, { luna: lunaSel, locatie, vedere: 'TOTAL' });
   const netTotal = rows.reduce((s, r) => s + r.net, 0);

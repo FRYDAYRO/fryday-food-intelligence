@@ -28,7 +28,7 @@ export default function FoodCost() {
     <div>
       <Titlu>Food Cost Engine — {sel.luna}</Titlu>
       <T>
-        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Excluderi (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th></tr></thead>
+        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic (pe partea acoperită)</Th><Th dr>Acoperire</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Excluderi (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th></tr></thead>
         <tbody>
           {[rezRetea, ...rezLoc].map(r => {
             const nume = r.locatie === 'RETEA' ? 'Rețea (toate locațiile)' : state.locatii.find(l => l.cod === r.locatie)?.nume ?? r.locatie;
@@ -37,7 +37,8 @@ export default function FoodCost() {
               <tr key={r.locatie} className={r.locatie === 'RETEA' ? 'bg-muted/40 font-semibold' : ''}>
                 <Td>{nume}</Td>
                 <Td dr>{fmtInt(r.net)}</Td>
-                <Td dr>{fmtPct(r.fcTeoretic)}</Td>
+                <Td dr>{fmtPct(r.fcTeoreticAcoperit)}</Td>
+                <Td dr className={(r.acoperire ?? 100) < 95 ? 'text-danger font-semibold' : ''}>{fmtPct(r.acoperire, 1)}</Td>
                 <Td dr>{fmtPct(r.fcCurat)}</Td>
                 <Td dr>{fmtPct(r.fcOp)}</Td>
                 <Td dr>{fmtPct(r.fcPaper)}</Td>
@@ -51,7 +52,7 @@ export default function FoodCost() {
         </tbody>
       </T>
       <p className="mt-2 text-xs text-muted-foreground">
-        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · Paper Cost = ambalajele clasificate PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic (§3.8–3.9). Numitor: {rezRetea.numitor}.
+        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic. Numitor: {rezRetea.numitor}.
       </p>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_360px]">
