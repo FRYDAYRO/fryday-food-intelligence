@@ -2,6 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppState } from './types';
 import { genereazaSeed, stareGoala } from './seed';
 import { genereazaSeedNBO } from './seed-nbo';
+// Baza reală FRYDAY, încorporată în aplicație: nomenclator, rețete și prețuri pe canal.
+// Vânzările NU sunt incluse — se importă periodic (PMIX / Sales Mix 4.7).
+import bazaFryday from '../date/baza-fryday.json';
 import { buildCtx, type Ctx } from './engine';
 
 const KEY = 'fryday:ffi:v1';
@@ -11,7 +14,7 @@ interface Store {
   ctx: Ctx;                 // contextul de calcul, memorat o singură dată per schimbare de stare
   update: (fn: (s: AppState) => AppState) => void;
   reset: () => void;
-  incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL') => void;
+  incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL' | 'FRYDAY') => void;
   persistent: boolean;
 }
 
@@ -75,7 +78,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch { /* storage indisponibil în acest mediu */ }
-      setState(stareGoala());   // pornire curată: datele demo se încarcă doar la cerere, din Setări
+      // prima pornire: baza FRYDAY (rețete + prețuri), fără vânzări și fără date demo
+      setState(migreaza(bazaFryday as unknown as AppState));
     })();
   }, []);
 
@@ -99,13 +103,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [salveaza]);
 
   const reset = useCallback(() => {
-    const s = stareGoala();   // resetarea golește; setul demo se încarcă explicit din Setări
+    // resetarea readuce baza FRYDAY (rețete + prețuri), fără vânzări — nu setul demo
+    const s = migreaza(structuredClone(bazaFryday) as unknown as AppState);
     setState(s);
     salveaza(s);
   }, [salveaza]);
 
-  const incarcaSet = useCallback((set: 'DEMO' | 'NBO' | 'GOL') => {
-    const s = set === 'NBO' ? genereazaSeedNBO() : set === 'GOL' ? stareGoala() : genereazaSeed();
+  const incarcaSet = useCallback((set: 'DEMO' | 'NBO' | 'GOL' | 'FRYDAY') => {
+    const s = set === 'FRYDAY' ? migreaza(structuredClone(bazaFryday) as unknown as AppState)
+      : set === 'NBO' ? genereazaSeedNBO() : set === 'GOL' ? stareGoala() : genereazaSeed();
     setState(s);
     salveaza(s);
   }, [salveaza]);

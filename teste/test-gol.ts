@@ -58,5 +58,28 @@ const rowsDemo = perProdus(rDemo.stateNou.vanzari, buildCtx(rDemo.stateNou), { l
 t('peste demo, iulie rămâne plin de produse fictive', rowsDemo.length === 8, `${rowsDemo.length} produse în iulie`);
 t('de aceea banner-ul avertizează înainte de import', areDateDemo(rDemo.stateNou).demo);
 
+console.log('— Baza FRYDAY încorporată în aplicație —');
+const baza = JSON.parse(JSON.stringify(require('../src/date/baza-fryday.json')));
+t('160 produse, 151 ingrediente, 160 rețete', baza.produse.length === 160 && baza.ingrediente.length === 151 && baza.retete.length === 160,
+  `${baza.produse.length}/${baza.ingrediente.length}/${baza.retete.length}`);
+t('nicio vânzare încorporată — se importă periodic', baza.vanzari.length === 0);
+t('fără istoric de importuri artificial', baza.importuri.length === 0);
+t('țintele FRYDAY: FC 45% · labor 17,5% · comision 16%',
+  baza.tinte[0].fcCurat === 45 && baza.setari.tintaLaborPct === 17.5 && baza.setari.comisionDeliveryPct === 16);
+t('corecțiile de cost sunt incluse (koliber 3,57 · patty 1,14)', (() => {
+  const k = baza.ingrediente.find((i: { cod: string }) => i.cod === '7000210');
+  const p = baza.ingrediente.find((i: { cod: string }) => i.cod === '702045');
+  return k.preturi[k.preturi.length - 1].pret === 3.57 && p.preturi[p.preturi.length - 1].pret === 1.14;
+})());
+t('istoricul de prețuri e păstrat, nu suprascris', (() => {
+  const k = baza.ingrediente.find((i: { cod: string }) => i.cod === '7000210');
+  return k.preturi.length === 2 && k.preturi[0].validDeLa === '2026-08-01' && k.preturi[1].validDeLa === '2026-08-03';
+})());
+t('prețurile pe canal sunt încărcate', (() => {
+  const h = baza.produse.find((p: { cod: string }) => p.cod === 'HAMBURGER');
+  return h.pretInstore > 0 && h.pretDelivery > 0;
+})());
+t('nicio denumire din setul demo', !baza.produse.some((p: { denumire: string }) => /Crispy Burger|Cola 330/.test(p.denumire)));
+
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

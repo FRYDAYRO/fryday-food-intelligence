@@ -153,6 +153,7 @@ export default function Setari() {
             PMIX-ul din acest set este estimat, nu importat.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Btn onClick={() => incarcaSet('FRYDAY')}>Reîncarcă baza FRYDAY (160 produse, rețete + prețuri)</Btn>
             <Btn varianta="linie" onClick={() => incarcaSet('NBO')}>Încarcă rețetele NBO reale</Btn>
             <Btn varianta="pericol" onClick={() => incarcaSet('GOL')}>Start curat (fără date demo)</Btn>
             <Btn varianta="discret" onClick={() => incarcaSet('DEMO')}>Revino la setul demo</Btn>

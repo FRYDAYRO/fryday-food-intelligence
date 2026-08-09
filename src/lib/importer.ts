@@ -741,7 +741,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
     else {
       const ingrediente = state.ingrediente.map(x => ({ ...x, preturi: [...x.preturi] }));
-      const azi = new Date().toISOString().slice(0, 10);
+      const azi = opt?.dataValabil ?? new Date().toISOString().slice(0, 10);   // fișierele fără coloană de dată se aplică de la data cerută, altfel de azi
       p.randuri.forEach((r, i) => {
         const cod = String(g(r, 'cod')).trim();
         const pret = parseNumar(g(r, 'pret'));
