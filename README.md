@@ -101,10 +101,13 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 
 Aplicația e un singur fișier static — orice găzduire de fișiere statice o poate servi.
 
-**GitHub Pages (recomandat, automat).** Workflow-ul `.github/workflows/pages.yml` e inclus:
-1. Creează un repository și împinge acest proiect pe ramura `main`.
-2. În repository: **Settings → Pages → Source: „GitHub Actions"** (o singură dată).
-3. La fiecare push, aplicația se construiește și se publică la `https://<utilizator>.github.io/<repo>/`.
+**GitHub Pages (recomandat, automat).** Workflow-ul `.github/workflows/pages.yml` e inclus, iar `scripts/publica.sh` face totul dintr-o comandă:
+```bash
+GH_TOKEN=ghp_xxx bash scripts/publica.sh          # repository privat
+GH_TOKEN=ghp_xxx PUBLIC=1 bash scripts/publica.sh # repository public (necesar pe contul gratuit)
+```
+Tokenul se creează la github.com/settings/tokens/new (clasic, bifele „repo" + „workflow") și poate fi revocat imediat după.
+De la primul push încolo, fiecare `git push` republică automat aplicația la `https://<utilizator>.github.io/<repo>/`.
 
 **Netlify / Vercel (fără cod).** Trage arhiva `FRYDAY-FI-publicare-online.zip` (sau folderul `dist/` după `npx vite build --base ./`) în Netlify Drop — primești un URL pe loc.
 
