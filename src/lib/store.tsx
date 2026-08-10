@@ -8,6 +8,33 @@ import bazaFryday from '../date/baza-fryday.json';
 import { buildCtx, type Ctx } from './engine';
 
 const KEY = 'fryday:ffi:v1';
+const KEY_SERVER = 'fryday:server';   // { url, token, utilizator } — configurat din Setări
+
+export interface ConfigServer { url: string; token: string; utilizator: { email: string; rol: string; locatie?: string | null; nume?: string | null } }
+
+export function configServer(): ConfigServer | null {
+  try {
+    const raw = window.localStorage?.getItem(KEY_SERVER);
+    return raw ? JSON.parse(raw) as ConfigServer : null;
+  } catch { return null; }
+}
+export function setConfigServer(c: ConfigServer | null): void {
+  try {
+    if (c) window.localStorage?.setItem(KEY_SERVER, JSON.stringify(c));
+    else window.localStorage?.removeItem(KEY_SERVER);
+  } catch { /* fără localStorage, serverul nu poate fi folosit */ }
+}
+
+/** Autentificare pe serverul comun; întoarce configurația de păstrat. */
+export async function autentifica(url: string, email: string, parola: string): Promise<ConfigServer> {
+  const r = await fetch(`${url.replace(/\/$/, '')}/api/autentificare`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, parola }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d?.eroare ?? 'Autentificare eșuată');
+  return { url: url.replace(/\/$/, ''), token: d.token, utilizator: d.utilizator };
+}
 
 interface Store {
   state: AppState;
@@ -15,7 +42,10 @@ interface Store {
   update: (fn: (s: AppState) => AppState) => void;
   reset: () => void;
   incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL' | 'FRYDAY') => void;
+  atribuieAlias: (denumire: string, codProdus: string) => void;
+  renuntaNemapat: (denumire: string) => void;
   persistent: boolean;
+  serverStare: { revizie: number; filtrat: boolean; eroare?: string } | null;
 }
 
 const StoreCtx = createContext<Store | null>(null);
@@ -64,8 +94,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [persistent, setPersistent] = useState(false);
   const timer = useRef<number | undefined>(undefined);
 
+  const [serverStare, setServerStare] = useState<{ revizie: number; filtrat: boolean; eroare?: string } | null>(null);
+  const revizie = useRef(0);
+
   useEffect(() => {
     (async () => {
+      // dacă e configurat un server comun, el e sursa de adevăr — nu stocarea din browser
+      const cfg = configServer();
+      if (cfg) {
+        try {
+          const r = await fetch(`${cfg.url}/api/stare`, { headers: { authorization: `Bearer ${cfg.token}` } });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d?.eroare ?? `HTTP ${r.status}`);
+          revizie.current = d.revizie ?? 0;
+          setServerStare({ revizie: d.revizie ?? 0, filtrat: !!d.filtrat });
+          setPersistent(true);
+          setState(d.stare ? migreaza(d.stare as AppState) : migreaza(structuredClone(bazaFryday) as unknown as AppState));
+          return;
+        } catch (e) {
+          // serverul nu răspunde: continuăm local, dar spunem clar de ce
+          setServerStare({ revizie: 0, filtrat: false, eroare: String((e as Error)?.message ?? e) });
+        }
+      }
       try {
         const st = storage();
         if (st) {
@@ -86,6 +136,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const salveaza = useCallback((s: AppState) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
+      const cfg = configServer();
+      if (cfg) {
+        try {
+          const r = await fetch(`${cfg.url}/api/stare`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.token}` },
+            body: JSON.stringify({ stare: s, revizie: revizie.current }),
+          });
+          const d = await r.json();
+          if (r.status === 409) {
+            setServerStare({ revizie: d.revizieServer ?? 0, filtrat: false,
+              eroare: 'Altcineva a salvat între timp. Reîncarcă pagina ca să iei versiunea lui, apoi reaplică modificarea.' });
+            return;
+          }
+          if (!r.ok) throw new Error(d?.eroare ?? `HTTP ${r.status}`);
+          revizie.current = d.revizie;
+          setServerStare({ revizie: d.revizie, filtrat: false });
+          setPersistent(true);
+          return;
+        } catch (e) {
+          setServerStare({ revizie: revizie.current, filtrat: false, eroare: String((e as Error)?.message ?? e) });
+          setPersistent(false);
+          return;
+        }
+      }
       try {
         const st = storage();
         if (st) { await st.set(KEY, JSON.stringify(s)); setPersistent(true); }
@@ -101,6 +176,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, [salveaza]);
+
+  /**
+   * Leagă o denumire din POS de un produs din nomenclator. Aliasul se salvează pe produs,
+   * deci la următoarele importuri potrivirea se face singură — nu trebuie repetată alocarea.
+   */
+  const atribuieAlias = useCallback((denumire: string, codProdus: string) => {
+    update(s => ({
+      ...s,
+      produse: s.produse.map(p => p.cod !== codProdus ? p
+        : { ...p, aliasuri: [...new Set([...(p.aliasuri ?? []), denumire])] }),
+      nemapate: s.nemapate.filter(n => n.denumire !== denumire),
+    }));
+  }, [update]);
+
+  const renuntaNemapat = useCallback((denumire: string) => {
+    update(s => ({ ...s, nemapate: s.nemapate.filter(n => n.denumire !== denumire) }));
+  }, [update]);
 
   const reset = useCallback(() => {
     // resetarea readuce baza FRYDAY (rețete + prețuri), fără vânzări — nu setul demo
@@ -129,7 +221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, persistent }}>{children}</StoreCtx.Provider>;
+  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, atribuieAlias, renuntaNemapat, persistent, serverStare }}>{children}</StoreCtx.Provider>;
 }
 
 export function useStore(): Store {

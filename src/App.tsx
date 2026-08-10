@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SelCtx, StoreProvider, useSel, useStore, type Selectie } from './lib/store';
-import { Sel } from './lib/ui';
+import { SelCtx, StoreProvider, configServer, useSel, useStore, type Selectie } from './lib/store';
+import { Sel, cx } from './lib/ui';
 import Dashboard from './views/Dashboard';
 import ExecutiveCockpit from './views/ExecutiveCockpit';
 import DecisionIntelligence from './views/DecisionIntelligence';
@@ -51,6 +51,54 @@ const MODULE = [
   { id: 'setari', nume: 'Setări', C: Setari },
 ] as const;
 
+/**
+ * Cine ești și ce vezi. Când datele vin filtrate de server, utilizatorul trebuie să știe
+ * permanent — altfel un manager care vede cifre mai mici crede că rețeaua a scăzut.
+ */
+function IndicatorServer() {
+  const { serverStare } = useStore();
+  const cfg = configServer();
+  if (!cfg) return null;
+  const u = cfg.utilizator;
+  const eroare = serverStare?.eroare;
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={cx('inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold',
+        eroare ? 'border-danger/60 bg-danger/10 text-danger' : 'border-ok/50 bg-ok/10 text-ok')}
+        title={eroare ?? `Conectat la ${cfg.url} · revizia ${serverStare?.revizie ?? '—'}`}>
+        <span className={cx('h-1.5 w-1.5 rounded-full', eroare ? 'bg-danger' : 'bg-ok')} />
+        {u.rol}{u.nume ? ` · ${u.nume}` : ''}
+      </span>
+      {serverStare?.filtrat && u.locatie && (
+        <span className="inline-flex items-center rounded-md border border-primary/50 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
+          title="Serverul îți trimite doar datele restaurantului tău">
+          date filtrate: {u.locatie}
+        </span>
+      )}
+      {eroare && <span className="hidden max-w-xs truncate text-xs text-danger md:inline">{eroare}</span>}
+    </div>
+  );
+}
+
+/**
+ * Un manager al cărui restaurant nu are date ar vedea o aplicație goală, fără explicație.
+ * Diferența dintre „nu s-a importat nimic" și „nu există date pentru tine" trebuie spusă.
+ */
+function AvertismentFiltrat() {
+  const { state, serverStare } = useStore();
+  const cfg = configServer();
+  if (!serverStare?.filtrat || !cfg?.utilizator.locatie) return null;
+  if (state.vanzari.length > 0) return null;
+  return (
+    <div className="border-b border-primary/40 bg-primary/5 px-4 py-2.5 text-sm">
+      <b>Nu există vânzări pentru {cfg.utilizator.locatie} în datele încărcate pe server.</b>{' '}
+      Rețetele și prețurile sunt vizibile, dar analizele au nevoie de vânzări. Cauza obișnuită: raportul
+      4.7 a fost importat agregat pe toată rețeaua, nu câte un fișier per restaurant — cere analiștilor
+      importul pe restaurante.
+    </div>
+  );
+}
+
 function Antet() {
   const { state } = useStore();
   const { sel, setSel } = useSel();
@@ -71,7 +119,8 @@ function Antet() {
         <option value="INSTORE">InStore</option>
         <option value="DELIVERY">Delivery</option>
       </Sel>
-      <span className="ml-auto hidden text-xs text-muted-foreground md:inline">Vederea de canal se aplică analizelor pe produs; FC Curat/operațional sunt pe Total (limitare 2.9).</span>
+      <IndicatorServer />
+      <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">Vederea de canal se aplică analizelor pe produs; FC Curat/operațional sunt pe Total (limitare 2.9).</span>
     </div>
   );
 }
@@ -129,6 +178,7 @@ function Continut() {
         </div>
         <AliniazaSelectia />
         <Antet />
+        <AvertismentFiltrat />
         <main className="p-4 md:p-6">
           <Activ />
         </main>
@@ -138,7 +188,7 @@ function Continut() {
 }
 
 // Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai nou.
-export const VERSIUNE = 'RC 11.1';
+export const VERSIUNE = 'RC 12.0';
 export const DATA_BUILD = '08.08.2026';
 
 export default function App() {

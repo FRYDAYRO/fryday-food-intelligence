@@ -97,6 +97,37 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 - Aplicația este mono-utilizator, fără autentificare — datele stau în browser.
 
 
+## Server comun (multi-utilizator)
+
+Fără server, datele stau în browserul fiecărui utilizator și se împart prin instantaneu.
+Cu server, toți văd aceleași cifre, iar accesul e limitat pe rol.
+
+```bash
+node server/server.mjs                       # :8787, bază în server/fryday.db
+PORT=9000 DB=/date/fryday.db ADMIN_PAROLA=… node server/server.mjs
+node server/test-server.mjs                  # 26 teste pe roluri, concurență și audit
+```
+
+Contul inițial: `admin@fryday.ro` / `fryday` (schimbă parola imediat).
+În aplicație: **Setări → Server comun** → adresa, email, parolă.
+
+| Rol | Citește | Scrie | Administrează |
+| --- | --- | --- | --- |
+| **ADMIN** | tot | da | utilizatori, jurnal |
+| **ANALIST** | tot | da | — |
+| **MANAGER** | **doar restaurantul lui** | nu | — |
+
+Filtrarea pentru manager se face **pe server**: vânzările, waste-ul, inventarul și 2.9 ale altor
+restaurante nu părăsesc niciodată baza de date, oricât ar insista clientul. Nomenclatorul,
+rețetele și ținta de rețea rămân comune. Interfața arată permanent rolul și marcajul
+„date filtrate", iar dacă restaurantul lui nu are vânzări, explică de ce.
+
+Salvările folosesc revizii: dacă altcineva a salvat între timp, serverul răspunde `409` în loc să
+suprascrie silențios, iar aplicația cere reîncărcarea. Fiecare autentificare și salvare intră în jurnal.
+
+Serverul nu are dependențe externe (doar `node:http` și SQLite nativ) și nu servește aplicația —
+aceea rămâne statică, pe GitHub Pages sau oriunde altundeva.
+
 ## Publicarea online
 
 **Aplicația live: https://valentin845.github.io/fryday-fi/** — build-ul de producție, publicat din repository-ul public `fryday-fi` (doar aplicația compilată; sursa și testele rămân în acest repository privat). Republicare după modificări: `GH_TOKEN=... bash scripts/publica-app.sh`.

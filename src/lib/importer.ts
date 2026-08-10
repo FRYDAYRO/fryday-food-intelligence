@@ -1,11 +1,11 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, LinieReteta, Produs, Reteta, UMCod, VanzareFapt } from './types';
-import { UMS, buildCtx, consumuriLuna, costProdus, norm } from './engine';
-import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza } from './nbo';
+import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, LinieReteta, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
+import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
-export type TipImport = 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
+export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
 
 export const TIP_LABEL: Record<TipImport, string> = {
   PMIX: 'PMIX (vânzări pe produs)',
@@ -13,6 +13,9 @@ export const TIP_LABEL: Record<TipImport, string> = {
   FC29: 'Raport NBO 2.9',
   COST_INGREDIENTE: 'Cost ingrediente',
   RETETAR: 'Rețetar',
+  MENIURI: 'Meniuri / combo (componente și cantități)',
+  WASTE: 'Waste (pierderi pe ingredient)',
+  INVENTAR: 'Inventar (consum real pe ingredient)',
   FC_BAZA: 'Bază FC completă (nomenclator + rețetar + food cost)',
   SALES_MIX: 'Sales Mix 4.7 (raport POS)',
   RETETAR_NBO: 'Rețetar NBO (recipe cards)',
@@ -72,6 +75,29 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     um: ['units', 'unit', 'um', 'unitate'],
     cost: ['cost', 'cost unitar', 'pret unitar'],
     extension: ['extension', 'ext', 'cost ron', 'valoare'],
+  },
+  MENIURI: {
+    meniu: ['meniu', 'combo', 'produs meniu', 'denumire meniu', 'cod meniu'],
+    componenta: ['componenta', 'component', 'produs', 'articol', 'cod produs'],
+    cant: ['cantitate', 'cant', 'qty', 'buc'],
+    pret: ['pret', 'pret cu tva', 'price'],
+    tva: ['tva', 'tva %'],
+    categorie: ['categorie', 'category'],
+  },
+  WASTE: {
+    ingredient: ['ingredient', 'cod', 'cod mp', 'materie prima', 'cod ingredient'],
+    cant: ['cantitate', 'cant', 'qty', 'pierdere', 'waste'],
+    um: ['um', 'unitate'],
+    locatie: ['locatie', 'restaurant', 'magazin', 'store'],
+    perioada: ['perioada', 'luna', 'month'],
+    motiv: ['motiv', 'cauza', 'reason'],
+  },
+  INVENTAR: {
+    ingredient: ['ingredient', 'cod', 'cod mp', 'materie prima', 'cod ingredient'],
+    cant: ['consum real', 'consum', 'cantitate', 'cant'],
+    um: ['um', 'unitate'],
+    locatie: ['locatie', 'restaurant', 'magazin', 'store'],
+    perioada: ['perioada', 'luna', 'month'],
   },
   FC_BAZA: { denumire: ['denumire comerciala'], reteta: ['reteta'], canal: ['canal'] },
   SALES_MIX: {
@@ -176,6 +202,9 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
   if (nf.includes('pmix')) return 'PMIX';
   if (nf.includes('sales')) return 'SALES';
   if (nf.includes('furnizor') || nf.includes('supplier') || nf.includes('ofert')) return 'PRETURI_FURNIZORI';
+  if (/meniu|combo/.test(nf) && !/sales|pmix/.test(nf)) return 'MENIURI';
+  if (/waste|pierder|risipa/.test(nf)) return 'WASTE';
+  if (/inventar|stoc|consum real/.test(nf)) return 'INVENTAR';
   if (nf.includes('sales mix') || nf.includes('4 7') || nf.includes('4.7')) return 'SALES_MIX';
   if ((nf.includes('pret') || nf.includes('price')) && (nf.includes('instore') || nf.includes('delivery') || nf.includes('vanzare') || nf.includes('meniu'))) return 'PRETURI_PRODUSE';
   if (nf.includes('nbo') || nf.includes('recipe')) return 'RETETAR_NBO';
@@ -188,6 +217,9 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
     COST_INGREDIENTE: ['cod', 'pret'],
     RETETAR: ['reteta', 'comp', 'cant'],
     RETETAR_NBO: ['comp', 'cant', 'um'],
+    MENIURI: ['meniu', 'componenta'],
+    WASTE: ['ingredient', 'cant'],
+    INVENTAR: ['ingredient', 'cant'],
     FC_BAZA: ['denumire', 'canal'],
     SALES_MIX: ['denumire', 'cant'],
     PRETURI_PRODUSE: ['produs'],
@@ -387,7 +419,120 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     return l.cod;
   };
 
-  if (tip === 'FC_BAZA') {
+  if (tip === 'MENIURI') {
+    const lipsa = lipsesc(['meniu', 'componenta']);
+    if (lipsa.length) {
+      erori.push(`Coloane obligatorii negăsite: ${lipsa.join(', ')}. Fișierul trebuie să aibă meniul și componenta pe fiecare rând.`);
+    } else {
+      const produse = state.produse.map(x => ({ ...x }));
+      // indexăm produsele după cod, cod POS și denumire, ca fișierul să poată folosi oricare
+      const gaseste = (v: string): string | undefined => {
+        const s = v.trim();
+        if (!s) return undefined;
+        const dupaCod = produse.find(p => p.cod === s || p.codPos === s);
+        if (dupaCod) return dupaCod.cod;
+        const k = cheieDenumire(s);
+        return produse.find(p => cheieDenumire(p.denumire) === k
+          || (p.aliasuri ?? []).some(a => cheieDenumire(a) === k))?.cod;
+      };
+
+      const grupuri = new Map<string, { nume: string; comp: { cod: string; cant: number }[]; pret?: number; tva?: number; categorie?: string }>();
+      const compNegasite = new Set<string>();
+      p.randuri.forEach((r, idx) => {
+        const numeMeniu = String(g(r, 'meniu')).trim();
+        const numeComp = String(g(r, 'componenta')).trim();
+        if (!numeMeniu || !numeComp) return;
+        const codComp = gaseste(numeComp);
+        if (!codComp) { compNegasite.add(numeComp); return; }
+        const cant = map.cant ? (parseNumar(g(r, 'cant')) ?? 1) : 1;
+        const gr = grupuri.get(numeMeniu) ?? { nume: numeMeniu, comp: [] };
+        gr.comp.push({ cod: codComp, cant });
+        if (map.pret) { const v = parseNumar(g(r, 'pret')); if (v != null && v > 0) gr.pret = v; }
+        if (map.tva) { const v = parseNumar(g(r, 'tva')); if (v != null) gr.tva = v > 0 && v < 1 ? v * 100 : v; }
+        if (map.categorie) { const v = String(g(r, 'categorie')).trim(); if (v) gr.categorie = v; }
+        grupuri.set(numeMeniu, gr);
+        void idx;
+      });
+
+      for (const [nume, gr] of grupuri) {
+        const cod = gaseste(nume) ?? nume;
+        const idx = produse.findIndex(x => x.cod === cod);
+        const existent = idx >= 0 ? produse[idx] : undefined;
+        const prod: Produs = {
+          cod, denumire: existent?.denumire ?? nume,
+          categorie: gr.categorie ?? existent?.categorie ?? 'MENIURI',
+          tip: 'COMBO',
+          combo: gr.comp,
+          pretInstore: gr.pret ?? existent?.pretInstore,
+          pretDelivery: existent?.pretDelivery ?? gr.pret,
+          tva: gr.tva ?? existent?.tva ?? state.setari.tvaImplicit,
+          activ: true,
+          aliasuri: [...new Set([...(existent?.aliasuri ?? []), nume])],
+          codPos: existent?.codPos,
+        };
+        if (idx >= 0) produse[idx] = prod; else produse.push(prod);
+        importate++;
+      }
+      compNegasite.forEach(c => avert.push(`Componentă negăsită în nomenclator: „${c}" — ignorată (importă întâi rețetarul)`));
+      avert.push(`${grupuri.size} meniuri definite; costul lor se calculează prin însumarea componentelor, la data vânzării`);
+      avert.push('La importul Sales Mix, liniile de componentă cu preț 0 ale acestor meniuri vor fi excluse automat, ca să nu se dubleze costul');
+      stateNou = { ...state, produse };
+    }
+  } else if (tip === 'WASTE' || tip === 'INVENTAR') {
+    const lipsa = lipsesc(['ingredient', 'cant']);
+    if (lipsa.length) {
+      erori.push(`Coloane obligatorii negăsite: ${lipsa.join(', ')}. Fișierul trebuie să aibă codul ingredientului și cantitatea.`);
+    } else {
+      const lunaImplicita = opt?.dataValabil?.slice(0, 7) ?? new Date().toISOString().slice(0, 7);
+      const waste = [...state.waste], inventar = [...state.inventar];
+      const necunoscute = new Set<string>();
+      const chei = new Set<string>();
+      const noiW: WasteFapt[] = [], noiI: InventarFapt[] = [];
+
+      p.randuri.forEach((r, idx) => {
+        const cod = String(g(r, 'ingredient')).trim();
+        const cant = parseNumar(g(r, 'cant'));
+        if (!cod || cant == null) return;
+        const ing = state.ingrediente.find(x => x.cod === cod);
+        if (!ing) { necunoscute.add(cod); return; }
+        // UM din fișier, dacă există; altfel UM de bază a ingredientului
+        const umBrut = map.um ? umNBO(g(r, 'um')) : null;
+        const um: UMCod = umBrut ?? ing.um;
+        if (UMS[um].baza !== ing.um) {
+          avert.push(`Rând ${idx + 2}: UM „${um}" nu se potrivește cu ingredientul ${ing.denumire} (${ing.um}) — rând ignorat`);
+          return;
+        }
+        const locatie = map.locatie ? String(g(r, 'locatie')).trim() : (opt?.locatieRaport ?? '');
+        const perioada = map.perioada ? String(g(r, 'perioada')).trim().slice(0, 7) : lunaImplicita;
+        if (!locatie) { avert.push(`Rând ${idx + 2}: fără restaurant — rând ignorat (adaugă o coloană „Locație" sau selectează un restaurant)`); return; }
+        chei.add(`${locatie}|${perioada}`);
+        if (tip === 'WASTE') {
+          const motiv = map.motiv ? String(g(r, 'motiv')).trim() || undefined : undefined;
+          noiW.push({ locatie, perioada, ingredient: cod, cant, um, motiv });
+        } else {
+          noiI.push({ locatie, perioada, ingredient: cod, consumReal: cant, um });
+        }
+        importate++;
+        perioade.add(perioada);
+      });
+
+      // reimportul aceleiași luni/locații înlocuiește, nu adaugă
+      const pastreaza = <T extends { locatie: string; perioada: string }>(x: T) => !chei.has(`${x.locatie}|${x.perioada}`);
+      necunoscute.forEach(c => avert.push(`Cod de ingredient negăsit în nomenclator: ${c} — rând ignorat`));
+      if (chei.size) avert.push(`Perioade acoperite: ${[...chei].join(', ')}`);
+      if (tip === 'WASTE') {
+        const lei = noiW.reduce((s, w) => {
+          const ing = state.ingrediente.find(x => x.cod === w.ingredient);
+          return s + (ing ? w.cant * UMS[w.um].f * pretCurent(ing) : 0);
+        }, 0);
+        avert.push(`Waste raportat: ${fmtNr(Math.round(lei))} lei`);
+        stateNou = { ...state, waste: [...waste.filter(pastreaza), ...noiW] };
+      } else {
+        avert.push('Consumul real din inventar permite descompunerea variance-ului: rețetă vs waste vs neexplicat');
+        stateNou = { ...state, inventar: [...inventar.filter(pastreaza), ...noiI] };
+      }
+    }
+  } else if (tip === 'FC_BAZA') {
     const b = parseBazaFC(p.foi ?? { [p.foaie]: p.matrice ?? [] });
     avert.push(...b.avertismente);
     if (!b.produse.length || !b.retete.length) {
@@ -593,11 +738,24 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       const nepotrivite = new Map<string, { cant: number; valoare: number; categorie: string }>();
       let pretZero = 0, bucZero = 0, negative = 0;
 
+      // componentele meniurilor definite: costul lor intră deja prin explozia meniului-părinte,
+      // deci liniile lor cu preț 0 trebuie excluse, altfel costul se numără de două ori
+      const componenteMeniu = new Set<string>();
+      for (const pr of produse) {
+        if (pr.tip !== 'COMBO' || !pr.combo?.length) continue;
+        for (const c of pr.combo) componenteMeniu.add(c.cod);
+      }
+      let excluseComponente = 0, bucExcluse = 0;
+
       for (const l of sm.linii) {
         if (l.qty < 0) negative++;
         if (l.pret === 0) { pretZero++; bucZero += l.qty; }
         const cheie = cheieDenumire(l.numeBaza);
         const cod = dupaCheie.get(cheie);
+        if (cod && l.pret === 0 && componenteMeniu.has(cod)) {
+          excluseComponente++; bucExcluse += l.qty;
+          continue;
+        }
         if (!cod) {
           const n = nepotrivite.get(l.numeBaza) ?? { cant: 0, valoare: 0, categorie: l.categorie };
           n.cant += l.qty; n.valoare += l.ext;
@@ -626,7 +784,13 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       // ——— raportarea onestă a limitelor
       if (zile > 1) avert.push(`Raportul acoperă ${zile} zile (${sm.perioadaDe} – ${sm.perioadaLa}), dar POS-ul nu dă defalcarea pe zi: totalul a fost înregistrat pe ${data}`);
       if (locatie === 'AGREGAT') avert.push(`Raportul e agregat pe ${sm.magazine.length} restaurante: analizele pe locație nu pot separa unitățile`);
-      if (pretZero) avert.push(`${pretZero} linii cu preț 0 (componente de meniu): ${fmtNr(bucZero)} bucăți fără venit propriu — costul lor intră în Food Cost, veniturile sunt pe meniul-părinte`);
+      if (excluseComponente) {
+        avert.push(`${excluseComponente} linii cu preț 0 au fost EXCLUSE (${fmtNr(bucExcluse)} bucăți): sunt componente ale unor meniuri definite, `
+          + 'iar costul lor intră deja prin meniul-părinte — altfel s-ar fi numărat de două ori');
+      }
+      const zeroRamas = pretZero - excluseComponente;
+      if (zeroRamas > 0) avert.push(`${zeroRamas} linii cu preț 0 rămase (${fmtNr(bucZero - bucExcluse)} bucăți): costul lor intră în Food Cost fără venit propriu. `
+        + 'Definește meniurile (import „Meniuri / combo") ca să fie atribuite corect.');
       if (negative) avert.push(`${negative} linii cu cantitate negativă (retururi) — incluse în agregare`);
       if (sm.totalQty != null) {
         const potrivit = [...acc.values()].reduce((s, a) => s + a.cant, 0);

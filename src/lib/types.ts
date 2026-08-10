@@ -131,6 +131,19 @@ export interface Setari {
   pragAlertaPret: number;         // %
 }
 
+/** Waste raportat per restaurant și lună, la nivel de ingredient (fișier lunar din operațiuni). */
+export interface WasteFapt {
+  locatie: string; perioada: string;      // AAAA-LL
+  ingredient: string; cant: number; um: UMCod;
+  motiv?: string;                          // expirat, ars, cădere, retur client…
+}
+
+/** Consumul real din inventar (stoc inițial + intrări − stoc final), per ingredient. */
+export interface InventarFapt {
+  locatie: string; perioada: string;
+  ingredient: string; consumReal: number; um: UMCod;
+}
+
 export interface Nemapat {
   denumire: string;          // denumirea POS care nu s-a potrivit cu nomenclatorul
   categorie: string;
@@ -148,6 +161,8 @@ export interface AppState {
   vanzari: VanzareFapt[];
   salesReport: SalesReportRand[];
   linii29: Linie29[];
+  waste: WasteFapt[];
+  inventar: InventarFapt[];
   reguli: RegulaClasificare[];
   tinte: Tinta[];
   importuri: ImportBatch[];

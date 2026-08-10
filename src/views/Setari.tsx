@@ -1,6 +1,53 @@
 import { useRef, useState } from 'react';
-import { migreaza, useStore, validInstantaneu } from '../lib/store';
+import { autentifica, configServer, migreaza, setConfigServer, useStore, validInstantaneu } from '../lib/store';
 import { Btn, Camp, In, T, Td, Th, Titlu } from '../lib/ui';
+
+function PanouServer() {
+  const { serverStare } = useStore();
+  const cfg = configServer();
+  const [url, setUrl] = useState(cfg?.url ?? 'http://localhost:8787');
+  const [email, setEmail] = useState('');
+  const [parola, setParola] = useState('');
+  const [mesaj, setMesaj] = useState('');
+
+  const conecteaza = async () => {
+    setMesaj('Se conectează…');
+    try {
+      const c = await autentifica(url, email, parola);
+      setConfigServer(c);
+      setMesaj(`Conectat ca ${c.utilizator.nume ?? c.utilizator.email} (${c.utilizator.rol}). Reîncarcă pagina.`);
+    } catch (e) { setMesaj(`Eșuat: ${(e as Error).message}`); }
+  };
+
+  return (
+    <div className="mt-5 rounded-md border bg-card p-4">
+      <div className="font-display text-base font-extrabold">Server comun (multi-utilizator)</div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Fără server, datele stau doar în browserul tău și se împart prin instantaneu. Cu server, toți văd
+        aceleași cifre în timp real: analiștii pot importa și salva, iar managerii de restaurant văd
+        <b> doar unitatea lor</b> — filtrarea se face pe server, nu în interfață.
+      </p>
+      {cfg ? (
+        <div className="mt-2 text-sm">
+          <div>Conectat la <b>{cfg.url}</b> ca <b>{cfg.utilizator.email}</b> — rol <b>{cfg.utilizator.rol}</b>
+            {cfg.utilizator.locatie ? ` · restaurant ${cfg.utilizator.locatie}` : ''}</div>
+          {serverStare?.eroare
+            ? <div className="mt-1 rounded border-2 border-danger/60 bg-danger/5 p-2 text-danger">{serverStare.eroare}</div>
+            : <div className="mt-1 text-muted-foreground">revizia {serverStare?.revizie ?? '—'}{serverStare?.filtrat ? ' · vezi datele filtrate pe restaurantul tău' : ''}</div>}
+          <Btn className="mt-2" varianta="linie" onClick={() => { setConfigServer(null); location.reload(); }}>Deconectează (revino la datele locale)</Btn>
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <Camp eticheta="Adresa serverului"><In aria-label="Adresa serverului" className="w-56" value={url} onChange={e => setUrl(e.target.value)} placeholder="http://localhost:8787" /></Camp>
+          <Camp eticheta="Email"><In aria-label="Email server" className="w-48" value={email} onChange={e => setEmail(e.target.value)} /></Camp>
+          <Camp eticheta="Parolă"><In aria-label="Parola server" className="w-40" type="password" value={parola} onChange={e => setParola(e.target.value)} /></Camp>
+          <Btn onClick={conecteaza} disabled={!url || !email || !parola}>Conectează</Btn>
+        </div>
+      )}
+      {mesaj && <div className="mt-2 text-sm">{mesaj}</div>}
+    </div>
+  );
+}
 
 export default function Setari() {
   const { state, update, reset, incarcaSet, persistent } = useStore();
@@ -228,6 +275,7 @@ export default function Setari() {
       <p className="mt-3 text-xs text-muted-foreground">
         Prime Cost = Food &amp; Paper Cost + Labor, raportat la vânzările nete. În simulări costul de personal rămâne fix în lei (efect pe termen scurt), deci procentul se schimbă odată cu vânzările.
       </p>
-    </div>
+          <PanouServer />
+</div>
   );
 }

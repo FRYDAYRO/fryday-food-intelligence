@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useSel, useStore } from '../lib/store';
 import type { Clasa29 } from '../lib/types';
-import { clasifica, fcPerioada, fmtInt, fmtPP, fmtPct } from '../lib/engine';
-import { Btn, Gol, In, Insigna, Sel, T, Td, Th, Titlu } from '../lib/ui';
+import { clasifica, fcPerioada, fmtInt, fmtPP, fmtPct, lunaAnterioara, varianceDetaliat } from '../lib/engine';
+import { Btn, Gol, In, Insigna, Sel, T, Td, Th, Titlu, cx } from '../lib/ui';
 
 export default function FoodCost() {
   const { state, ctx, update } = useStore();
@@ -21,6 +21,18 @@ export default function FoodCost() {
       slab: cuFc[0], bun: cuFc[cuFc.length - 1] };
   }, [rezLoc]);
   const numeLoc = (cod: string) => state.locatii.find(l => l.cod === cod)?.nume ?? cod;
+  // luna anterioară, pentru a vedea direcția: un FC bun care se înrăutățește e mai important decât unul stabil
+  const lunaPrec = lunaAnterioara(sel.luna);
+  const fcPrec = useMemo(() => {
+    const m = new Map<string, number | null>();
+    for (const l of ['RETEA', ...state.locatii.map(x => x.cod)]) {
+      const r = fcPerioada(state, ctx, lunaPrec, l);
+      m.set(l, r.net > 0 ? (r.fcCurat ?? r.fcTeoreticAcoperit) : null);
+    }
+    return m;
+  }, [state, ctx, lunaPrec]);
+
+  const vd = useMemo(() => varianceDetaliat(state, ctx, sel.luna, sel.locatie), [state, ctx, sel.luna, sel.locatie]);
 
   const linii = useMemo(() => state.linii29
     .filter(l => l.perioada === sel.luna && (sel.locatie === 'RETEA' || l.locatie === sel.locatie))
@@ -44,7 +56,7 @@ export default function FoodCost() {
         </div>
       )}
       <T>
-        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic (pe partea acoperită)</Th><Th dr>Acoperire</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Pierdere 2.9 (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th></tr></thead>
+        <thead><tr><Th>Nivel</Th><Th dr>Vânzări nete</Th><Th dr>FC teoretic (pe partea acoperită)</Th><Th dr>Acoperire</Th><Th dr>FC Curat</Th><Th dr>FC operațional</Th><Th dr>Paper Cost</Th><Th dr>Variance</Th><Th dr>Pierdere 2.9 (lei)</Th><Th dr>Țintă</Th><Th dr>Abatere</Th><Th dr>vs {lunaPrec}</Th><Th dr>Profit real</Th></tr></thead>
         <tbody>
           {[rezRetea, ...rezLoc].map((r, idx) => {
             const nume = r.locatie === 'RETEA' ? 'Rețea (toate locațiile)' : state.locatii.find(l => l.cod === r.locatie)?.nume ?? r.locatie;
@@ -62,6 +74,10 @@ export default function FoodCost() {
                 <Td dr className={r.varianceLei != null && r.varianceLei > 0 ? 'text-danger font-semibold' : ''}>{r.are29 && r.varianceLei != null ? fmtInt(r.varianceLei) : '—'}</Td>
                 <Td dr>{fmtPct(r.tinta)}</Td>
                 <Td dr className={r.abatere == null ? '' : ok ? 'text-ok' : 'text-danger'}>{fmtPP(r.abatere)}</Td>
+                <Td dr className={(() => { const p = fcPrec.get(r.locatie); const a = r.fcCurat ?? r.fcTeoreticAcoperit; return p != null && a != null ? (a > p ? 'text-danger' : a < p ? 'text-ok' : '') : ''; })()}>
+                  {(() => { const p = fcPrec.get(r.locatie); const a = r.fcCurat ?? r.fcTeoreticAcoperit; return p != null && a != null ? fmtPP(a - p) : '—'; })()}
+                </Td>
+                <Td dr>{r.profitReal != null ? fmtInt(r.profitReal) : '—'}</Td>
               </tr>
             );
           })}
@@ -70,6 +86,56 @@ export default function FoodCost() {
       <p className="mt-2 text-xs text-muted-foreground">
         FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic · <b>Pierdere 2.9</b> = consumul Curat − costul teoretic, în lei: partea de consum pe care rețetele nu o explică (waste, porționare, erori). Numitor: {rezRetea.numitor}. Clasamentul e ordonat de la cel mai mare Food Cost la cel mai mic.
       </p>
+
+      {(vd.areWaste || vd.areInventar) && (
+        <div className="mt-5">
+          <Titlu>Din ce se compune consumul real — {sel.luna}</Titlu>
+          <div className="mb-2 grid gap-2 sm:grid-cols-4">
+            <div className="rounded-md border bg-card p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cost teoretic (rețete)</div>
+              <div className="font-display text-xl font-extrabold">{fmtInt(vd.leiTeoretic)} lei</div>
+            </div>
+            <div className="rounded-md border bg-card p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Waste raportat</div>
+              <div className="font-display text-xl font-extrabold text-danger">+{fmtInt(vd.leiWaste)} lei</div>
+              <div className="text-xs text-muted-foreground">{vd.leiTeoretic > 0 ? fmtPct((vd.leiWaste / vd.leiTeoretic) * 100, 1) : '—'} din teoretic</div>
+            </div>
+            <div className="rounded-md border bg-card p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Neexplicat</div>
+              <div className={cx('font-display text-xl font-extrabold', vd.leiNeexplicat != null && vd.leiNeexplicat > 0 && 'text-danger')}>
+                {vd.leiNeexplicat != null ? `${vd.leiNeexplicat > 0 ? '+' : ''}${fmtInt(vd.leiNeexplicat)} lei` : '—'}
+              </div>
+              <div className="text-xs text-muted-foreground">{vd.areInventar ? 'porționare, erori, pierderi neînregistrate' : 'necesită import de inventar'}</div>
+            </div>
+            <div className="rounded-md border bg-card p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consum real total</div>
+              <div className="font-display text-xl font-extrabold">{vd.leiReal != null ? `${fmtInt(vd.leiReal)} lei` : '—'}</div>
+              <div className="text-xs text-muted-foreground">{vd.areInventar ? `acoperire inventar ${fmtPct(vd.acoperireInventar, 1)}` : 'fără inventar'}</div>
+            </div>
+          </div>
+          <T dens>
+            <thead><tr><Th>Ingredient</Th><Th dr>Teoretic</Th><Th dr>Waste</Th><Th dr>Consum real</Th><Th dr>Neexplicat</Th><Th dr>Waste (lei)</Th><Th dr>Neexplicat (lei)</Th></tr></thead>
+            <tbody>
+              {vd.linii.filter(l => l.wasteRaportat > 0 || (l.neexplicat != null && Math.abs(l.neexplicat) > 0.001)).slice(0, 25).map(l => (
+                <tr key={l.ingredient}>
+                  <Td>{l.denumire}</Td>
+                  <Td dr>{l.consumTeoretic.toFixed(2)} {l.um}</Td>
+                  <Td dr>{l.wasteRaportat > 0 ? `${l.wasteRaportat.toFixed(2)} ${l.um}` : '—'}</Td>
+                  <Td dr>{l.consumReal != null ? `${l.consumReal.toFixed(2)} ${l.um}` : '—'}</Td>
+                  <Td dr className={l.neexplicat != null && l.neexplicat > 0 ? 'text-danger' : ''}>{l.neexplicat != null ? l.neexplicat.toFixed(2) : '—'}</Td>
+                  <Td dr>{l.leiWaste > 0 ? fmtInt(l.leiWaste) : '—'}</Td>
+                  <Td dr className={l.leiNeexplicat != null && l.leiNeexplicat > 0 ? 'text-danger font-semibold' : ''}>{l.leiNeexplicat != null ? fmtInt(l.leiNeexplicat) : '—'}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </T>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Neexplicat = consum real − (teoretic + waste). Pozitiv înseamnă că s-a consumat mai mult decât justifică
+            rețetele și pierderile raportate: porționare peste gramaj, erori de producție sau pierderi neînregistrate.
+            Negativ poate însemna gramaje sub rețetă sau inventar inexact. Rândurile sunt ordonate după impactul în lei.
+          </p>
+        </div>
+      )}
 
       {rezRetea.netDelivery > 0 && (
         <div className="mt-6">

@@ -360,6 +360,87 @@ export interface RezultatFC {
   acoperire: number | null; are29: boolean;
 }
 
+export interface RandVariance {
+  ingredient: string; denumire: string; um: string;
+  consumTeoretic: number;      // din rețete × mixul vândut
+  wasteRaportat: number;       // din fișierul de waste
+  consumReal: number | null;   // din inventar
+  neexplicat: number | null;   // real − (teoretic + waste): porționare, erori, furt
+  pret: number;
+  leiTeoretic: number; leiWaste: number; leiNeexplicat: number | null;
+}
+
+export interface VarianceDetaliat {
+  linii: RandVariance[];
+  leiTeoretic: number;
+  leiWaste: number;
+  leiNeexplicat: number | null;
+  leiReal: number | null;
+  areWaste: boolean; areInventar: boolean;
+  acoperireInventar: number;    // % din costul teoretic pentru care avem consum real
+}
+
+/**
+ * Descompune diferența dintre Food Cost teoretic și consumul real în trei părți:
+ * rețetă, waste raportat și rest neexplicat. Fără inventar, ultima parte nu se poate calcula —
+ * se raportează null, nu zero, ca să nu creeze impresia că totul e explicat.
+ */
+export function varianceDetaliat(state: AppState, ctx: Ctx, luna: string, locatie: string | 'RETEA'): VarianceDetaliat {
+  const loc = locatie === 'RETEA' ? undefined : locatie;
+  const teoretic = consumuriLuna(state, ctx, luna, loc);
+
+  const waste = new Map<string, number>();
+  for (const w of state.waste) {
+    if (w.perioada !== luna || (loc && w.locatie !== loc)) continue;
+    const f = UMS[w.um]?.f ?? 1;
+    waste.set(w.ingredient, (waste.get(w.ingredient) ?? 0) + w.cant * f);
+  }
+  const real = new Map<string, number>();
+  for (const iv of state.inventar) {
+    if (iv.perioada !== luna || (loc && iv.locatie !== loc)) continue;
+    const f = UMS[iv.um]?.f ?? 1;
+    real.set(iv.ingredient, (real.get(iv.ingredient) ?? 0) + iv.consumReal * f);
+  }
+
+  const coduri = new Set([...teoretic.keys(), ...waste.keys(), ...real.keys()]);
+  const linii: RandVariance[] = [];
+  let leiTeoretic = 0, leiWaste = 0, leiNeexplicat = 0, leiReal = 0, teoreticCuInventar = 0;
+
+  for (const cod of coduri) {
+    const ing = ctx.ingrediente.get(cod);
+    if (!ing) continue;
+    const pret = pretLa(ing, `${luna}-28`);
+    const ct = teoretic.get(cod)?.cant ?? 0;
+    const w = waste.get(cod) ?? 0;
+    const r = real.has(cod) ? real.get(cod)! : null;
+    const nex = r != null ? r - ct - w : null;
+    const lt = ct * pret, lw = w * pret;
+    const ln = nex != null ? nex * pret : null;
+    leiTeoretic += lt; leiWaste += lw;
+    if (ln != null) { leiNeexplicat += ln; leiReal += r! * pret; teoreticCuInventar += lt; }
+    linii.push({
+      ingredient: cod, denumire: ing.denumire, um: ing.um,
+      consumTeoretic: ct, wasteRaportat: w, consumReal: r, neexplicat: nex,
+      pret, leiTeoretic: lt, leiWaste: lw, leiNeexplicat: ln,
+    });
+  }
+  linii.sort((a, b) => Math.abs(b.leiNeexplicat ?? b.leiWaste) - Math.abs(a.leiNeexplicat ?? a.leiWaste));
+  const areInventar = real.size > 0;
+  return {
+    linii, leiTeoretic, leiWaste,
+    leiNeexplicat: areInventar ? leiNeexplicat : null,
+    leiReal: areInventar ? leiReal : null,
+    areWaste: waste.size > 0, areInventar,
+    acoperireInventar: leiTeoretic > 0 ? (teoreticCuInventar / leiTeoretic) * 100 : 0,
+  };
+}
+
+/** Luna calendaristică precedentă, în format AAAA-LL. */
+export function lunaAnterioara(luna: string): string {
+  const [a, l] = luna.split('-').map(Number);
+  return l === 1 ? `${a - 1}-12` : `${a}-${String(l - 1).padStart(2, '0')}`;
+}
+
 export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: string | 'RETEA'): RezultatFC {
   const loc = locatie === 'RETEA' ? undefined : locatie;
   const memo = new Map<string, unknown>();
@@ -756,10 +837,11 @@ export function consumLunarIngredient(codIng: string, state: AppState, ctx: Ctx,
 }
 
 // cheltuiala lunară pe fiecare ingredient (consum brut × preț curent), pentru Achiziții
-export function consumuriLuna(state: AppState, ctx: Ctx, lunaRef: string): Map<string, { cant: number; valoare: number; um: string }> {
+export function consumuriLuna(state: AppState, ctx: Ctx, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
   const vol = new Map<string, number>();
   for (const v of state.vanzari) {
     if (luna(v.data) !== lunaRef) continue;
+    if (locatie && v.locatie !== locatie) continue;
     const k = `${v.produs}|${v.canal}`;
     vol.set(k, (vol.get(k) ?? 0) + v.cant);
   }

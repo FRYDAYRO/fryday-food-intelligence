@@ -3,6 +3,7 @@ import { useSel, useStore } from '../lib/store';
 import { campuriTip, citesteFisier, detecteazaTip, importa, mapeazaAntete, TIP_LABEL, type Parsat, type TipImport } from '../lib/importer';
 import { analizeazaFisier, type FoaieAnalizata } from '../lib/auto';
 import { Btn, Camp, Gol, In, Insigna, Sel, T, Td, Th, Titlu, cx } from '../lib/ui';
+import Nemapate from './shared/Nemapate';
 import { areDateDemo, reconciliaza, type ProblemaDate } from '../lib/reconciliere';
 import { fmtInt, fmtPct } from '../lib/engine';
 
@@ -12,6 +13,9 @@ const COLOANE_ASTEPTATE: Record<TipImport, string> = {
   FC29: 'perioadă (lună) · locație · categorie cheltuială · valoare',
   COST_INGREDIENTE: 'cod ingredient · denumire · categorie · tip · UM · preț net · valabil de la · furnizor',
   RETETAR: 'cod rețetă · tip rețetă · denumire · cod componentă · tip componentă · cantitate · UM · pierdere % · canal · randament',
+  MENIURI: 'componența meniurilor: meniu · componentă · cantitate (opțional preț și TVA). Costul meniului se calculează prin însumarea componentelor, iar componentele vândute la preț 0 nu se mai contorizează separat.',
+  WASTE: 'pierderile lunare pe ingredient: cod · cantitate · UM · restaurant · perioadă. Fără waste, diferența dintre Food Cost teoretic și consumul real rămâne neexplicată.',
+  INVENTAR: 'consumul real pe ingredient (stoc inițial + intrări − stoc final): cod · consum real · UM · restaurant · perioadă. Permite descompunerea completă a variance-ului.',
   FC_BAZA: 'fișierul de bază FRYDAY FC, cu foile NOMENCLATOR · RETETAR · FOOD COST — se citesc toate trei într-o trecere și populează ingredientele cu prețuri, rețetele și produsele cu prețuri pe canal',
   SALES_MIX: 'raportul 4.7 Sales Mix exportat din Back Office — Menu Item Name · Qty · Price · Extension. Canalul se citește din sufixul denumirii („ D" = Delivery, „ MD" = meniu pe Delivery), iar liniile la prețuri diferite se însumează automat.',
   RETETAR_NBO: 'export din NBO — Product ID · Product Name · Category · POS Item Price · Item ID · Item Name · Qty · Units · Cost · Extension (merge și cu layoutul de recipe card, cu antet și grilă)',
@@ -265,6 +269,8 @@ function TabImport() {
           <MapareAsistata />
         </div>
       )}
+
+      <Nemapate />
 
       {jurnalLot && (
         <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">

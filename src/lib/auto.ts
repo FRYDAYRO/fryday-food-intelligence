@@ -157,6 +157,9 @@ const REGULI_CONTINUT: Partial<Record<TipImport, Record<string, Verificator>>> =
   SALES: { data: scorData, canal: scorCanal, net: scorPret, brut: scorPret },
   FC29: { perioada: scorPerioada, categorie: scorDenumire, valoare: scorPret },
   // raportul 4.7 se recunoaște după antet și după structura de raport, nu din conținut
+  MENIURI: { meniu: scorDenumire, componenta: scorDenumire },
+  WASTE: { ingredient: scorCod, cant: scorCantitate },
+  INVENTAR: { ingredient: scorCod, cant: scorCantitate },
   FC_BAZA: { denumire: scorDenumire },
   SALES_MIX: { denumire: scorDenumire, cant: scorCantitate, pret: scorPret },
   // prețurile de vânzare se recunosc după nume de coloană; codul se poate deduce
@@ -173,6 +176,9 @@ const OBLIGATORII: Record<TipImport, string[]> = {
   COST_INGREDIENTE: ['cod', 'pret'],
   RETETAR: ['reteta', 'comp', 'cant'],
   RETETAR_NBO: ['comp', 'cant', 'um'],
+  MENIURI: ['meniu', 'componenta'],
+  WASTE: ['ingredient', 'cant'],
+  INVENTAR: ['ingredient', 'cant'],
   FC_BAZA: ['denumire', 'canal'],
   SALES_MIX: ['denumire', 'cant'],
   PRETURI_PRODUSE: ['produs'],
@@ -218,6 +224,9 @@ function completeazaDinContinut(tip: TipImport, parsat: Parsat, map: Record<stri
 // vânzare, cât și cu un cost de ingrediente. Acestea se aplică doar dacă există un semnal explicit —
 // o coloană recunoscută după nume sau un nume de fișier care le indică.
 const NECESITA_SEMNAL: Partial<Record<TipImport, RegExp>> = {
+  MENIURI: /meniu|combo/i,
+  WASTE: /waste|pierder|risipa/i,
+  INVENTAR: /inventar|stoc|consum real/i,
   SALES_MIX: /sales mix|4\.?7/i,
   PRETURI_PRODUSE: /pret|price|vanzare|meniu|instore|delivery/i,
   PRETURI_FURNIZORI: /furnizor|supplier|oferta|achizit/i,

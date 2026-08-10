@@ -29,6 +29,7 @@ export function stareGoala(): AppState {
   return {
     locatii: [], furnizori: [], ingrediente: [], produse: [], retete: [],
     vanzari: [], salesReport: [], linii29: [],
+    waste: [], inventar: [],
     reguli: d.reguli,
     // țintele FRYDAY: Food Cost 45% pe rețea (nu cele din demo, legate de locații fictive)
     tinte: [{ locatie: 'RETEA', fcCurat: 45 }],
@@ -283,6 +284,7 @@ export function genereazaSeed(): AppState {
 
   return {
     locatii, furnizori, ingrediente, produse, retete, vanzari, salesReport, linii29,
+    waste: [], inventar: [],
     reguli: [
       { pattern: 'uniforme', clasa: 'EXCLUS' },
       { pattern: 'administrative', clasa: 'EXCLUS' },
