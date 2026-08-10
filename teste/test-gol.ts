@@ -1,3 +1,4 @@
+import { migreaza } from '../src/lib/store';
 import { stareGoala, genereazaSeed } from '../src/lib/seed';
 import { areDateDemo, reconciliaza } from '../src/lib/reconciliere';
 import { importa, type Parsat } from '../src/lib/importer';
@@ -80,6 +81,16 @@ t('prețurile pe canal sunt încărcate', (() => {
   return h.pretInstore > 0 && h.pretDelivery > 0;
 })());
 t('nicio denumire din setul demo', !baza.produse.some((p: { denumire: string }) => /Crispy Burger|Cola 330/.test(p.denumire)));
+
+console.log('— Migrarea tolerează instantanee incomplete —');
+// un instantaneu vechi, fără colecțiile adăugate ulterior, nu trebuie să rupă aplicația
+const vechi = { produse: [], retete: [], ingrediente: [], vanzari: [], locatii: [], setari: { tvaImplicit: 11 } };
+const mig = migreaza(JSON.parse(JSON.stringify(vechi)));
+t('waste și inventar sunt completate cu liste goale', Array.isArray(mig.waste) && Array.isArray(mig.inventar));
+t('celelalte colecții sunt completate', Array.isArray(mig.linii29) && Array.isArray(mig.importuri) && Array.isArray(mig.nemapate));
+t('regulile și țintele revin la valorile implicite', mig.reguli.length > 0 && mig.tinte.length > 0);
+t('setările păstrează ce era și completează restul', mig.setari.tvaImplicit === 11 && mig.setari.comisionDeliveryPct === 16);
+t('baza încorporată are toate colecțiile', ['waste', 'inventar', 'nemapate', 'importuri'].every(k => Array.isArray((baza as Record<string, unknown>)[k])));
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

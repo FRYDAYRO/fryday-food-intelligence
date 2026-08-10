@@ -79,6 +79,19 @@ export function migreaza(brut: unknown): AppState {
   p.costuriOperare = p.costuriOperare ?? d.costuriOperare;
   p.reguliBusiness = p.reguliBusiness ?? d.reguliBusiness;
   p.nemapate = p.nemapate ?? [];
+  p.waste = p.waste ?? [];
+  p.inventar = p.inventar ?? [];
+  // colecțiile de bază: un instantaneu vechi sau incomplet nu trebuie să rupă aplicația
+  p.locatii = p.locatii ?? [];
+  p.furnizori = p.furnizori ?? [];
+  p.ingrediente = p.ingrediente ?? [];
+  p.produse = p.produse ?? [];
+  p.retete = p.retete ?? [];
+  p.vanzari = p.vanzari ?? [];
+  p.linii29 = p.linii29 ?? [];
+  p.importuri = p.importuri ?? [];
+  p.reguli = p.reguli ?? d.reguli;
+  p.tinte = p.tinte ?? d.tinte;
   return p;
 }
 
