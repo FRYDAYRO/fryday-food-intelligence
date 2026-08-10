@@ -1,5 +1,14 @@
-# Configurație Cloudflare Pages pentru FRYDAY Food Intelligence.
-# Publicare: npx wrangler pages deploy dist --project-name fryday-fi
+# Publicare pe Cloudflare, cu poartă de parolă (fără Zero Trust, fără card).
+#
+#   npx wrangler secret put FRYDAY_PAROLA     # o dată: introduci parola echipei
+#   bash scripts/publica-cloudflare.sh        # construiește și publică
+#
+# Fără worker (aplicație deschisă, doar dacă build-ul e fără date):
+#   npx wrangler pages deploy dist --project-name fryday-fi
 name = "fryday-fi"
-pages_build_output_dir = "dist"
+main = "worker/index.ts"
 compatibility_date = "2026-08-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"

@@ -188,7 +188,7 @@ function Continut() {
 }
 
 // Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai nou.
-export const VERSIUNE = 'RC 12.2';
+export const VERSIUNE = 'RC 12.3';
 export const DATA_BUILD = '08.08.2026';
 
 export default function App() {

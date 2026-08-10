@@ -130,20 +130,31 @@ aceea rămâne statică, pe GitHub Pages sau oriunde altundeva.
 
 ## Publicarea online
 
-**Recomandat: Cloudflare Pages + Access.** Singura variantă care dă în același timp adresă stabilă
-și confidențialitate, gratuit. Nu are nevoie de repository public — fișierele se urcă direct.
+**Recomandat: Cloudflare.** Nu are nevoie de repository public — fișierele se urcă direct.
+Build-ul complet conține rețetele și costurile, deci adresa **nu** trebuie lăsată deschisă.
+Două variante, ambele gratuite și fără card:
+
+**1. Cu parolă (recomandat).** Un Worker cere utilizator și parolă înainte de a servi aplicația.
 
 ```bash
-bash scripts/publica-cloudflare.sh      # construiește și publică; login în browser la prima rulare
+npx wrangler secret put FRYDAY_PAROLA     # o dată: parola echipei
+bash scripts/publica-cloudflare.sh        # construiește și publică
+bash worker/ruleaza-teste.sh              # 12 teste pe poarta de acces
 ```
 
-Rezultă o adresă de forma `https://fryday-fi.pages.dev`. **Pune imediat poarta de acces**, fiindcă
-build-ul conține rețetele și costurile: `dash.cloudflare.com → Zero Trust → Access → Applications →
-Add an application → Self-hosted`, domeniul aplicației, apoi o politică *Allow · Emails ending in
-`@fryday.ro`*. Gratuit până la 50 de utilizatori; fiecare primește un cod pe email la deschidere.
+Parolă comună pentru toată echipa: oprește accesul întâmplător și indexarea, dar nu spune cine a
+intrat și nu se revocă pe persoană. Pentru conturi individuale e nevoie de Zero Trust (care cere
+card, chiar pe planul gratuit) sau de serverul propriu din `server/`.
 
-Alternativ, fără linie de comandă: `dash.cloudflare.com → Workers & Pages → Create → Pages →
-Upload assets` și tragi `FRYDAY-FI-cloudflare.zip`.
+**2. Fără date încorporate.** Aplicația pornește goală, iar fiecare își încarcă instantaneul din
+Setări. Adresa poate rămâne deschisă, fiindcă nu conține nimic confidențial.
+
+```bash
+FARA_BAZA=1 bash scripts/publica-cloudflare.sh
+```
+
+Fără linie de comandă: `dash.cloudflare.com → Workers & Pages → Create → Upload assets` și tragi
+`FRYDAY-FI-cloudflare.zip` (varianta completă) sau `FRYDAY-FI-cloudflare-public.zip` (fără date).
 
 Serverul multi-utilizator (`server/server.mjs`) **nu** rulează pe Cloudflare Workers: folosește
 `node:http` și SQLite nativ. Pentru Cloudflare ar trebui portat pe Workers + D1 — sau rulat pe orice

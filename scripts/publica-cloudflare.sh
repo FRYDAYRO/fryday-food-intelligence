@@ -1,32 +1,40 @@
 #!/usr/bin/env bash
-# Publică aplicația pe Cloudflare Pages, dintr-o comandă:
-#   bash scripts/publica-cloudflare.sh
-# La prima rulare se deschide browserul pentru autentificare în contul Cloudflare.
-# Nu e nevoie de repository public: fișierele se urcă direct.
+# Publică aplicația pe Cloudflare. Două variante, alegi cu FARA_BAZA:
+#
+#   bash scripts/publica-cloudflare.sh                 → aplicația CU rețete și costuri, protejată prin parolă
+#   FARA_BAZA=1 bash scripts/publica-cloudflare.sh     → aplicația GOALĂ (fără date), poate rămâne deschisă
+#
+# Prima dată, pentru varianta protejată, setează parola echipei:
+#   npx wrangler secret put FRYDAY_PAROLA
 set -euo pipefail
-PROIECT="${PROIECT:-fryday-fi}"
 
-echo "1/3 Construiesc aplicația…"
+if [ "${FARA_BAZA:-0}" = "1" ]; then
+  echo "1/2 Construiesc varianta FĂRĂ date încorporate…"
+  VITE_FARA_BAZA=1 npx vite build --base ./
+  touch dist/.nojekyll
+  echo "2/2 Public ca site static deschis (nu conține rețete sau costuri)…"
+  npx --yes wrangler@latest pages deploy dist --project-name "${PROIECT:-fryday-fi-public}" --commit-dirty=true
+  echo
+  echo "GATA. Adresa e mai sus. Datele se încarcă din Setări → „Încarcă un instantaneu”."
+  exit 0
+fi
+
+echo "1/2 Construiesc aplicația completă (cu rețete și prețuri)…"
 npx vite build --base ./
 touch dist/.nojekyll
 
-echo "2/3 Public pe Cloudflare Pages (proiect: $PROIECT)…"
-npx --yes wrangler@latest pages deploy dist --project-name "$PROIECT" --commit-dirty=true
+echo "2/2 Public cu poartă de parolă…"
+npx --yes wrangler@latest deploy
 
 cat <<'NOTA'
 
-3/3 GATA. Adresa apare mai sus (ceva de forma https://fryday-fi.pages.dev).
+GATA. Adresa apare mai sus.
 
-IMPORTANT — protejarea datelor:
-Aplicația conține rețetele și costurile FRYDAY, deci NU o lăsa deschisă public.
-Pune o poartă de acces pe email, gratuit, în câteva minute:
+La prima deschidere, browserul cere utilizator și parolă:
+  utilizator: fryday        (schimbabil: npx wrangler secret put FRYDAY_UTILIZATOR)
+  parola:     cea pusă cu   npx wrangler secret put FRYDAY_PAROLA
 
-  1. dash.cloudflare.com → Zero Trust → Access → Applications → Add an application
-  2. Self-hosted · Application domain: fryday-fi.pages.dev
-  3. Policy: Allow · Include → Emails ending in → @fryday.ro
-     (sau Emails → lista exactă de adrese)
-  4. Save
-
-De atunci, oricine deschide adresa primește un cod pe email; doar adresele permise intră.
-Gratuit până la 50 de utilizatori.
+Dacă primești „Parola nu e configurată”, rulează:
+  npx wrangler secret put FRYDAY_PAROLA
+și apoi din nou acest script.
 NOTA
