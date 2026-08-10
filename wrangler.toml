@@ -1,0 +1,5 @@
+# Configurație Cloudflare Pages pentru FRYDAY Food Intelligence.
+# Publicare: npx wrangler pages deploy dist --project-name fryday-fi
+name = "fryday-fi"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-08-01"

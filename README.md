@@ -130,11 +130,32 @@ aceea rămâne statică, pe GitHub Pages sau oriunde altundeva.
 
 ## Publicarea online
 
+**Recomandat: Cloudflare Pages + Access.** Singura variantă care dă în același timp adresă stabilă
+și confidențialitate, gratuit. Nu are nevoie de repository public — fișierele se urcă direct.
+
+```bash
+bash scripts/publica-cloudflare.sh      # construiește și publică; login în browser la prima rulare
+```
+
+Rezultă o adresă de forma `https://fryday-fi.pages.dev`. **Pune imediat poarta de acces**, fiindcă
+build-ul conține rețetele și costurile: `dash.cloudflare.com → Zero Trust → Access → Applications →
+Add an application → Self-hosted`, domeniul aplicației, apoi o politică *Allow · Emails ending in
+`@fryday.ro`*. Gratuit până la 50 de utilizatori; fiecare primește un cod pe email la deschidere.
+
+Alternativ, fără linie de comandă: `dash.cloudflare.com → Workers & Pages → Create → Pages →
+Upload assets` și tragi `FRYDAY-FI-cloudflare.zip`.
+
+Serverul multi-utilizator (`server/server.mjs`) **nu** rulează pe Cloudflare Workers: folosește
+`node:http` și SQLite nativ. Pentru Cloudflare ar trebui portat pe Workers + D1 — sau rulat pe orice
+VPS mic, ceea ce e mai simplu.
+
+### GitHub Pages (alternativă)
+
 **Aplicația live: https://valentin845.github.io/fryday-fi/** — build-ul de producție, publicat din repository-ul public `fryday-fi` (doar aplicația compilată; sursa și testele rămân în acest repository privat). Republicare după modificări: `GH_TOKEN=... bash scripts/publica-app.sh`.
 
 Aplicația e un singur fișier static — orice găzduire de fișiere statice o poate servi.
 
-**GitHub Pages (recomandat, automat).** Workflow-ul `.github/workflows/pages.yml` e inclus, iar `scripts/publica.sh` face totul dintr-o comandă:
+**Publicare automată la fiecare push.** Workflow-ul `.github/workflows/pages.yml` e inclus, iar `scripts/publica.sh` face totul dintr-o comandă:
 ```bash
 GH_TOKEN=ghp_xxx bash scripts/publica.sh          # repository privat
 GH_TOKEN=ghp_xxx PUBLIC=1 bash scripts/publica.sh # repository public (necesar pe contul gratuit)
