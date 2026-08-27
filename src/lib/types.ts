@@ -92,6 +92,8 @@ export interface Material29 {
   costTeoretic: number | null; // lei teoretici, dacă raportul îi conține
   /** Materialul e marcat în sursă drept normalizat (porționat/reambalat intern). */
   normalizat?: boolean;
+  /** Canalul, DOAR când exportul îl precizează explicit. Lipsă = necunoscut, nu Total. */
+  canal?: Canal;
 }
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';

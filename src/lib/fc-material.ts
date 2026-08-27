@@ -37,7 +37,7 @@ export interface RandMaterialFC {
   locatie: string | null;
   /** Perioada SURSĂ (AAAA-LL), păstrată ca atare. */
   perioadaSursa: string;
-  /** 2.9 nu conține canalul. */
+  /** Canalul declarat explicit în sursă; 2.9 obișnuit nu îl conține → UNKNOWN. */
   canal: FCChannelSursa;
   cant: number | null;
   um: UMCod | null;
@@ -46,6 +46,8 @@ export interface RandMaterialFC {
   /** actual − teoretic. `null` când teoreticul nu se poate stabili. */
   variance: number | null;
   normalizat: boolean;
+  /** Marcajul brut din sursă, păstrat separat de categoria efectivă. */
+  normalizatInSursa: boolean;
   /** Materialul are corespondent în nomenclatorul de ingrediente. */
   areIngredient: boolean;
   ingredient: string | null;
@@ -62,7 +64,9 @@ export interface RandMaterialFC {
 export type CodDiagnostic =
   | 'MATERIAL_FARA_MAPARE' | 'MATERIAL_FARA_RETETA' | 'MATERIAL_FARA_PRET'
   | 'CATEGORIE_NECUNOSCUTA' | 'MATERIAL_NORMALIZAT' | 'IN_NBO_FARA_RETETA'
-  | 'INGREDIENT_FARA_NBO' | 'MAPARE_DUBLA' | 'LIPSA_LOCATIE' | 'LIPSA_PERIOADA' | 'GRANULARITATE_MIXTA';
+  | 'INGREDIENT_FARA_NBO' | 'MAPARE_DUBLA' | 'LIPSA_LOCATIE' | 'LIPSA_PERIOADA' | 'GRANULARITATE_MIXTA'
+  // folosite de puntea canonică (fc-bridge):
+  | 'RESTAURANT_FARA_29' | 'LUNA_FARA_29' | 'SURSA_INCOMPLETA';
 
 export interface DiagnosticFC {
   cod: CodDiagnostic;
@@ -159,6 +163,187 @@ function mapeaza(material: Material29, ctx: CtxFC, utilizari: Map<string, number
   return { ingredient: cod, areReteta: n > 0, utilizari: n, arePret: ing.preturi.length > 0 && pretCurent(ing) > 0 };
 }
 
+// ————————————————————————————————————————————————————— piesele refolosibile ale motorului
+// (folosite și de puntea canonică din fc-bridge — aceleași rânduri, aceleași diagnostice)
+
+/** Teoreticul reconstruit din rețete × PMIX (pe Total), pe lunile și locația cerute. */
+export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], loc: string | undefined): Map<string, number> {
+  const rez = new Map<string, number>();
+  for (const l of luni) {
+    for (const [cod, v] of consumuriLuna(state, ctx, l, loc)) {
+      rez.set(cod, (rez.get(cod) ?? 0) + v.valoare);
+    }
+  }
+  return rez;
+}
+
+/**
+ * Construiește rândurile de material: clasificare (nimic nu cade tăcut pe FOOD), mapare pe
+ * nomenclator și rețete, teoreticul declarat sau reconstruit. Nu filtrează nimic — primește
+ * exact materialele pe care apelantul le-a pus în scop.
+ */
+export function randuriMaterialFC(
+  ctx: CtxFC,
+  materiale: Material29[],
+  teoreticPeIngredient: Map<string, number>,
+  reguliUtilizator: RegulaCategorie29[] = [],
+): RandMaterialFC[] {
+  const utilizari = utilizariPeIngredient(ctx);
+  const dupaNume = new Map<string, string>();
+  for (const i of ctx.ingrediente.values()) dupaNume.set(norm(i.denumire), i.cod);
+
+  return materiale.map(m => {
+    const cls = clasificaCategorie29(m.categorie, reguliUtilizator);
+    const mp = mapeaza(m, ctx, utilizari, dupaNume);
+    const categorie = categorieMaterial(cls, { normalizatInSursa: m.normalizat, areReteta: mp.areReteta });
+    const teoretic = m.costTeoretic ?? (mp.ingredient ? teoreticPeIngredient.get(mp.ingredient) ?? null : null);
+    return {
+      material: m.material, denumire: m.denumire,
+      categorieBruta: m.categorie, categorie, clasificare: cls,
+      locatie: m.locatie, perioadaSursa: m.perioada,
+      canal: m.canal ?? ('UNKNOWN' as const),
+      cant: m.cant ?? null, um: m.um ?? null,
+      costActual: m.costActual, costTeoretic: teoretic,
+      variance: teoretic != null ? m.costActual - teoretic : null,
+      normalizat: categorie === 'NORMALIZED',
+      normalizatInSursa: m.normalizat === true,
+      areIngredient: mp.ingredient !== null, ingredient: mp.ingredient,
+      areReteta: mp.areReteta, utilizareInRetete: mp.utilizari, arePret: mp.arePret,
+      sursa: 'NBO_29' as const,
+    };
+  });
+}
+
+/** Materialele care TREBUIE să aibă corespondent în nomenclator: doar Food și Paper. */
+export const trebuieMapat = (r: RandMaterialFC) => r.categorie === 'FOOD' || r.categorie === 'PAPER';
+
+/** Ordinea de afișare: blocantele primele, apoi după bani. */
+export const sorteazaDiagnostice = (d: DiagnosticFC[]): DiagnosticFC[] =>
+  [...d].sort((a, b) => {
+    const o = { BLOCANT: 0, ATENTIE: 1, INFO: 2 };
+    return o[a.nivel] - o[b.nivel] || b.lei - a.lei;
+  });
+
+/**
+ * Diagnosticele de calitate a datelor pe rândurile de material date — nesortate;
+ * apelantul le poate completa cu ale lui și le sortează cu `sorteazaDiagnostice`.
+ */
+export function diagnosticeMaterial(
+  randuri: RandMaterialFC[],
+  ctx: CtxFC,
+  teoreticPeIngredient: Map<string, number>,
+  loc: string | undefined,
+): DiagnosticFC[] {
+  const diagnostice: DiagnosticFC[] = [];
+  const adauga = (
+    cod: CodDiagnostic, nivel: DiagnosticFC['nivel'], titlu: string, detaliu: string, actiune: string,
+    elemente: { nume: string; lei: number }[],
+  ) => {
+    if (!elemente.length) return;
+    diagnostice.push({
+      cod, nivel, titlu, detaliu, actiune,
+      nrElemente: elemente.length,
+      lei: elemente.reduce((s, e) => s + e.lei, 0),
+      exemple: elemente.sort((a, b) => b.lei - a.lei).slice(0, 8).map(e => e.nume),
+    });
+  };
+  const el = (rs: RandMaterialFC[]) => rs.map(r => ({ nume: `${r.denumire} (${r.material})`, lei: r.costActual }));
+
+  // se cere mapare DOAR pentru materialele care ar trebui să fie ingrediente. Curățenia,
+  // uniformele sau papetăria nu au ce căuta în nomenclatorul de ingrediente, iar un material
+  // normalizat tocmai prin asta se definește: nu are corespondent în rețetar.
+  const faraMapare = randuri.filter(r => trebuieMapat(r) && !r.areIngredient);
+  adauga('MATERIAL_FARA_MAPARE', 'BLOCANT', 'Materiale de Food Cost fără corespondent în nomenclator',
+    'Nu se pot lega de niciun ingredient, deci nici de vreo rețetă: costul lor cade în „Neexplicat".',
+    'Adaugă ingredientele în nomenclator cu același cod ca în NBO, sau mapează-le pe cele existente.',
+    el(faraMapare));
+
+  adauga('MATERIAL_FARA_RETETA', 'ATENTIE', 'Materiale mapate, dar nefolosite în nicio rețetă',
+    'Ingredientul există în nomenclator, însă nicio rețetă nu îl consumă — fie lipsește din rețete, fie e normalizat.',
+    'Completează rețetele care îl folosesc sau confirmă că e material normalizat.',
+    el(randuri.filter(r => r.areIngredient && !r.areReteta)));
+
+  adauga('MATERIAL_FARA_PRET', 'ATENTIE', 'Materiale fără preț în nomenclator',
+    'Fără preț, costul teoretic al ingredientului nu se poate calcula, deci variance-ul lui rămâne necunoscut.',
+    'Importă lista de prețuri sau completează prețul în Master Data.',
+    el(randuri.filter(r => r.areIngredient && !r.arePret)));
+
+  adauga('CATEGORIE_NECUNOSCUTA', 'BLOCANT', 'Categorii 2.9 pe care nicio regulă nu le recunoaște',
+    'Aceste linii NU au fost presupuse Food. Rămân neclasificate și stau separat în punte, '
+    + 'ca să nu deformeze Food Cost-ul.',
+    'Adaugă o regulă de clasificare pentru fiecare categorie de mai jos.',
+    randuri.filter(r => r.categorie === 'UNCLASSIFIED')
+      .map(r => ({ nume: `${r.categorieBruta} — ${r.denumire}`, lei: r.costActual })));
+
+  adauga('MATERIAL_NORMALIZAT', 'INFO', 'Materiale normalizate identificate',
+    'Prezente în 2.9, nereprezentate ca atare în rețete. Intră în Food Cost, dar rețetarul nu le arată.',
+    'Nicio acțiune obligatorie — sunt separate tocmai ca să fie vizibile.',
+    el(randuri.filter(r => r.categorie === 'NORMALIZED')));
+
+  adauga('IN_NBO_FARA_RETETA', 'ATENTIE', 'Prezente în NBO, absente din rețetar',
+    'Materiale de Food Cost consumate real, pe care rețetarul nu le explică deloc.',
+    'Verifică dacă lipsește o rețetă sau dacă materialul e normalizat.',
+    el(randuri.filter(r => esteFC(r.categorie) && !r.areReteta)));
+
+  const materialeMapate = new Set(randuri.map(r => r.ingredient).filter((x): x is string => x !== null));
+  adauga('INGREDIENT_FARA_NBO', 'ATENTIE', 'Ingrediente consumate teoretic, absente din 2.9',
+    'Rețetele și PMIX-ul spun că s-au consumat, dar raportul 2.9 nu le conține — semn de mapare incompletă '
+    + 'sau de raport parțial.',
+    'Verifică exportul 2.9 și maparea codurilor.',
+    [...teoreticPeIngredient.entries()]
+      .filter(([cod, v]) => !materialeMapate.has(cod) && v > 0)
+      .map(([cod, v]) => ({ nume: `${ctx.ingrediente.get(cod)?.denumire ?? cod} (${cod})`, lei: v })));
+
+  // dublura se caută în ACELAȘI restaurant și aceeași perioadă: două restaurante care consumă
+  // același ingredient nu sunt o dublură, ci exact forma normală a raportului pe unități
+  const peIngredient = new Map<string, RandMaterialFC[]>();
+  for (const r of randuri) {
+    if (!r.ingredient) continue;
+    const k = `${r.ingredient}|${r.locatie ?? ''}|${r.perioadaSursa}`;
+    peIngredient.set(k, [...(peIngredient.get(k) ?? []), r]);
+  }
+  adauga('MAPARE_DUBLA', 'BLOCANT', 'Mai multe materiale mapate pe același ingredient',
+    'Costul lor s-ar putea număra de două ori la comparația cu teoreticul.',
+    'Verifică maparea: fiecare ingredient trebuie să aibă un singur material corespondent pe perioadă.',
+    [...peIngredient.entries()].filter(([, rs]) => rs.length > 1)
+      .map(([k, rs]) => ({ nume: `${k.split('|')[0]} ← ${rs.map(r => r.material).join(', ')}`, lei: rs.reduce((s, r) => s + r.costActual, 0) })));
+
+  adauga('LIPSA_LOCATIE', 'BLOCANT', 'Linii 2.9 fără restaurant',
+    'Nu pot fi atribuite unui restaurant, deci nu apar în analiza pe unitate, deși contează în total.',
+    'Reimportă raportul cu coloana de restaurant completată.',
+    el(randuri.filter(r => !r.locatie)));
+
+  // granularitate mixtă — doar la nivel de companie, unde ambele forme se însumează
+  if (!loc) {
+    const faraLoc = randuri.filter(r => !r.locatie);
+    const cuLoc = new Set(randuri.filter(r => r.locatie).map(r => r.material));
+    if (faraLoc.length && cuLoc.size) {
+      const suprapuse = faraLoc.filter(r => cuLoc.has(r.material));
+      const relevante = suprapuse.length ? suprapuse : faraLoc;
+      diagnostice.push({
+        cod: 'GRANULARITATE_MIXTA',
+        nivel: suprapuse.length ? 'BLOCANT' : 'ATENTIE',
+        titlu: 'Perioada conține atât linii pe restaurant, cât și linii fără restaurant',
+        detaliu: suprapuse.length
+          ? `${suprapuse.length} materiale apar în AMBELE forme: consumul lor e numărat de două ori la nivel de companie.`
+          : 'Cele două forme se însumează la nivel de companie; dacă provin din același raport exportat '
+            + 'de două ori (agregat și pe restaurant), consumul e numărat de două ori.',
+        actiune: 'Păstrează o singură formă pe perioadă: reimportă fie raportul agregat, fie fișierele pe restaurant.',
+        nrElemente: relevante.length,
+        lei: relevante.reduce((s, r) => s + r.costActual, 0),
+        exemple: relevante.slice(0, 8).map(r => `${r.denumire} (${r.material})`),
+      });
+    }
+  }
+
+  adauga('LIPSA_PERIOADA', 'BLOCANT', 'Linii 2.9 fără perioadă',
+    'Fără perioadă nu pot fi comparate cu nicio lună de vânzări.',
+    'Reimportă raportul cu perioada completată.',
+    el(randuri.filter(r => !r.perioadaSursa)));
+
+  return diagnostice;
+}
+
 // ————————————————————————————————————————————————————————— motorul
 
 export function reconciliationMaterialFC(
@@ -203,37 +388,9 @@ export function reconciliationMaterialFC(
         + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
   }
 
-  // ——— maparea
-  const utilizari = utilizariPeIngredient(ctx);
-  const dupaNume = new Map<string, string>();
-  for (const i of ctx.ingrediente.values()) dupaNume.set(norm(i.denumire), i.cod);
-
-  // teoreticul din rețete × PMIX, când raportul nu îl declară el însuși
-  const teoreticPeIngredient = new Map<string, number>();
-  for (const l of luni) {
-    for (const [cod, v] of consumuriLuna(state, ctx, l, loc)) {
-      teoreticPeIngredient.set(cod, (teoreticPeIngredient.get(cod) ?? 0) + v.valoare);
-    }
-  }
-
-  const randuri: RandMaterialFC[] = inScop.map(m => {
-    const cls = clasificaCategorie29(m.categorie, reguliUtilizator);
-    const mp = mapeaza(m, ctx, utilizari, dupaNume);
-    const categorie = categorieMaterial(cls, { normalizatInSursa: m.normalizat, areReteta: mp.areReteta });
-    const teoretic = m.costTeoretic ?? (mp.ingredient ? teoreticPeIngredient.get(mp.ingredient) ?? null : null);
-    return {
-      material: m.material, denumire: m.denumire,
-      categorieBruta: m.categorie, categorie, clasificare: cls,
-      locatie: m.locatie, perioadaSursa: m.perioada, canal: 'UNKNOWN' as const,
-      cant: m.cant ?? null, um: m.um ?? null,
-      costActual: m.costActual, costTeoretic: teoretic,
-      variance: teoretic != null ? m.costActual - teoretic : null,
-      normalizat: categorie === 'NORMALIZED',
-      areIngredient: mp.ingredient !== null, ingredient: mp.ingredient,
-      areReteta: mp.areReteta, utilizareInRetete: mp.utilizari, arePret: mp.arePret,
-      sursa: 'NBO_29' as const,
-    };
-  });
+  // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge)
+  const teoreticPeIngredient = teoreticDinRetete(state, ctx, luni, loc);
+  const randuri = randuriMaterialFC(ctx, inScop, teoreticPeIngredient, reguliUtilizator);
 
   // ——— găleata fiecărui rând
   const galeataPentru = (r: RandMaterialFC): GaleataBridge => {
@@ -281,111 +438,9 @@ export function reconciliationMaterialFC(
   const explainedAmount = nboActual - unexplainedAmount;
   const nboFoodCost = lei('RECIPE_FOOD') + lei('RECIPE_PAPER') + lei('NORMALIZED_PAPER');
 
-  // ——— diagnostice
-  const diagnostice: DiagnosticFC[] = [];
-  const adauga = (
-    cod: CodDiagnostic, nivel: DiagnosticFC['nivel'], titlu: string, detaliu: string, actiune: string,
-    elemente: { nume: string; lei: number }[],
-  ) => {
-    if (!elemente.length) return;
-    diagnostice.push({
-      cod, nivel, titlu, detaliu, actiune,
-      nrElemente: elemente.length,
-      lei: elemente.reduce((s, e) => s + e.lei, 0),
-      exemple: elemente.sort((a, b) => b.lei - a.lei).slice(0, 8).map(e => e.nume),
-    });
-  };
-  const el = (rs: RandMaterialFC[]) => rs.map(r => ({ nume: `${r.denumire} (${r.material})`, lei: r.costActual }));
-
-  // se cere mapare DOAR pentru materialele care ar trebui să fie ingrediente. Curățenia,
-  // uniformele sau papetăria nu au ce căuta în nomenclatorul de ingrediente, iar un material
-  // normalizat tocmai prin asta se definește: nu are corespondent în rețetar.
-  const trebuieMapat = (r: RandMaterialFC) => r.categorie === 'FOOD' || r.categorie === 'PAPER';
+  // ——— diagnostice (piesa comună cu fc-bridge)
+  const diagnostice = diagnosticeMaterial(randuri, ctx, teoreticPeIngredient, loc);
   const faraMapare = randuri.filter(r => trebuieMapat(r) && !r.areIngredient);
-  adauga('MATERIAL_FARA_MAPARE', 'BLOCANT', 'Materiale de Food Cost fără corespondent în nomenclator',
-    'Nu se pot lega de niciun ingredient, deci nici de vreo rețetă: costul lor cade în „Neexplicat".',
-    'Adaugă ingredientele în nomenclator cu același cod ca în NBO, sau mapează-le pe cele existente.',
-    el(faraMapare));
-
-  adauga('MATERIAL_FARA_RETETA', 'ATENTIE', 'Materiale mapate, dar nefolosite în nicio rețetă',
-    'Ingredientul există în nomenclator, însă nicio rețetă nu îl consumă — fie lipsește din rețete, fie e normalizat.',
-    'Completează rețetele care îl folosesc sau confirmă că e material normalizat.',
-    el(randuri.filter(r => r.areIngredient && !r.areReteta)));
-
-  adauga('MATERIAL_FARA_PRET', 'ATENTIE', 'Materiale fără preț în nomenclator',
-    'Fără preț, costul teoretic al ingredientului nu se poate calcula, deci variance-ul lui rămâne necunoscut.',
-    'Importă lista de prețuri sau completează prețul în Master Data.',
-    el(randuri.filter(r => r.areIngredient && !r.arePret)));
-
-  adauga('CATEGORIE_NECUNOSCUTA', 'BLOCANT', 'Categorii 2.9 pe care nicio regulă nu le recunoaște',
-    'Aceste linii NU au fost presupuse Food. Rămân neclasificate și stau separat în punte, '
-    + 'ca să nu deformeze Food Cost-ul.',
-    'Adaugă o regulă de clasificare pentru fiecare categorie de mai jos.',
-    randuri.filter(r => r.categorie === 'UNCLASSIFIED')
-      .map(r => ({ nume: `${r.categorieBruta} — ${r.denumire}`, lei: r.costActual })));
-
-  adauga('MATERIAL_NORMALIZAT', 'INFO', 'Materiale normalizate identificate',
-    'Prezente în 2.9, nereprezentate ca atare în rețete. Intră în Food Cost, dar rețetarul nu le arată.',
-    'Nicio acțiune obligatorie — sunt separate tocmai ca să fie vizibile.',
-    el(randuri.filter(r => r.categorie === 'NORMALIZED')));
-
-  adauga('IN_NBO_FARA_RETETA', 'ATENTIE', 'Prezente în NBO, absente din rețetar',
-    'Materiale de Food Cost consumate real, pe care rețetarul nu le explică deloc.',
-    'Verifică dacă lipsește o rețetă sau dacă materialul e normalizat.',
-    el(randuri.filter(r => esteFC(r.categorie) && !r.areReteta)));
-
-  const materialeMapate = new Set(randuri.map(r => r.ingredient).filter((x): x is string => x !== null));
-  adauga('INGREDIENT_FARA_NBO', 'ATENTIE', 'Ingrediente consumate teoretic, absente din 2.9',
-    'Rețetele și PMIX-ul spun că s-au consumat, dar raportul 2.9 nu le conține — semn de mapare incompletă '
-    + 'sau de raport parțial.',
-    'Verifică exportul 2.9 și maparea codurilor.',
-    [...teoreticPeIngredient.entries()]
-      .filter(([cod, v]) => !materialeMapate.has(cod) && v > 0)
-      .map(([cod, v]) => ({ nume: `${ctx.ingrediente.get(cod)?.denumire ?? cod} (${cod})`, lei: v })));
-
-  const peIngredient = new Map<string, RandMaterialFC[]>();
-  for (const r of randuri) {
-    if (!r.ingredient) continue;
-    peIngredient.set(r.ingredient, [...(peIngredient.get(r.ingredient) ?? []), r]);
-  }
-  adauga('MAPARE_DUBLA', 'BLOCANT', 'Mai multe materiale mapate pe același ingredient',
-    'Costul lor s-ar putea număra de două ori la comparația cu teoreticul.',
-    'Verifică maparea: fiecare ingredient trebuie să aibă un singur material corespondent pe perioadă.',
-    [...peIngredient.entries()].filter(([, rs]) => rs.length > 1)
-      .map(([cod, rs]) => ({ nume: `${cod} ← ${rs.map(r => r.material).join(', ')}`, lei: rs.reduce((s, r) => s + r.costActual, 0) })));
-
-  adauga('LIPSA_LOCATIE', 'BLOCANT', 'Linii 2.9 fără restaurant',
-    'Nu pot fi atribuite unui restaurant, deci nu apar în analiza pe unitate, deși contează în total.',
-    'Reimportă raportul cu coloana de restaurant completată.',
-    el(randuri.filter(r => !r.locatie)));
-
-  // granularitate mixtă — doar la nivel de companie, unde ambele forme se însumează
-  if (!loc) {
-    const faraLoc = randuri.filter(r => !r.locatie);
-    const cuLoc = new Set(randuri.filter(r => r.locatie).map(r => r.material));
-    if (faraLoc.length && cuLoc.size) {
-      const suprapuse = faraLoc.filter(r => cuLoc.has(r.material));
-      const relevante = suprapuse.length ? suprapuse : faraLoc;
-      diagnostice.push({
-        cod: 'GRANULARITATE_MIXTA',
-        nivel: suprapuse.length ? 'BLOCANT' : 'ATENTIE',
-        titlu: 'Perioada conține atât linii pe restaurant, cât și linii fără restaurant',
-        detaliu: suprapuse.length
-          ? `${suprapuse.length} materiale apar în AMBELE forme: consumul lor e numărat de două ori la nivel de companie.`
-          : 'Cele două forme se însumează la nivel de companie; dacă provin din același raport exportat '
-            + 'de două ori (agregat și pe restaurant), consumul e numărat de două ori.',
-        actiune: 'Păstrează o singură formă pe perioadă: reimportă fie raportul agregat, fie fișierele pe restaurant.',
-        nrElemente: relevante.length,
-        lei: relevante.reduce((s, r) => s + r.costActual, 0),
-        exemple: relevante.slice(0, 8).map(r => `${r.denumire} (${r.material})`),
-      });
-    }
-  }
-
-  adauga('LIPSA_PERIOADA', 'BLOCANT', 'Linii 2.9 fără perioadă',
-    'Fără perioadă nu pot fi comparate cu nicio lună de vânzări.',
-    'Reimportă raportul cu perioada completată.',
-    el(randuri.filter(r => !r.perioadaSursa)));
 
   // ——— completitudine: dovada la nivel de material e suficientă?
   const motiveIncomplet: string[] = [];
@@ -425,10 +480,7 @@ export function reconciliationMaterialFC(
     explainedPct: pct(explainedAmount), unexplainedPct: pct(unexplainedAmount),
     complete: motiveIncomplet.length === 0,
     motiveIncomplet,
-    diagnostice: diagnostice.sort((a, b) => {
-      const o = { BLOCANT: 0, ATENTIE: 1, INFO: 2 };
-      return o[a.nivel] - o[b.nivel] || b.lei - a.lei;
-    }),
+    diagnostice: sorteazaDiagnostice(diagnostice),
     surse,
   };
 }

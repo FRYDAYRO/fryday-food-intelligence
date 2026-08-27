@@ -156,12 +156,17 @@ export function clasificaCategorie29(
  * Categoria efectivă a unui material: clasificarea categoriei, cu două corecții din date —
  * un material marcat normalizat în sursă este NORMALIZED indiferent de categorie, iar unul
  * care nu se regăsește în niciun rețetar, dar e ambalaj, este tot material normalizat.
+ *
+ * Semnul `areIngredient` rafinează cazul ambalajelor: un ambalaj care EXISTĂ în nomenclator,
+ * dar pe care nicio rețetă nu-l folosește, nu e material normalizat (reambalat intern), ci un
+ * gol de rețetar — rămâne PAPER, iar puntea îl arată separat. Apelanții care nu transmit
+ * semnul păstrează comportamentul de până acum.
  */
 export function categorieMaterial(
   cls: Clasificare29,
-  semne: { normalizatInSursa?: boolean; areReteta?: boolean },
+  semne: { normalizatInSursa?: boolean; areReteta?: boolean; areIngredient?: boolean },
 ): FCCategory {
   if (semne.normalizatInSursa) return 'NORMALIZED';
-  if (cls.categorie === 'PAPER' && semne.areReteta === false) return 'NORMALIZED';
+  if (cls.categorie === 'PAPER' && semne.areReteta === false && semne.areIngredient !== true) return 'NORMALIZED';
   return cls.categorie;
 }

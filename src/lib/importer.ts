@@ -63,6 +63,7 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     costActual: ['cost actual', 'consum real', 'valoare consum', 'actual', 'consum'],
     costTeoretic: ['cost teoretic', 'valoare teoretica', 'teoretic', 'theoretical', 'ideal'],
     normalizat: ['normalizat', 'normalized', 'material normalizat'],
+    canal: ['canal', 'channel', 'canal vanzare'],
   },
   COST_INGREDIENTE: {
     cod: ['cod ingredient', 'cod', 'cod articol', 'cod material', 'cod materie prima', 'cod nbo',
@@ -952,8 +953,9 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       const noi: Material29[] = [];
       const neclasificate = new Set<string>();
       const nemapate = new Set<string>();
+      const canaleNecunoscute = new Set<string>();
       const faraCost: number[] = [];
-      let faraPerioada = 0, faraLocatie = 0, cuTeoretic = 0, totalActual = 0;
+      let faraPerioada = 0, faraLocatie = 0, cuTeoretic = 0, cuCanal = 0, totalActual = 0;
 
       p.randuri.forEach((r, i) => {
         const material = String(g(r, 'material')).trim();
@@ -984,12 +986,22 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const normalizat = map.normalizat !== undefined
           && DA.has(norm(String(g(r, 'normalizat'))));
 
+        // canalul se PĂSTREAZĂ doar când sursa îl declară explicit; o valoare nerecunoscută
+        // NU se ghicește — rândul rămâne fără canal (necunoscut), iar valoarea e semnalată
+        const canalBrut = map.canal !== undefined ? norm(String(g(r, 'canal'))) : '';
+        const canal = /in ?store|salon|dine ?in|local/.test(canalBrut) ? 'INSTORE' as const
+          : /delivery|livrare|curier|glovo|tazz|bolt/.test(canalBrut) ? 'DELIVERY' as const
+          : undefined;
+        if (canal) cuCanal++;
+        else if (canalBrut) canaleNecunoscute.add(String(g(r, 'canal')).trim());
+
         noi.push({
           perioada, locatie, material, denumire, categorie,
           cant: map.cant !== undefined ? parseNumar(g(r, 'cant')) : null,
           um: map.um !== undefined ? umNBO(g(r, 'um')) : null,
           costActual, costTeoretic,
           ...(normalizat ? { normalizat: true } : {}),
+          ...(canal ? { canal } : {}),
         });
         totalActual += costActual;
         perioade.add(perioada);
@@ -1026,6 +1038,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         : cuTeoretic > 0
           ? `Cost teoretic declarat doar pe ${cuTeoretic} din ${noi.length} linii — pe restul se reconstruiește din rețete × PMIX`
           : 'Raportul nu declară costul teoretic: variance-ul pe material se reconstruiește din rețete × PMIX');
+      if (map.canal !== undefined && noi.length) {
+        avert.push(cuCanal === noi.length
+          ? 'Canalul e declarat explicit pe fiecare linie — analiza 2.9 pe canal devine posibilă pe acest import'
+          : `Canal declarat doar pe ${cuCanal} din ${noi.length} linii — restul rămân cu canal necunoscut (nu se presupune Total)`);
+        if (canaleNecunoscute.size) {
+          avert.push(`Valori de canal nerecunoscute, lăsate necunoscute (nu s-a ghicit nimic): ${[...canaleNecunoscute].slice(0, 5).join(', ')}${canaleNecunoscute.size > 5 ? '…' : ''}`);
+        }
+      }
       if (faraCost.length) {
         avert.push(`${faraCost.length} rânduri fără cost — ignorate (rândurile ${faraCost.slice(0, 5).join(', ')}${faraCost.length > 5 ? '…' : ''})`);
       }
