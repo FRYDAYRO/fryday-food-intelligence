@@ -9,7 +9,7 @@
 //   nimic nu se inventează     : canal nedeclarat → UNKNOWN; săptămână → 2.9 indisponibil;
 //                                necunoscutul NU cade pe FOOD (izolat de fallback-ul vechi)
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, clasifica } from '../src/lib/engine';
+import { buildCtx, clasifica, consumuriLuna } from '../src/lib/engine';
 import {
   COMPANIE, perioadaDin, perioadeDinLuna, restaurant,
   type CerereFC, type FCChannel, type FCLevel,
@@ -356,6 +356,99 @@ t('sursa 2.9 declară perioadele și canalul necunoscut',
   bc.surse.find(s => s.raport === 'NBO_29')!.nota!.includes('2026-07'));
 t('numitorul preferă Sales Report', bc.numitor.sursa === 'Sales Report');
 t('pe săptămână sursa 2.9 nu e revendicată', !bSapt.surse.some(s => s.raport === 'NBO_29'));
+
+// ————————————————————————————— corecturile din review-ul advers, fixate în teste
+
+console.log('\n— Teoreticul reconstruit se atribuie pe (lună × restaurant), nu pe tot scopul —');
+const DUB: Material29[] = [
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 3000, locatie: 'L01' }),
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 2000, locatie: 'L02' }),
+];
+const sDub: AppState = { ...genereazaSeed(), materiale29: DUB };
+const ctxDub = buildCtx(sDub);
+const bDub = bridgeFC(sDub, ctxDub, cer());
+const t01 = consumuriLuna(sDub, ctxDub, '2026-07', 'L01').get('I001')!.valoare;
+const t02 = consumuriLuna(sDub, ctxDub, '2026-07', 'L02').get('I001')!.valoare;
+const rDub01 = bDub.randuri.find(r => r.locatie === 'L01')!;
+const rDub02 = bDub.randuri.find(r => r.locatie === 'L02')!;
+t('rândul din L01 poartă teoreticul lui L01, nu al companiei', aprox(rDub01.costTeoretic!, t01),
+  `${rDub01.costTeoretic?.toFixed(0)} vs ${t01.toFixed(0)}`);
+t('rândul din L02 poartă teoreticul lui L02', aprox(rDub02.costTeoretic!, t02));
+t('Σ teoretic pe rânduri = teoreticul companiei — nu se numără de două ori',
+  aprox(rDub01.costTeoretic! + rDub02.costTeoretic!, consumuriLuna(sDub, ctxDub, '2026-07', undefined).get('I001')!.valoare));
+t('variance-ul fiecărui rând e actualul LUI minus teoreticul LUI',
+  aprox(rDub01.variance!, 3000 - t01) && aprox(rDub02.variance!, 2000 - t02));
+t('două restaurante cu același ingredient NU sunt „mapare dublă"',
+  !bDub.diagnostice.some(d => d.cod === 'MAPARE_DUBLA'));
+
+// două rânduri pe ACELAȘI restaurant mapate pe același ingredient: teoreticul reconstruit
+// nu se poate atribui fără dublare → rămâne null, iar MAPARE_DUBLA blochează
+const AMBIG: Material29[] = [
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 3000 }),
+  mat({ material: 'I001-BIS', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 150 }),
+];
+const bAmbig = bridgeFC({ ...genereazaSeed(), materiale29: AMBIG }, ctxCurat, cer());
+t('ambiguitate în același restaurant: teoreticul reconstruit rămâne null, nu se dublează',
+  bAmbig.randuri.every(r => r.costTeoretic === null));
+t('… iar MAPARE_DUBLA o semnalează blocant',
+  bAmbig.diagnostice.some(d => d.cod === 'MAPARE_DUBLA' && d.nivel === 'BLOCANT') && !bAmbig.complete);
+t('teoreticul DECLARAT în sursă nu e atins de regula ambiguității',
+  bridgeFC({ ...genereazaSeed(), materiale29: [{ ...AMBIG[0], costTeoretic: 2800 }, AMBIG[1]] }, ctxCurat, cer())
+    .randuri.find(r => r.material === 'I001')!.costTeoretic === 2800);
+
+console.log('\n— Pe vederea pe canal, teoreticul nu se reconstruiește din PMIX-ul pe Total —');
+const bInT = bridgeFC(sCanale, ctxCanale, cer('INSTORE'));
+t('rândul InStore fără teoretic declarat rămâne fără teoretic — nu primește teoreticul ambelor canale',
+  bInT.randuri.every(r => r.costTeoretic === null));
+t('pe Total, același rând ARE teoretic reconstruit (contrast)',
+  bridgeFC(sCanale, ctxCanale, cer('TOTAL')).randuri.find(r => r.material === 'I001')!.costTeoretic !== null);
+t('INGREDIENT_FARA_NBO nu acuză pe nedrept consumul celuilalt canal',
+  !bInT.diagnostice.some(d => d.cod === 'INGREDIENT_FARA_NBO'));
+t('motivul spune că pe canal teoreticul nu se poate reconstrui',
+  bInT.motiveIncomplet.some(m => m.includes('reconstrui')));
+
+console.log('\n— Necunoscutul marcat „normalizat" NU intră tăcut în Food Cost —');
+const CU_NORM_NECUNOSCUT: Material29[] = [...CURATE,
+  mat({ material: 'X-77', denumire: 'Servicii externe', categorie: 'Transport marfă', costActual: 500, costTeoretic: 500, normalizat: true })];
+const bNorm = bridgeFC({ ...genereazaSeed(), materiale29: CU_NORM_NECUNOSCUT }, ctxCurat, cer());
+t('categoria necunoscută rămâne UNCLASSIFIED chiar marcată normalizat', comp(bNorm, 'UNCLASSIFIED').lei === 500);
+t('NU intră în NORMALIZED', comp(bNorm, 'NORMALIZED').lei === 0);
+t('NU intră în Food Cost-ul 2.9', aprox(bNorm.nboFoodCost, 5700));
+t('e diagnosticată drept categorie necunoscută',
+  bNorm.diagnostice.some(d => d.cod === 'CATEGORIE_NECUNOSCUTA' && d.lei === 500));
+t('COMPLETE = false — nimic nu trece tăcut', !bNorm.complete);
+t('încrederea scade', bNorm.confidenceScore < 100, `${bNorm.confidenceScore}`);
+
+console.log('\n— canalSursa spune de unde vin EFECTIV rândurile —');
+const DOAR_INSTORE: Material29[] = [
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 3000, canal: 'INSTORE' }),
+  mat({ material: 'I005', denumire: 'Chiflă burger', categorie: 'Panificație', costActual: 1200, canal: 'INSTORE' }),
+];
+const sDoarIn: AppState = { ...genereazaSeed(), materiale29: DOAR_INSTORE };
+const bDoarIn = bridgeFC(sDoarIn, buildCtx(sDoarIn), cer('TOTAL'));
+t('un Total construit doar din linii InStore se declară InStore, nu Total', bDoarIn.canalSursa === 'INSTORE');
+t('golul e semnalat: Totalul nu conține consumul Delivery',
+  bDoarIn.diagnostice.some(d => d.cod === 'SURSA_INCOMPLETA' && d.exemple.some(e => e.includes('INSTORE'))));
+
+console.log('\n— Motivul indisponibilității numește cauza reală —');
+const DOAR_IUNIE: Material29[] = [
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 900, perioada: '2026-06', canal: 'INSTORE' })];
+const sIunie: AppState = { ...genereazaSeed(), materiale29: DOAR_IUNIE };
+const bIul = bridgeFC(sIunie, buildCtx(sIunie), cer('INSTORE'));
+t('luna fără date spune „nu există linii", nu „lipsește canalul"',
+  !bIul.nboDisponibil && bIul.motivNbo!.includes('Nu există linii'), bIul.motivNbo);
+
+console.log('\n— Rândurile de storno nu împing încrederea în afara [0, 100] —');
+const CU_STORNO: Material29[] = [
+  mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 1000 }),
+  mat({ material: 'MAT-Z', denumire: 'Storno transport', categorie: 'Transport marfă', costActual: -900 }),
+];
+const bStorno = bridgeFC({ ...genereazaSeed(), materiale29: CU_STORNO }, ctxCurat, cer());
+t('fiecare factor rămâne în [0, 100]', bStorno.confidence.factori.every(f => f.scor >= 0 && f.scor <= 100),
+  bStorno.confidence.factori.map(f => `${f.factor}:${f.scor.toFixed(0)}`).join(' '));
+t('scorul rămâne în [0, 100]', bStorno.confidenceScore >= 0 && bStorno.confidenceScore <= 100);
+t('identitatea explained + unexplained = total rezistă și cu storno',
+  aprox(bStorno.explainedAmount + bStorno.unexplainedAmount, bStorno.nboActual));
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

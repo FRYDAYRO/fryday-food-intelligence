@@ -105,6 +105,12 @@ t('alimentul fără rețetă NU devine normalizat — rămâne FOOD, iar puntea 
   categorieMaterial(cat('Carne și pui'), { areReteta: false }) === 'FOOD');
 t('necunoscutul rămâne necunoscut chiar dacă are rețetă',
   categorieMaterial(cat('Zzz'), { areReteta: true }) === 'UNCLASSIFIED');
+t('necunoscutul marcat normalizat în sursă rămâne UNCLASSIFIED — marcajul spune cum e manipulat, nu ce este',
+  categorieMaterial(cat('Transport marfă'), { normalizatInSursa: true }) === 'UNCLASSIFIED');
+t('ambalajul mapat pe nomenclator dar fără rețetă rămâne PAPER când semnul areIngredient e dat (gol de rețetar)',
+  categorieMaterial(cat('Ambalaje'), { areReteta: false, areIngredient: true }) === 'PAPER');
+t('fără semnul areIngredient, comportamentul vechi se păstrează',
+  categorieMaterial(cat('Ambalaje'), { areReteta: false }) === 'NORMALIZED');
 t('categoria „materiale normalizate" e recunoscută direct',
   cat('Materiale normalizate').categorie === 'NORMALIZED');
 t('„semipreparate" e tratat ca material normalizat', cat('Semipreparate interne').categorie === 'NORMALIZED');

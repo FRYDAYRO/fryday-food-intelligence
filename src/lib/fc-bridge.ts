@@ -32,7 +32,7 @@ import {
 } from './fc-clasificare';
 import { numitorFC, recipeFC, type NumitorFC, type RecipeFC } from './fc-core';
 import {
-  diagnosticeMaterial, randuriMaterialFC, sorteazaDiagnostice, teoreticDinRetete, trebuieMapat,
+  diagnosticeMaterial, randuriMaterialFC, sorteazaDiagnostice, teoreticDinRetete, teoreticPeRand, trebuieMapat,
   type DiagnosticFC, type RandMaterialFC,
 } from './fc-material';
 
@@ -301,13 +301,15 @@ export function bridgeFC(
     motivNbo = `Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} (${interval}) nu acoperă luni întregi, `
       + 'deci consumul pe material nu i se poate atribui fără a inventa o repartiție pe zile. '
       + 'Partea de rețete rămâne calculată pe perioada cerută.';
-  } else if (cerere.canal !== 'TOTAL' && !peLuniSiLoc.some(m => m.canal)) {
-    motivNbo = 'Raportul 2.9 importat nu declară canalul pe nicio linie. Consumul real există doar la nivel '
-      + 'de Total; repartizarea lui pe InStore/Delivery ar fi o invenție, nu un calcul.';
   } else if (!peLuniSiLoc.length) {
+    // lipsa datelor se spune ÎNAINTEA lipsei canalului: fără niciun rând, cauza e absența
+    // raportului, nu coloana de canal
     motivNbo = toate.length
       ? `Nu există linii 2.9 pe material pentru ${luni.join(', ')}${loc ? ` la restaurantul ${loc}` : ''}.`
       : 'Nu a fost importat niciun raport 2.9 la nivel de material.';
+  } else if (cerere.canal !== 'TOTAL' && !peLuniSiLoc.some(m => m.canal)) {
+    motivNbo = 'Raportul 2.9 importat nu declară canalul pe nicio linie. Consumul real există doar la nivel '
+      + 'de Total; repartizarea lui pe InStore/Delivery ar fi o invenție, nu un calcul.';
   } else if (cerere.canal !== 'TOTAL') {
     // doar rândurile care declară EXPLICIT canalul cerut; restul nu se repartizează
     inScop = peLuniSiLoc.filter(m => m.canal === cerere.canal);
@@ -323,9 +325,15 @@ export function bridgeFC(
 
   const nboDisponibil = motivNbo === undefined;
 
-  // — rândurile, în vocabularul punții: categoria efectivă folosește și semnul `areIngredient`
-  const teoreticPeIngredient = nboDisponibil ? teoreticDinRetete(state, ctx, luni, loc) : new Map<string, number>();
-  const randuri = randuriMaterialFC(ctx, inScop, teoreticPeIngredient, reguliUtilizator)
+  // — rândurile, în vocabularul punții: categoria efectivă folosește și semnul `areIngredient`.
+  // Teoreticul se reconstruiește DOAR pe Total: PMIX-ul reconstruit acoperă ambele canale,
+  // deci pe o vedere pe canal ar compara actualul unui canal cu teoreticul amândurora.
+  const eTotal = cerere.canal === 'TOTAL';
+  const teoreticPeIngredient = nboDisponibil && eTotal
+    ? teoreticDinRetete(state, ctx, luni, loc) : new Map<string, number>();
+  const teoreticRand = nboDisponibil && eTotal
+    ? teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]) : new Map<string, number>();
+  const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator)
     .map(r => {
       const categorie = categorieEfectiva(r);
       return { ...r, categorie, normalizat: categorie === 'NORMALIZED' };
@@ -369,10 +377,13 @@ export function bridgeFC(
   const cuTeoretic = inScop.filter(m => m.costTeoretic != null);
   const nboTheoreticalFC = cuTeoretic.length ? cuTeoretic.reduce((s, m) => s + (m.costTeoretic ?? 0), 0) : null;
 
-  // — canalul din care provin efectiv rândurile incluse
-  const canalSursa: FCChannelSursa = !nboDisponibil || !inScop.length ? 'UNKNOWN'
-    : inScop.every(m => m.canal) ? cerere.canal
-    : 'UNKNOWN';
+  // — canalul din care provin EFECTIV rândurile incluse: se derivă din rânduri, nu din cerere.
+  // Un Total construit doar din linii InStore se declară InStore, nu Total.
+  const canaleRanduri = new Set(inScop.map(m => m.canal ?? 'UNKNOWN'));
+  const canalSursa: FCChannelSursa =
+    !nboDisponibil || !inScop.length || canaleRanduri.has('UNKNOWN') ? 'UNKNOWN'
+    : canaleRanduri.size === 2 ? 'TOTAL'
+    : [...canaleRanduri][0] as FCChannelSursa;
 
   // — diagnostice: cele comune pe material + cele proprii punții
   const diagnostice = nboDisponibil ? diagnosticeMaterial(randuri, ctx, teoreticPeIngredient, loc) : [];
@@ -429,6 +440,12 @@ export function bridgeFC(
         lei: excluseFaraCanal.reduce((s, m) => s + m.costActual, 0),
       });
     }
+    if (eTotal && (canalSursa === 'INSTORE' || canalSursa === 'DELIVERY')) {
+      goluri.push({
+        nume: `toate liniile 2.9 provin din canalul ${canalSursa} — Totalul nu conține consumul celuilalt canal`,
+        lei: nboActual,
+      });
+    }
     if (goluri.length) {
       diagnostice.push({
         cod: 'SURSA_INCOMPLETA', nivel: 'ATENTIE',
@@ -449,24 +466,27 @@ export function bridgeFC(
   const leiCuTeoretic = cuTeoretic.reduce((s, m) => s + m.costActual, 0);
   const explainedPct = nboActual > 0 ? (explainedAmount / nboActual) * 100 : null;
   const fara29 = (eticheta: string): string => `${eticheta} — 0: partea de 2.9 e indisponibilă`;
+  // fiecare factor e o acoperire 0–100 prin contract; rândurile de storno (valori negative)
+  // pot împinge rapoartele de sume în afara intervalului, deci se mărginesc explicit
+  const marg = (x: number) => Math.min(100, Math.max(0, x));
 
   const factori: FactorConfidenta[] = [
     {
       factor: 'acoperire_retete', eticheta: 'Acoperirea rețetelor', pondere: 0.25,
-      scor: recipe.acoperirePct ?? 0,
+      scor: marg(recipe.acoperirePct ?? 0),
       detaliu: recipe.acoperirePct !== null
         ? `${recipe.acoperirePct.toFixed(1)}% din vânzările nete au rețetă calculabilă.`
         : 'Nu există vânzări pe perioada cerută.',
     },
     {
       factor: 'clasificare', eticheta: 'Clasificarea 2.9', pondere: 0.25,
-      scor: !nboDisponibil ? 0 : nboActual > 0 ? (1 - lei('UNCLASSIFIED') / nboActual) * 100 : 0,
+      scor: marg(!nboDisponibil ? 0 : nboActual > 0 ? (1 - lei('UNCLASSIFIED') / nboActual) * 100 : 0),
       detaliu: !nboDisponibil ? fara29('Clasificarea')
         : `${Math.round(lei('UNCLASSIFIED'))} lei din ${Math.round(nboActual)} stau pe categorii nerecunoscute.`,
     },
     {
       factor: 'mapare', eticheta: 'Maparea pe nomenclator', pondere: 0.2,
-      scor: !nboDisponibil ? 0 : leiFC > 0 ? (leiFCMapate / leiFC) * 100 : nboActual > 0 ? 100 : 0,
+      scor: marg(!nboDisponibil ? 0 : leiFC > 0 ? (leiFCMapate / leiFC) * 100 : nboActual > 0 ? 100 : 0),
       detaliu: !nboDisponibil ? fara29('Maparea')
         : leiFC > 0
           ? `${Math.round(leiFCMapate)} din ${Math.round(leiFC)} lei Food/Paper au corespondent în nomenclator.`
@@ -474,13 +494,13 @@ export function bridgeFC(
     },
     {
       factor: 'explicat', eticheta: 'Partea explicată a punții', pondere: 0.2,
-      scor: !nboDisponibil ? 0 : explainedPct ?? 0,
+      scor: marg(!nboDisponibil ? 0 : explainedPct ?? 0),
       detaliu: !nboDisponibil ? fara29('Explicarea')
         : `${explainedPct?.toFixed(1) ?? '0'}% din consumul 2.9 stă în componente numite, cu dovadă.`,
     },
     {
       factor: 'sursa', eticheta: 'Completitudinea sursei', pondere: 0.1,
-      scor: !nboDisponibil ? 0 : nboActual > 0 ? (leiCuTeoretic / nboActual) * 100 : 0,
+      scor: marg(!nboDisponibil ? 0 : nboActual > 0 ? (leiCuTeoretic / nboActual) * 100 : 0),
       detaliu: !nboDisponibil ? fara29('Sursa')
         : `${Math.round(leiCuTeoretic)} din ${Math.round(nboActual)} lei au costul teoretic declarat chiar în raport.`,
     },
@@ -506,8 +526,11 @@ export function bridgeFC(
     motiveIncomplet.push(`${faraMapare.length} materiale de Food Cost nu au corespondent în nomenclator.`);
   }
   if (nboDisponibil && nboTheoreticalFC === null) {
-    motiveIncomplet.push('Raportul 2.9 nu declară costul teoretic pe material: variance-ul se poate calcula '
-      + 'doar față de teoreticul reconstruit din rețete × PMIX.');
+    motiveIncomplet.push(eTotal
+      ? 'Raportul 2.9 nu declară costul teoretic pe material: variance-ul se poate calcula '
+        + 'doar față de teoreticul reconstruit din rețete × PMIX.'
+      : 'Raportul 2.9 nu declară costul teoretic pe material, iar pe o vedere pe canal teoreticul '
+        + 'nu se poate reconstrui din PMIX (reconstrucția acoperă ambele canale): variance-ul pe material rămâne necunoscut.');
   }
   if (nboDisponibil && recipe.netFaraReteta > 0) {
     motiveIncomplet.push(`${Math.round(recipe.netFaraReteta)} lei din vânzări provin de la produse fără rețetă: `

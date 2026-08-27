@@ -987,10 +987,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           && DA.has(norm(String(g(r, 'normalizat'))));
 
         // canalul se PĂSTREAZĂ doar când sursa îl declară explicit; o valoare nerecunoscută
-        // NU se ghicește — rândul rămâne fără canal (necunoscut), iar valoarea e semnalată
+        // NU se ghicește — rândul rămâne fără canal (necunoscut), iar valoarea e semnalată.
+        // Livrarea se verifică PRIMA: „livrare locală" conține și „local", dar e livrare.
         const canalBrut = map.canal !== undefined ? norm(String(g(r, 'canal'))) : '';
-        const canal = /in ?store|salon|dine ?in|local/.test(canalBrut) ? 'INSTORE' as const
-          : /delivery|livrare|curier|glovo|tazz|bolt/.test(canalBrut) ? 'DELIVERY' as const
+        const canal = /delivery|livrare|curier|glovo|tazz|bolt/.test(canalBrut) ? 'DELIVERY' as const
+          : /in ?store|salon|dine ?in|local/.test(canalBrut) ? 'INSTORE' as const
           : undefined;
         if (canal) cuCanal++;
         else if (canalBrut) canaleNecunoscute.add(String(g(r, 'canal')).trim());

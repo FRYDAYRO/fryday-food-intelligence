@@ -178,25 +178,64 @@ export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], l
 }
 
 /**
+ * Teoreticul pe (lună × locație), cu cheia `lună|locație|ingredient` — rândul unui restaurant
+ * primește teoreticul RESTAURANTULUI lui din luna lui, nu totalul scopului. Fără asta, două
+ * rânduri ale aceluiași ingredient (două restaurante, două luni) ar purta fiecare teoreticul
+ * întregului scop, iar variance-ul pe rând ar număra teoreticul de două ori.
+ * Locația `null` înseamnă rând agregat → teoreticul întregii rețele.
+ */
+export function teoreticPeRand(
+  state: AppState, ctx: CtxFC, luni: string[], locatii: (string | null)[],
+): Map<string, number> {
+  const rez = new Map<string, number>();
+  for (const l of luni) {
+    for (const lc of new Set(locatii)) {
+      for (const [cod, v] of consumuriLuna(state, ctx, l, lc ?? undefined)) {
+        rez.set(`${l}|${lc ?? ''}|${cod}`, v.valoare);
+      }
+    }
+  }
+  return rez;
+}
+
+/**
  * Construiește rândurile de material: clasificare (nimic nu cade tăcut pe FOOD), mapare pe
  * nomenclator și rețete, teoreticul declarat sau reconstruit. Nu filtrează nimic — primește
  * exact materialele pe care apelantul le-a pus în scop.
+ *
+ * `teoreticRand` are cheia `lună|locație|ingredient` (vezi `teoreticPeRand`); o hartă goală
+ * înseamnă „nu reconstrui" (ex. vederile pe canal, unde PMIX-ul reconstruit e pe Total).
+ * Reconstruirea se aplică DOAR când exact un rând al aceleiași (luni, locații) se mapează pe
+ * ingredient — altfel același teoretic s-ar atribui fiecărui rând și s-ar număra de N ori;
+ * cazul ambiguu rămâne `null` și e semnalat separat de MAPARE_DUBLA.
  */
 export function randuriMaterialFC(
   ctx: CtxFC,
   materiale: Material29[],
-  teoreticPeIngredient: Map<string, number>,
+  teoreticRand: Map<string, number>,
   reguliUtilizator: RegulaCategorie29[] = [],
 ): RandMaterialFC[] {
   const utilizari = utilizariPeIngredient(ctx);
   const dupaNume = new Map<string, string>();
   for (const i of ctx.ingrediente.values()) dupaNume.set(norm(i.denumire), i.cod);
 
-  return materiale.map(m => {
+  // câte rânduri ale aceleiași (luni, locații) se mapează pe fiecare ingredient
+  const cheiaRand = (m: Material29, ingredient: string) => `${m.perioada}|${m.locatie ?? ''}|${ingredient}`;
+  const mapari = materiale.map(m => mapeaza(m, ctx, utilizari, dupaNume));
+  const cateOri = new Map<string, number>();
+  materiale.forEach((m, i) => {
+    const ing = mapari[i].ingredient;
+    if (ing) cateOri.set(cheiaRand(m, ing), (cateOri.get(cheiaRand(m, ing)) ?? 0) + 1);
+  });
+
+  return materiale.map((m, i) => {
     const cls = clasificaCategorie29(m.categorie, reguliUtilizator);
-    const mp = mapeaza(m, ctx, utilizari, dupaNume);
+    const mp = mapari[i];
     const categorie = categorieMaterial(cls, { normalizatInSursa: m.normalizat, areReteta: mp.areReteta });
-    const teoretic = m.costTeoretic ?? (mp.ingredient ? teoreticPeIngredient.get(mp.ingredient) ?? null : null);
+    const teoretic = m.costTeoretic
+      ?? (mp.ingredient && cateOri.get(cheiaRand(m, mp.ingredient)) === 1
+        ? teoreticRand.get(cheiaRand(m, mp.ingredient)) ?? null
+        : null);
     return {
       material: m.material, denumire: m.denumire,
       categorieBruta: m.categorie, categorie, clasificare: cls,
@@ -388,9 +427,12 @@ export function reconciliationMaterialFC(
         + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
   }
 
-  // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge)
+  // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge):
+  // pe scop pentru diagnostice, pe (lună × locație) pentru rânduri — ca teoreticul unui
+  // ingredient să nu se atribuie de mai multe ori
   const teoreticPeIngredient = teoreticDinRetete(state, ctx, luni, loc);
-  const randuri = randuriMaterialFC(ctx, inScop, teoreticPeIngredient, reguliUtilizator);
+  const teoreticRand = teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]);
+  const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator);
 
   // ——— găleata fiecărui rând
   const galeataPentru = (r: RandMaterialFC): GaleataBridge => {
