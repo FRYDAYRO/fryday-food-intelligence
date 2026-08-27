@@ -18,10 +18,21 @@ export const luna = (data: string) => data.slice(0, 7);
 
 // ---------------------------------------------------------------- Context de calcul
 
-export interface Ctx {
+/**
+ * Contractul minim de costare: nomenclator, rețete, produse — atât.
+ *
+ * Tot ce înseamnă Food Cost se calculează DOAR din aceste trei surse. Nimic din afara
+ * scopului (comision de agregator, labor, costuri de operare) nu are voie să intre aici,
+ * iar funcțiile care primesc `CtxCost` nu pot, prin construcție, să-l citească.
+ */
+export interface CtxCost {
   ingrediente: Map<string, Ingredient>;
   retete: Map<string, Reteta>;
   produse: Map<string, Produs>;
+}
+
+export interface Ctx extends CtxCost {
+  /** ÎN AFARA SCOPULUI Food Cost — rămas pentru rapoartele de profit care încă îl folosesc. */
   comisionDeliveryPct: number;    // comisionul agregatorului, aplicat vânzărilor nete Delivery
 }
 
@@ -77,7 +88,7 @@ export interface CostProdus { food: number; paper: number; total: number; incomp
 const ZERO: CostProdus = { food: 0, paper: 0, total: 0, incomplet: true };
 
 // §3.3 — cost semipreparat per UM de bază a randamentului
-function costSemipreparat(r: Reteta, ctx: Ctx, data: string, memo: Map<string, unknown>, stack: Set<string>): number {
+function costSemipreparat(r: Reteta, ctx: CtxCost, data: string, memo: Map<string, unknown>, stack: Set<string>): number {
   const key = `SP|${r.cod}|${data}`;
   const m = memo.get(key); if (typeof m === 'number') return m;
   if (stack.has(r.cod)) return 0; // protecție la cicluri
@@ -92,7 +103,7 @@ function costSemipreparat(r: Reteta, ctx: Ctx, data: string, memo: Map<string, u
 }
 
 // §3.2 + §3.4 — costul unei linii de rețetă
-function costLinie(l: LinieReteta, ctx: Ctx, data: string, memo: Map<string, unknown>, stack: Set<string>): CostProdus {
+function costLinie(l: LinieReteta, ctx: CtxCost, data: string, memo: Map<string, unknown>, stack: Set<string>): CostProdus {
   const cb = cantBruta(l);
   if (l.tipComp === 'SEMIPREPARAT') {
     const sp = ctx.retete.get(l.comp);
@@ -115,7 +126,7 @@ function costLinie(l: LinieReteta, ctx: Ctx, data: string, memo: Map<string, unk
 
 // §3.4 — cost produs pe canal (recursiv, combo inclus)
 export function costProdus(
-  cod: string, canal: Canal, ctx: Ctx, data: string,
+  cod: string, canal: Canal, ctx: CtxCost, data: string,
   memo: Map<string, unknown> = new Map(),
 ): CostProdus | null {
   const key = `P|${cod}|${canal}|${data}`;
@@ -150,7 +161,7 @@ export function costProdus(
 }
 
 // cost pe o singură linie de rețetă, la o dată (pentru afișarea rețetarului complet)
-export function costLinieLa(l: LinieReteta, ctx: Ctx, data = '9999-12-31'): CostProdus {
+export function costLinieLa(l: LinieReteta, ctx: CtxCost, data = '9999-12-31'): CostProdus {
   return costLinie(l, ctx, data, new Map(), new Set());
 }
 
@@ -162,7 +173,7 @@ export function pretNet(p: Produs, canal: Canal): number | null {
 }
 
 // §3.5–3.6 — FC%, profit, marjă la nivel de produs
-export function kpiProdus(cod: string, canal: Canal, ctx: Ctx, data = '9999-12-31') {
+export function kpiProdus(cod: string, canal: Canal, ctx: CtxCost, data = '9999-12-31') {
   const p = ctx.produse.get(cod);
   if (!p) return null;
   const cost = costProdus(cod, canal, ctx, data);
@@ -187,7 +198,7 @@ export interface Agregat {
   acoperire: number | null; netFaraReteta: number; netDelivery: number;
 }
 
-export function agregatePerioada(vanzari: VanzareFapt[], ctx: Ctx, f: FiltruPerioada,
+export function agregatePerioada(vanzari: VanzareFapt[], ctx: CtxCost, f: FiltruPerioada,
   memo: Map<string, unknown> = new Map()): Agregat {
   let buc = 0, net = 0, cost = 0, costFood = 0, costPaper = 0, netCuReteta = 0, netDelivery = 0;
   for (const v of vanzari) {
@@ -800,7 +811,7 @@ export function aplicaInDate(state: AppState, sc: { nume: string; schimbari: Sch
 // ---------------------------------------------------------------- Ingredient Intelligence
 
 // consumul (brut, în UM de bază a ingredientului) al unui ingredient per unitate de rețetă/produs
-function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: Ctx, memoSP: Map<string, number>): number {
+function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: CtxCost, memoSP: Map<string, number>): number {
   const v = versiuneActiva(r);
   let tot = 0;
   for (const l of v.linii) {
@@ -817,7 +828,7 @@ function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: Ctx, memoS
   return tot;
 }
 
-function consumPerUnitSP(codIng: string, sp: Reteta, ctx: Ctx, memoSP: Map<string, number>): number {
+function consumPerUnitSP(codIng: string, sp: Reteta, ctx: CtxCost, memoSP: Map<string, number>): number {
   const key = `${codIng}|${sp.cod}`;
   const m = memoSP.get(key);
   if (m !== undefined) return m;
@@ -829,7 +840,7 @@ function consumPerUnitSP(codIng: string, sp: Reteta, ctx: Ctx, memoSP: Map<strin
   return rez;
 }
 
-export function consumPerPortie(codIng: string, codProdus: string, canal: Canal, ctx: Ctx,
+export function consumPerPortie(codIng: string, codProdus: string, canal: Canal, ctx: CtxCost,
   memoSP: Map<string, number> = new Map()): number {
   const p = ctx.produse.get(codProdus);
   if (p?.tip === 'COMBO' && p.combo?.length) {
@@ -849,7 +860,7 @@ export interface UtilizareIngredient {
   sharePct: number | null;                    // % din costul porției InStore
 }
 
-export function utilizariIngredient(codIng: string, ctx: Ctx): UtilizareIngredient[] {
+export function utilizariIngredient(codIng: string, ctx: CtxCost): UtilizareIngredient[] {
   const ing = ctx.ingrediente.get(codIng);
   if (!ing) return [];
   const pret = pretCurent(ing);
@@ -874,7 +885,7 @@ export interface ConsumLunarIngredient {
   perProdus: Map<string, { cant: number; buc: number }>;
 }
 
-export function consumLunarIngredient(codIng: string, state: AppState, ctx: Ctx, lunaRef: string): ConsumLunarIngredient {
+export function consumLunarIngredient(codIng: string, state: AppState, ctx: CtxCost, lunaRef: string): ConsumLunarIngredient {
   const ing = ctx.ingrediente.get(codIng);
   const memoSP = new Map<string, number>();
   const cache = new Map<string, number>();
@@ -895,7 +906,7 @@ export function consumLunarIngredient(codIng: string, state: AppState, ctx: Ctx,
 }
 
 // cheltuiala lunară pe fiecare ingredient (consum brut × preț curent), pentru Achiziții
-export function consumuriLuna(state: AppState, ctx: Ctx, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
+export function consumuriLuna(state: AppState, ctx: CtxCost, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
   const vol = new Map<string, number>();
   for (const v of state.vanzari) {
     if (luna(v.data) !== lunaRef) continue;
