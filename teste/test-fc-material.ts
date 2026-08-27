@@ -219,6 +219,25 @@ t('Σ găleți pe restaurant = totalul restaurantului',
 t('Recipe FC-ul e cel al restaurantului, nu al rețelei', l01.recipe.cost < comp.recipe.cost,
   `${l01.recipe.cost.toFixed(0)} < ${comp.recipe.cost.toFixed(0)}`);
 
+console.log('\n— Granularitate mixtă: companie vs restaurant —');
+t('compania cu ambele forme primește diagnosticul, ca ATENȚIE când materialele nu se suprapun',
+  comp.diagnostice.some(d => d.cod === 'GRANULARITATE_MIXTA' && d.nivel === 'ATENTIE'));
+t('la nivel de restaurant diagnosticul NU apare (formele nu se însumează acolo)',
+  !l01.diagnostice.some(d => d.cod === 'GRANULARITATE_MIXTA'));
+// suprapunere reală: același material și cu restaurant, și fără → numărat de două ori
+const sDublu: AppState = {
+  ...genereazaSeed(),
+  materiale29: [
+    mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 600, locatie: 'L01' }),
+    mat({ material: 'I001', denumire: 'Piept de pui', categorie: 'Carne și pui', costActual: 1000, locatie: null }),
+  ],
+};
+const rDublu = reconciliationMaterialFC(sDublu, buildCtx(sDublu), cer('TOTAL', COMPANIE));
+const dDublu = rDublu.diagnostice.find(d => d.cod === 'GRANULARITATE_MIXTA')!;
+t('materialul prezent în AMBELE forme → BLOCANT, cu leii dublurii',
+  dDublu.nivel === 'BLOCANT' && aprox(dDublu.lei, 1000), `${dDublu.nivel} · ${dDublu.lei}`);
+t('dublarea face reconcilierea incompletă', !rDublu.complete);
+
 console.log('\n— Trasabilitate —');
 t('sursele includ 2.9 pe material', rm.surse.some(s => s.raport === 'NBO_29' && s.randuri === MURDARE.length));
 t('sursa notează că raportul nu are canal', rm.surse.some(s => (s.nota ?? '').includes('canal necunoscut')));

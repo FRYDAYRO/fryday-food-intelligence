@@ -156,6 +156,7 @@ const REGULI_CONTINUT: Partial<Record<TipImport, Record<string, Verificator>>> =
   PMIX: { data: scorData, produs: scorCod, denumire: scorDenumire, cant: scorCantitate, canal: scorCanal, net: scorPret, brut: scorPret },
   SALES: { data: scorData, canal: scorCanal, net: scorPret, brut: scorPret },
   FC29: { perioada: scorPerioada, categorie: scorDenumire, valoare: scorPret },
+  FC29_MATERIAL: { perioada: scorPerioada, material: scorCod, denumire: scorDenumire, categorie: scorDenumire, cant: scorCantitate, um: scorUM, costActual: scorPret, costTeoretic: scorPret },
   // raportul 4.7 se recunoaște după antet și după structura de raport, nu din conținut
   MENIURI: { meniu: scorDenumire, componenta: scorDenumire },
   WASTE: { ingredient: scorCod, cant: scorCantitate },
@@ -173,6 +174,7 @@ const OBLIGATORII: Record<TipImport, string[]> = {
   PMIX: ['data', 'produs', 'cant'],
   SALES: ['data'],
   FC29: ['perioada', 'categorie', 'valoare'],
+  FC29_MATERIAL: ['material', 'denumire', 'costActual'],
   COST_INGREDIENTE: ['cod', 'pret'],
   RETETAR: ['reteta', 'comp', 'cant'],
   RETETAR_NBO: ['comp', 'cant', 'um'],
@@ -228,6 +230,7 @@ const NECESITA_SEMNAL: Partial<Record<TipImport, RegExp>> = {
   WASTE: /waste|pierder|risipa/i,
   INVENTAR: /inventar|stoc|consum real/i,
   SALES_MIX: /sales mix|4\.?7/i,
+  FC29_MATERIAL: /2\.?9|nbo|material|consum/i,
   PRETURI_PRODUSE: /pret|price|vanzare|meniu|instore|delivery/i,
   PRETURI_FURNIZORI: /furnizor|supplier|oferta|achizit/i,
 };
@@ -245,10 +248,17 @@ export function tipDinNumeFisier(numeFisier: string): TipImport | null {
   if (/ingredient|materie prima|materii prime|nomenclator/.test(n)) return 'COST_INGREDIENTE';
   if (pret && /instore|in store|delivery|livrare|sala|vanzare|meniu/.test(n)) return 'PRETURI_PRODUSE';
   if (pret && /furnizor|supplier|oferta|achizit/.test(n)) return 'PRETURI_FURNIZORI';
-  if (/recipe|recipes|retetar nbo|nbo/.test(n)) return 'RETETAR_NBO';
+  // „nbo" singur înseamnă recipe cards; un fișier „NBO 2.9 …" e însă raportul de consum
+  if (/recipe|recipes|retetar nbo/.test(n) || (/nbo/.test(n) && !/2\.9|2 9|nbo 29/.test(n))) return 'RETETAR_NBO';
   if (/sales mix|4 7 sales|4\.7/.test(n)) return 'SALES_MIX';
   if (/pmix|product mix/.test(n)) return 'PMIX';
-  if (/2\.9|2 9|nbo 29/.test(n)) return 'FC29';
+  if (/2\.9|2 9|nbo 29/.test(n)) {
+    return /material|detali|consum pe/.test(n) ? 'FC29_MATERIAL' : 'FC29';
+  }
+  // inventarul și waste-ul își spun numele: fără regulile astea, un inventar cădea pe FC29
+  // (categoria ← „Denumire", valoarea ← „Consum") și importa cantități drept lei
+  if (/inventar|stoc|consum real/.test(n)) return 'INVENTAR';
+  if (/waste|pierder|risipa/.test(n)) return 'WASTE';
   if (/sales report|raport vanzari/.test(n)) return 'SALES';
   if (/retetar|reteta/.test(n)) return 'RETETAR';
   if (pret) return 'PRETURI_PRODUSE';
@@ -276,11 +286,18 @@ function analizeazaFoaie(foaie: string, matrice: unknown[][], numeFisier: string
   let bestTip: TipImport | null = null, bestScor = 0;
   let bestMap: Record<string, string> = {}, bestCont: string[] = [], bestLipsa: string[] = [];
   for (const tip of Object.keys(OBLIGATORII) as TipImport[]) {
+    // 2.9 pe material se revendică DOAR cu semnalul din numele fișierului: vocabularul lui se
+    // suprapune cu al inventarului („consum real", „cod", „denumire"), iar un inventar importat
+    // drept 2.9 ar transforma cantități în lei. Numele dă familia, antetul alege varianta.
+    if (tip === 'FC29_MATERIAL' && sugerat !== 'FC29' && sugerat !== 'FC29_MATERIAL') continue;
     const dinNume = mapeazaAntete(antete, tip);
     const { map, dinContinut } = completeazaDinContinut(tip, parsat, { ...dinNume });
     const oblig = OBLIGATORII[tip];
     const lipsa = oblig.filter(c => !map[c]);
     if (lipsa.length) continue;
+    // 2.9 pe material: costul actual trebuie să fie o coloană numită, nu o deducție din conținut —
+    // altfel un „2.9" dintr-o dată (2 septembrie) ar revendica o listă de prețuri cod+denumire+sumă
+    if (tip === 'FC29_MATERIAL' && dinContinut.includes('costActual')) continue;
     // pentru tipurile ambigue: fără semnal din numele coloanelor sau al fișierului, nu se aplică
     const semnal = NECESITA_SEMNAL[tip];
     if (semnal && tip !== sugerat) {
@@ -294,7 +311,7 @@ function analizeazaFoaie(foaie: string, matrice: unknown[][], numeFisier: string
     // câmpurile recunoscute după nume sunt un semnal mult mai tare decât cele ghicite din conținut
     const scor = obligPeNume * 22 + peNume * 7 + acoperite * 3 - obligDinContinut * 5
       + (tip === 'RETETAR_NBO' && /nbo|recipe/i.test(numeFisier) ? 12 : 0)
-      + (tip === sugerat ? 35 : 0);
+      + (tip === sugerat || (sugerat === 'FC29' && tip === 'FC29_MATERIAL') ? 35 : 0);
     if (scor > bestScor) {
       bestScor = scor; bestTip = tip; bestMap = map; bestCont = dinContinut; bestLipsa = [];
     }

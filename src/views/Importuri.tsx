@@ -11,6 +11,7 @@ const COLOANE_ASTEPTATE: Record<TipImport, string> = {
   PMIX: 'data · locație · canal (sau din numele fișierului) · cod produs · cantitate · valoare brută · discount · valoare netă',
   SALES: 'data · locație · canal · vânzări brute · vânzări nete · nr. bonuri',
   FC29: 'perioadă (lună) · locație · categorie cheltuială · valoare',
+  FC29_MATERIAL: 'raportul 2.9 cu detaliu pe material: perioadă · locație · cod material · denumire · categorie · cantitate · UM · cost actual · cost teoretic · normalizat. Alimentează puntea de reconciliere pe material și generează automat rollup-ul pe categorie.',
   COST_INGREDIENTE: 'cod ingredient · denumire · categorie · tip · UM · preț net · valabil de la · furnizor',
   RETETAR: 'cod rețetă · tip rețetă · denumire · cod componentă · tip componentă · cantitate · UM · pierdere % · canal · randament',
   MENIURI: 'componența meniurilor: meniu · componentă · cantitate (opțional preț și TVA). Costul meniului se calculează prin însumarea componentelor, iar componentele vândute la preț 0 nu se mai contorizează separat.',
@@ -92,7 +93,7 @@ function TabImport() {
     if (!lot) return;
     const inainte = instantaneu(state);
     const jurnal: string[] = [];
-    const ordine: TipImport[] = ['FC_BAZA', 'COST_INGREDIENTE', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'PRETURI_FURNIZORI', 'FC29', 'SALES', 'SALES_MIX', 'PMIX'];
+    const ordine: TipImport[] = ['FC_BAZA', 'COST_INGREDIENTE', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'PRETURI_FURNIZORI', 'FC29', 'FC29_MATERIAL', 'SALES', 'SALES_MIX', 'PMIX'];
     const foi = lot.flatMap(x => x.analiza.filter(f => f.tip).map(f => ({ fisier: x.nume, f })))
       .sort((a, b) => ordine.indexOf(a.f.tip!) - ordine.indexOf(b.f.tip!));
     let stare = state;

@@ -1,16 +1,18 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, LinieReteta, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import { clasificaCategorie29 } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
-export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
+export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
 
 export const TIP_LABEL: Record<TipImport, string> = {
   PMIX: 'PMIX (vânzări pe produs)',
   SALES: 'Sales Report NBO',
   FC29: 'Raport NBO 2.9',
+  FC29_MATERIAL: 'Raport NBO 2.9 pe material (detaliu de consum)',
   COST_INGREDIENTE: 'Cost ingrediente',
   RETETAR: 'Rețetar',
   MENIURI: 'Meniuri / combo (componente și cantități)',
@@ -49,6 +51,18 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     locatie: ['locatie', 'location', 'restaurant', 'cod locatie', 'unitate'],
     categorie: ['categorie', 'categorie cheltuiala', 'cont', 'denumire', 'articol', 'grupa'],
     valoare: ['valoare', 'suma', 'cost', 'consum', 'total'],
+  },
+  FC29_MATERIAL: {
+    perioada: ['perioada', 'luna', 'month'],
+    locatie: ['locatie', 'location', 'restaurant', 'cod locatie', 'unitate', 'magazin', 'store'],
+    material: ['cod material', 'cod mp', 'material', 'item id', 'cod articol', 'item code', 'cod', 'sku'],
+    denumire: ['denumire material', 'denumire', 'item name', 'materie prima', 'descriere', 'nume'],
+    categorie: ['categorie', 'grupa', 'category', 'familie'],
+    cant: ['cantitate', 'cant', 'qty', 'quantity'],
+    um: ['um', 'unitate', 'u.m.', 'unit', 'uom'],
+    costActual: ['cost actual', 'consum real', 'valoare consum', 'actual', 'consum'],
+    costTeoretic: ['cost teoretic', 'valoare teoretica', 'teoretic', 'theoretical', 'ideal'],
+    normalizat: ['normalizat', 'normalized', 'material normalizat'],
   },
   COST_INGREDIENTE: {
     cod: ['cod ingredient', 'cod', 'cod articol', 'cod material', 'cod materie prima', 'cod nbo',
@@ -198,7 +212,16 @@ export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, 
 
 export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
   const nf = norm(numeFisier);
-  if (nf.includes('2.9') || nf.includes('29')) return 'FC29';
+  if (nf.includes('2.9') || nf.includes('29')) {
+    // varianta pe material cere semnalul strict al familiei: „29" poate fi o zi dintr-o dată
+    // („inventar 29.06"), iar un inventar importat drept 2.9 ar transforma cantități în lei.
+    // Fără semnalul strict rămâne comportamentul vechi (FC29 pe categorie).
+    if (/2\.9|2 9|nbo 29/.test(nf)) {
+      const m29 = mapeazaAntete(antete, 'FC29_MATERIAL');
+      if (m29.material !== undefined && m29.denumire !== undefined && m29.costActual !== undefined) return 'FC29_MATERIAL';
+    }
+    return 'FC29';
+  }
   if (nf.includes('pmix')) return 'PMIX';
   if (nf.includes('sales')) return 'SALES';
   if (nf.includes('furnizor') || nf.includes('supplier') || nf.includes('ofert')) return 'PRETURI_FURNIZORI';
@@ -214,6 +237,7 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
     PMIX: ['data', 'produs', 'cant'],
     SALES: ['data', 'locatie', 'net'],
     FC29: ['perioada', 'categorie', 'valoare'],
+    FC29_MATERIAL: ['material', 'denumire', 'costActual'],
     COST_INGREDIENTE: ['cod', 'pret'],
     RETETAR: ['reteta', 'comp', 'cant'],
     RETETAR_NBO: ['comp', 'cant', 'um'],
@@ -225,7 +249,10 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
     PRETURI_PRODUSE: ['produs'],
     PRETURI_FURNIZORI: ['furnizor', 'ing', 'pret'],
   };
-  const scoruri = (Object.keys(CAMPURI) as TipImport[]).map(t => {
+  // FC29_MATERIAL nu concurează fără semnalul „2.9" din numele fișierului: vocabularul lui
+  // („consum real", „cod", „denumire") se suprapune cu al inventarului, iar un inventar
+  // importat drept 2.9 ar transforma CANTITĂȚI în lei — corupere tăcută de date.
+  const scoruri = (Object.keys(CAMPURI) as TipImport[]).filter(t => t !== 'FC29_MATERIAL').map(t => {
     const m = mapeazaAntete(antete, t);
     const c = cerute[t];
     return { t, scor: c.filter(x => m[x] !== undefined).length / c.length + Object.keys(m).length * 0.01 };
@@ -898,7 +925,135 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       });
       const perechi = new Set(noi.map(l => `${l.perioada}|${l.locatie}`));
       importate = noi.length;
-      stateNou = { ...state, linii29: [...state.linii29.filter(l => !perechi.has(`${l.perioada}|${l.locatie}`)), ...noi] };
+      // detaliul pe material al perechilor înlocuite iese și el: altfel puntea pe material
+      // ar reconcilia un consum pe care acest import tocmai l-a înlocuit
+      const staleMat = (state.materiale29 ?? []).filter(m => m.locatie !== null && perechi.has(`${m.perioada}|${m.locatie}`));
+      if (staleMat.length) {
+        avert.push(`${staleMat.length} linii de detaliu pe material pentru aceleași (perioadă × locație) au fost eliminate — `
+          + 'importul pe categorie le înlocuiește. Reimportă fișierul 2.9 pe material dacă vrei detaliul înapoi.');
+      }
+      stateNou = {
+        ...state,
+        materiale29: (state.materiale29 ?? []).filter(m => !(m.locatie !== null && perechi.has(`${m.perioada}|${m.locatie}`))),
+        linii29: [...state.linii29.filter(l => !perechi.has(`${l.perioada}|${l.locatie}`)), ...noi],
+      };
+    }
+  } else if (tip === 'FC29_MATERIAL') {
+    // Raportul 2.9 la nivel de MATERIAL — alimentează puntea de reconciliere pe material.
+    // Reguli: ce lipsește în export rămâne null, nu zero; lipsa restaurantului NU inventează
+    // o locație (rămâne null și e raportată); categoriile nerecunoscute NU cad pe Food.
+    const lipsa = lipsesc(['material', 'denumire', 'costActual']);
+    if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
+    else {
+      const lunaImplicita = opt?.dataValabil?.slice(0, 7);
+      const dupaNumeIng = new Map(state.ingrediente.map(i => [norm(i.denumire), i.cod]));
+      const DA = new Set(['da', 'yes', 'true', '1', 'x', 'normalizat']);
+
+      const noi: Material29[] = [];
+      const neclasificate = new Set<string>();
+      const nemapate = new Set<string>();
+      const faraCost: number[] = [];
+      let faraPerioada = 0, faraLocatie = 0, cuTeoretic = 0, totalActual = 0;
+
+      p.randuri.forEach((r, i) => {
+        const material = String(g(r, 'material')).trim();
+        if (!material || /^(total|subtotal)/i.test(material)) return;   // rânduri de total / decor
+        const denumire = String(g(r, 'denumire')).trim() || material;
+        const costActual = parseNumar(g(r, 'costActual'));
+        if (costActual == null) { faraCost.push(i + 2); return; }
+        // fallback-ul pe dataValabil se aplică DOAR când fișierul nu are coloană de perioadă:
+        // o celulă goală re-datată ar muta rândul într-o lună pe care fișierul nu o acoperă,
+        // iar cheia lui de înlocuire ar șterge datele reale ale acelei luni
+        const perioada = map.perioada !== undefined ? parsePerioada(g(r, 'perioada')) : lunaImplicita;
+        if (!perioada) { faraPerioada++; return; }
+
+        // fără restaurant → null: linia contează la nivel de companie și e semnalată,
+        // dar nu se inventează o locație care nu există în sursă
+        const locBrut = map.locatie !== undefined ? String(g(r, 'locatie')).trim() : '';
+        const locatie = locBrut ? rezolvaLocatie(locBrut) : null;
+        if (!locatie) faraLocatie++;
+
+        const categorie = String(g(r, 'categorie')).trim();
+        if (clasificaCategorie29(categorie).neclasificat) neclasificate.add(categorie || '(fără categorie)');
+        if (!state.ingrediente.some(x => x.cod === material) && !dupaNumeIng.has(norm(denumire))) {
+          nemapate.add(`${denumire} (${material})`);
+        }
+
+        const costTeoretic = map.costTeoretic !== undefined ? parseNumar(g(r, 'costTeoretic')) : null;
+        if (costTeoretic != null) cuTeoretic++;
+        const normalizat = map.normalizat !== undefined
+          && DA.has(norm(String(g(r, 'normalizat'))));
+
+        noi.push({
+          perioada, locatie, material, denumire, categorie,
+          cant: map.cant !== undefined ? parseNumar(g(r, 'cant')) : null,
+          um: map.um !== undefined ? umNBO(g(r, 'um')) : null,
+          costActual, costTeoretic,
+          ...(normalizat ? { normalizat: true } : {}),
+        });
+        totalActual += costActual;
+        perioade.add(perioada);
+        importate++;
+      });
+
+      // reimportul aceleiași (perioade × locații) înlocuiește, nu adaugă
+      const cheia = (m: { perioada: string; locatie: string | null }) => `${m.perioada}|${m.locatie ?? ''}`;
+      const chei = new Set(noi.map(cheia));
+      const materiale29 = [...(state.materiale29 ?? []).filter(m => !chei.has(cheia(m))), ...noi];
+
+      // rollup pe categorie → linii29, ca FC Curat pe categorie să vină din același import.
+      // Liniile fără restaurant nu pot intra în rollup (Linie29 cere locația): rămân doar
+      // la nivel de material și sunt semnalate mai jos.
+      const rollup = new Map<string, Linie29>();
+      for (const m of noi) {
+        if (!m.locatie) continue;
+        const k = `${m.perioada}|${m.locatie}|${m.categorie}`;
+        const e = rollup.get(k);
+        if (e) e.valoare += m.costActual;
+        else rollup.set(k, { perioada: m.perioada, locatie: m.locatie, categorie: m.categorie, valoare: m.costActual });
+      }
+      const perechi29 = new Set([...rollup.values()].map(l => `${l.perioada}|${l.locatie}`));
+      const linii29 = [...state.linii29.filter(l => !perechi29.has(`${l.perioada}|${l.locatie}`)), ...rollup.values()];
+
+      // ——— raportarea onestă a ce s-a importat și a ce lipsește
+      avert.push(`${noi.length} linii de material, ${fmtNr(Math.round(totalActual))} lei consum actual, `
+        + `pe perioadele ${[...new Set(noi.map(m => m.perioada))].sort().join(', ') || '—'}`);
+      avert.push(rollup.size
+        ? `Rollup pe categorie generat: ${rollup.size} linii 2.9 — FC Curat pe categorie folosește acum acest import`
+        : 'Niciun rollup pe categorie generat (nicio linie nu are restaurant)');
+      avert.push(cuTeoretic === noi.length && noi.length > 0
+        ? 'Costul teoretic e declarat pe fiecare linie: variance-ul pe material vine direct din raport'
+        : cuTeoretic > 0
+          ? `Cost teoretic declarat doar pe ${cuTeoretic} din ${noi.length} linii — pe restul se reconstruiește din rețete × PMIX`
+          : 'Raportul nu declară costul teoretic: variance-ul pe material se reconstruiește din rețete × PMIX');
+      if (faraCost.length) {
+        avert.push(`${faraCost.length} rânduri fără cost — ignorate (rândurile ${faraCost.slice(0, 5).join(', ')}${faraCost.length > 5 ? '…' : ''})`);
+      }
+      if (faraPerioada) avert.push(`${faraPerioada} rânduri fără perioadă — ignorate (adaugă coloana „Perioada" sau alege data valabilității înainte de import)`);
+      if (faraLocatie) avert.push(`${faraLocatie} linii fără restaurant: contează la nivel de companie, dar nu apar în analiza pe unitate și nici în rollup-ul pe categorie`);
+      if (neclasificate.size) {
+        avert.push(`${neclasificate.size} categorii pe care nicio regulă nu le recunoaște — liniile lor NU au fost presupuse Food `
+          + 'în puntea pe material; în FC-ul pe categorie (rollup-ul 2.9) urmează însă regulile de clasificare existente. '
+          + 'Adaugă reguli pentru: ' + [...neclasificate].slice(0, 8).join(', ') + (neclasificate.size > 8 ? '…' : ''));
+      }
+      if (nemapate.size) {
+        avert.push(`${nemapate.size} materiale fără corespondent în nomenclator: `
+          + [...nemapate].slice(0, 8).join(', ') + (nemapate.size > 8 ? '…' : '')
+          + ' — costul lor va apărea ca „Neexplicat" în puntea de reconciliere');
+      }
+
+      // granularitate mixtă: aceeași perioadă cu linii pe restaurant ȘI fără restaurant se
+      // însumează la nivel de companie — posibil același consum numărat de două ori
+      const luniMixte = [...new Set(noi.map(m => m.perioada))].filter(per => {
+        const rows = materiale29.filter(m => m.perioada === per);
+        return rows.some(m => m.locatie === null) && rows.some(m => m.locatie !== null);
+      });
+      if (luniMixte.length) {
+        avert.push(`ATENȚIE: perioadele ${luniMixte.join(', ')} conțin atât linii pe restaurant, cât și linii fără restaurant — `
+          + 'la nivel de companie ambele se însumează; verifică să nu fie același consum numărat de două ori');
+      }
+
+      stateNou = { ...state, materiale29, linii29 };
     }
   } else if (tip === 'COST_INGREDIENTE') {
     const lipsa = lipsesc(['cod', 'pret']);

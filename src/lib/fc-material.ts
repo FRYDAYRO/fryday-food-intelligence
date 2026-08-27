@@ -62,7 +62,7 @@ export interface RandMaterialFC {
 export type CodDiagnostic =
   | 'MATERIAL_FARA_MAPARE' | 'MATERIAL_FARA_RETETA' | 'MATERIAL_FARA_PRET'
   | 'CATEGORIE_NECUNOSCUTA' | 'MATERIAL_NORMALIZAT' | 'IN_NBO_FARA_RETETA'
-  | 'INGREDIENT_FARA_NBO' | 'MAPARE_DUBLA' | 'LIPSA_LOCATIE' | 'LIPSA_PERIOADA';
+  | 'INGREDIENT_FARA_NBO' | 'MAPARE_DUBLA' | 'LIPSA_LOCATIE' | 'LIPSA_PERIOADA' | 'GRANULARITATE_MIXTA';
 
 export interface DiagnosticFC {
   cod: CodDiagnostic;
@@ -358,6 +358,29 @@ export function reconciliationMaterialFC(
     'Nu pot fi atribuite unui restaurant, deci nu apar în analiza pe unitate, deși contează în total.',
     'Reimportă raportul cu coloana de restaurant completată.',
     el(randuri.filter(r => !r.locatie)));
+
+  // granularitate mixtă — doar la nivel de companie, unde ambele forme se însumează
+  if (!loc) {
+    const faraLoc = randuri.filter(r => !r.locatie);
+    const cuLoc = new Set(randuri.filter(r => r.locatie).map(r => r.material));
+    if (faraLoc.length && cuLoc.size) {
+      const suprapuse = faraLoc.filter(r => cuLoc.has(r.material));
+      const relevante = suprapuse.length ? suprapuse : faraLoc;
+      diagnostice.push({
+        cod: 'GRANULARITATE_MIXTA',
+        nivel: suprapuse.length ? 'BLOCANT' : 'ATENTIE',
+        titlu: 'Perioada conține atât linii pe restaurant, cât și linii fără restaurant',
+        detaliu: suprapuse.length
+          ? `${suprapuse.length} materiale apar în AMBELE forme: consumul lor e numărat de două ori la nivel de companie.`
+          : 'Cele două forme se însumează la nivel de companie; dacă provin din același raport exportat '
+            + 'de două ori (agregat și pe restaurant), consumul e numărat de două ori.',
+        actiune: 'Păstrează o singură formă pe perioadă: reimportă fie raportul agregat, fie fișierele pe restaurant.',
+        nrElemente: relevante.length,
+        lei: relevante.reduce((s, r) => s + r.costActual, 0),
+        exemple: relevante.slice(0, 8).map(r => `${r.denumire} (${r.material})`),
+      });
+    }
+  }
 
   adauga('LIPSA_PERIOADA', 'BLOCANT', 'Linii 2.9 fără perioadă',
     'Fără perioadă nu pot fi comparate cu nicio lună de vânzări.',
