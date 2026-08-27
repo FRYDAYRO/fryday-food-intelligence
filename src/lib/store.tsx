@@ -98,6 +98,7 @@ export function migreaza(brut: unknown): AppState {
   p.retete = p.retete ?? [];
   p.vanzari = p.vanzari ?? [];
   p.linii29 = p.linii29 ?? [];
+  p.materiale29 = p.materiale29 ?? [];
   p.importuri = p.importuri ?? [];
   p.reguli = p.reguli ?? d.reguli;
   p.tinte = p.tinte ?? d.tinte;

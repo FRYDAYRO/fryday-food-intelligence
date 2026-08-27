@@ -130,7 +130,14 @@ export type FCChannel = 'INSTORE' | 'DELIVERY' | 'TOTAL';
 export const canalePentru = (c: FCChannel): ('INSTORE' | 'DELIVERY')[] =>
   (c === 'TOTAL' ? ['INSTORE', 'DELIVERY'] : [c]);
 
-export const etichetaCanal = (c: FCChannel) =>
+/**
+ * Canalul din care provine efectiv o cifră. Raportul 2.9 NU conține canalul, deci consumul
+ * real este `UNKNOWN` — nu se repartizează pe InStore/Delivery, pentru că sursa nu o spune.
+ */
+export type FCChannelSursa = FCChannel | 'UNKNOWN';
+
+export const etichetaCanal = (c: FCChannelSursa) =>
+  c === 'UNKNOWN' ? 'Necunoscut' :
   c === 'INSTORE' ? 'InStore' : c === 'DELIVERY' ? 'Delivery' : 'Total';
 
 // ————————————————————————————————————————————————————————— nivelul

@@ -70,6 +70,30 @@ export interface SalesReportRand {
 
 export interface Linie29 { perioada: string; locatie: string; categorie: string; valoare: number; }
 
+/**
+ * O linie din raportul 2.9 la nivel de MATERIAL, nu de categorie.
+ *
+ * `Linie29` rămâne rollup-ul pe categorie și e în continuare sursa când exportul nu are
+ * detaliu pe material. Doar cu materialul se poate face puntea către rețete: fără el,
+ * „ce s-a consumat și nu e în nicio rețetă" nu se poate afla.
+ *
+ * Câmpurile opționale reflectă realitatea exportului: nu orice 2.9 dă cantitatea sau costul
+ * teoretic. Ce lipsește rămâne `null` și se raportează ca atare — nu se completează cu zero.
+ */
+export interface Material29 {
+  perioada: string;            // AAAA-LL — perioada SURSĂ, păstrată ca atare
+  locatie: string | null;      // null = raportul nu a precizat restaurantul
+  material: string;            // codul materialului din NBO
+  denumire: string;
+  categorie: string;           // categoria brută, așa cum vine în raport
+  cant: number | null;
+  um: UMCod | null;
+  costActual: number;          // lei consumați efectiv (valoarea din 2.9)
+  costTeoretic: number | null; // lei teoretici, dacă raportul îi conține
+  /** Materialul e marcat în sursă drept normalizat (porționat/reambalat intern). */
+  normalizat?: boolean;
+}
+
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';
 export interface RegulaClasificare { pattern: string; clasa: Clasa29; }
 
@@ -161,6 +185,7 @@ export interface AppState {
   vanzari: VanzareFapt[];
   salesReport: SalesReportRand[];
   linii29: Linie29[];
+  materiale29: Material29[];   // 2.9 la nivel de material, când exportul îl conține
   waste: WasteFapt[];
   inventar: InventarFapt[];
   reguli: RegulaClasificare[];

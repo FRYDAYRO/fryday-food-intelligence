@@ -28,7 +28,7 @@ export function stareGoala(): AppState {
   const d = genereazaSeed();
   return {
     locatii: [], furnizori: [], ingrediente: [], produse: [], retete: [],
-    vanzari: [], salesReport: [], linii29: [],
+    vanzari: [], salesReport: [], linii29: [], materiale29: [],
     waste: [], inventar: [],
     reguli: d.reguli,
     // țintele FRYDAY: Food Cost 45% pe rețea (nu cele din demo, legate de locații fictive)
@@ -284,6 +284,7 @@ export function genereazaSeed(): AppState {
 
   return {
     locatii, furnizori, ingrediente, produse, retete, vanzari, salesReport, linii29,
+    materiale29: [],
     waste: [], inventar: [],
     reguli: [
       { pattern: 'uniforme', clasa: 'EXCLUS' },

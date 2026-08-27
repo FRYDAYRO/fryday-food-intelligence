@@ -155,6 +155,7 @@ export function genereazaSeedNBO(): AppState {
     ],
     ingrediente, produse, retete, vanzari, salesReport,
     linii29: [],                       // raportul 2.9 nu a fost încă importat
+    materiale29: [],
     waste: [], inventar: [],
     reguli: [
       { pattern: 'ambalaj', clasa: 'PAPER' },
