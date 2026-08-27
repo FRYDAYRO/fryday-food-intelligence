@@ -325,6 +325,35 @@ async function caleaAutomata() {
   t('regresie: „pmix 2.9.2026" rămâne PMIX (pmix bate data)', tipDinNumeFisier('pmix 2.9.2026.xlsx') === 'PMIX');
 }
 
+// ————————————————————————————————————————————————————————— canalul declarat explicit
+
+console.log('\n— Canalul: doar valorile declarate explicit se păstrează, nimic nu se ghicește —');
+const ANTETE_CANAL = ['Perioada', 'Locatie', 'Cod material', 'Denumire material', 'Categorie', 'Cost actual', 'Canal'];
+const rCanal = (cod: string, cost: number, canal: string) => ({
+  'Perioada': '2026-07', 'Locatie': 'L01', 'Cod material': cod, 'Denumire material': cod,
+  'Categorie': 'Carne și pui', 'Cost actual': cost, 'Canal': canal,
+});
+const PCanal: Parsat = {
+  foaie: 'x', antete: ANTETE_CANAL,
+  randuri: [
+    rCanal('C1', 100, 'InStore'), rCanal('C2', 200, 'Livrare'),
+    rCanal('C3', 300, 'Livrare locală'),          // conține și „local" — livrarea decide
+    rCanal('C4', 400, 'Drive-Thru'),              // nerecunoscut → fără canal, semnalat
+    rCanal('C5', 500, ''),                        // gol → fără canal
+  ],
+};
+const { stateNou: sCanalImp, batch: bCanalImp } = importa('FC29_MATERIAL', PCanal, 'NBO 2.9 canale.xlsx', genereazaSeed());
+const mCan = (cod: string) => sCanalImp.materiale29.find(m => m.material === cod)!;
+t('„InStore" → INSTORE', mCan('C1').canal === 'INSTORE');
+t('„Livrare" → DELIVERY', mCan('C2').canal === 'DELIVERY');
+t('„Livrare locală" → DELIVERY, nu InStore — livrarea bate „local"', mCan('C3').canal === 'DELIVERY', String(mCan('C3').canal));
+t('valoarea nerecunoscută NU se ghicește — rândul rămâne fără canal', mCan('C4').canal === undefined);
+t('celula goală rămâne fără canal', mCan('C5').canal === undefined);
+t('valorile nerecunoscute sunt semnalate cu numele lor',
+  bCanalImp.avertismente.some(a => a.includes('Drive-Thru')));
+t('avertismentul spune pe câte linii e declarat canalul',
+  bCanalImp.avertismente.some(a => a.includes('3 din 5 linii')));
+
 caleaAutomata().then(() => {
   console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
   if (fail) process.exit(1);
