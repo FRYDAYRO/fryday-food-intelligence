@@ -8,10 +8,11 @@
 //   comun ≠ pe restaurant     : rețetar/nomenclator/prețuri n-au unitate; 2.9/4.1/PMIX au
 //                               ori companie, ori restaurant — niciodată amestecate tăcut
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, costProdus } from '../src/lib/engine';
+import { buildCtx, costProdus, versiuneActiva, versiuneLa } from '../src/lib/engine';
 import {
-  ETICHETA_SURSA, activeazaImport, amprentaSursa, descrieImport, detecteazaSursa, eComuna,
-  importaPrinCentru, istoricPret, pregatesteImport, variantaInterna, versiuneActivaSursa,
+  ETICHETA_SURSA, activeazaImport, amprentaSursa, amprentaStare, descrieImport, detecteazaSursa,
+  eComuna, importaPrinCentru, istoricPret, numeExclus, pregatesteImport, semnalDinNume,
+  variantaInterna, versiuneActivaSursa,
   type CerereImport, type TipSursaFC,
 } from '../src/lib/import-center';
 import type { AppState } from '../src/lib/types';
@@ -23,10 +24,6 @@ const aprox = (a: number, b: number, tol = 0.01) => Math.abs(a - b) <= tol;
 
 const ACUM = '2026-08-28T09:00:00.000Z';
 const s0: AppState = { ...genereazaSeed(), versiuniImport: [], istoricPreturi: [], auditImport: [] };
-const amprentaStare = (s: AppState) => JSON.stringify({
-  ingrediente: s.ingrediente, retete: s.retete, produse: s.produse,
-  vanzari: s.vanzari, salesReport: s.salesReport, linii29: s.linii29, materiale29: s.materiale29,
-});
 const STARE_INITIALA = amprentaStare(s0);
 const cer = (fisier: string, parsat: Parsat, extra: Partial<CerereImport> = {}): CerereImport =>
   ({ fisier, parsat, acum: ACUM, ...extra });
@@ -221,15 +218,31 @@ t('produsul fără rețetă e semnalat separat de cel inexistent',
       .rezultat.diagnostice.some(d => d.cod === 'RETETA_LIPSA' && d.exemple.includes('PW')); })());
 
 console.log('\n— Companie vs restaurant: niciodată amestecate —');
-const rComp = importaPrinCentru(s0, cer('pmix 4.7 companie.xlsx',
-  { foaie: 'x', antete: ['Data', 'Cod produs', 'Cantitate'], randuri: [{ Data: '2026-07-05', 'Cod produs': 'P001', Cantitate: 10 }] }));
-t('fișier fără coloană de restaurant → COMPANIE', rComp.rezultat.scop === 'COMPANIE' && rComp.rezultat.restaurante.length === 0);
-t('nivelul de companie e declarat explicit în diagnostice',
-  rComp.rezultat.diagnostice.some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'INFO'));
+const FARA_LOC: Parsat = { foaie: 'x', antete: ['Data', 'Cod produs', 'Cantitate'], randuri: [{ Data: '2026-07-05', 'Cod produs': 'P001', Cantitate: 10 }] };
+const rComp = pregatesteImport(s0, cer('pmix 4.7 companie.xlsx', FARA_LOC));
+t('PMIX fără coloană de restaurant e BLOCAT, nu atribuit tăcut primului restaurant',
+  !rComp.valid && rComp.rezultat.diagnostice.some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'BLOCANT'));
+t('… iar activarea lui nu scrie nimic',
+  amprentaStare(activeazaImport(s0, rComp).stareNoua) === STARE_INITIALA);
+const rDeclarat = importaPrinCentru(s0, cer('pmix 4.7 fara coloana.xlsx', FARA_LOC, { locatie: 'L02' }));
 t('restaurantul declarat de utilizator devine scopul importului',
-  importaPrinCentru(s0, cer('pmix 4.7 fara coloana.xlsx',
-    { foaie: 'x', antete: ['Data', 'Cod produs', 'Cantitate'], randuri: [{ Data: '2026-07-05', 'Cod produs': 'P001', Cantitate: 10 }] },
-    { locatie: 'L02' })).rezultat.scop === 'RESTAURANT');
+  rDeclarat.rezultat.scop === 'RESTAURANT' && rDeclarat.rezultat.restaurante.join(',') === 'L02');
+t('DECLARAT ÎNSEAMNĂ SCRIS: rândurile ajung chiar pe restaurantul declarat, nu pe primul din listă',
+  rDeclarat.stareNoua.vanzari.some(v => v.data === '2026-07-05' && v.produs === 'P001' && v.locatie === 'L02')
+  && !rDeclarat.stareNoua.vanzari.some(v => v.data === '2026-07-05' && v.produs === 'P001' && v.locatie === 'L01' && v.cant === 10));
+const r29FaraLoc = pregatesteImport(s0, cer('NBO 2.9 companie.xlsx', {
+  foaie: 'x', antete: ['Perioada', 'Categorie', 'Valoare'],
+  randuri: [{ Perioada: '2026-07', Categorie: 'Carne și pui', Valoare: 100 }] }));
+t('2.9 pe categorie fără restaurant e blocat — altfel ar ȘTERGE luna primului restaurant',
+  !r29FaraLoc.valid && r29FaraLoc.rezultat.diagnostice.some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'BLOCANT'));
+t('… și datele restaurantului L01 rămân intacte',
+  amprentaStare(activeazaImport(s0, r29FaraLoc).stareNoua) === STARE_INITIALA);
+const r29mComp = importaPrinCentru(s0, cer('NBO 2.9 materiale companie.xlsx', {
+  foaie: 'x', antete: ['Perioada', 'Cod material', 'Denumire material', 'Categorie', 'Cost actual'],
+  randuri: [{ Perioada: '2026-07', 'Cod material': 'I001', 'Denumire material': 'Piept de pui', Categorie: 'Carne și pui', 'Cost actual': 900 }] }));
+t('2.9 pe MATERIAL suportă cu adevărat nivelul de companie: se scrie cu restaurant necunoscut',
+  r29mComp.rezultat.activat && r29mComp.rezultat.scop === 'COMPANIE'
+  && r29mComp.stareNoua.materiale29.some(m => m.material === 'I001' && m.locatie === null));
 const mixt = pregatesteImport(s0, cer('pmix 4.7 mixt.xlsx', PM([
   { Data: '2026-07-05', Restaurant: 'L01', Canal: 'InStore', 'Cod produs': 'P001', Cantitate: 10, 'Valoare neta': 200 },
   { Data: '2026-07-06', Restaurant: '', Canal: 'InStore', 'Cod produs': 'P001', Cantitate: 5, 'Valoare neta': 100 },
@@ -350,6 +363,168 @@ t('două pregătiri identice dau rezultate identice', det() === det());
 t('a treia, la fel', det() === JSON.stringify(rNom.rezultat.audit ? { ...rNom.rezultat, stare: 'VALIDAT', activat: false, versiune: null, audit: { ...rNom.rezultat.audit, versiune: null, activat: false } } : null)
   || det() === det());
 t('starea inițială a rămas neatinsă pe tot parcursul suitei', amprentaStare(s0) === STARE_INITIALA);
+
+
+// ————————————————————————————— corecturile din review-ul advers, fixate în teste
+
+console.log('\n— Detecția nu se lasă păcălită de structuri generice sau de date în nume —');
+t('un inventar cu nume neutru NU e tipat încrezător ca raport de vânzări',
+  detecteazaSursa(['Denumire', 'Cantitate'], 'export stoc.xlsx').stare === 'NECESITA_CONFIRMARE');
+t('o structură slabă (denumire + cantitate) cere confirmare și fără semnal de nume',
+  detecteazaSursa(['Denumire', 'Cantitate'], 'export.xlsx').stare === 'NECESITA_CONFIRMARE');
+t('numele din familia inventar/stoc/waste oprește detecția automată',
+  numeExclus('pierderi mai.xlsx') && numeExclus('inventar 2026.xlsx')
+  && detecteazaSursa(['Cod componenta', 'Cantitate', 'UM'], 'inventar 2026.xlsx').stare === 'NECESITA_CONFIRMARE');
+t('o dată în numele fișierului nu e număr de raport',
+  semnalDinNume('retetar 2026.04.10.xlsx') !== 'NBO_41' && semnalDinNume('nomenclator 12.9.2026.xlsx') !== 'NBO_29');
+t('numărul REAL de raport se recunoaște în continuare',
+  semnalDinNume('NBO 2.9 iulie.xlsx') === 'NBO_29' && semnalDinNume('NBO 4.1 iulie.xlsx') === 'NBO_41');
+t('coloanele obligatorii lipsă apar ca diagnostic BLOCANT, nu doar ca text',
+  pregatesteImport(s0, cer('pmix 4.7 fara cantitate.xlsx',
+    { foaie: 'x', antete: ['Data', 'Cod produs'], randuri: [{ Data: '2026-07-05', 'Cod produs': 'P001' }] }, { tip: 'PMIX_47' }))
+    .rezultat.diagnostice.some(d => d.cod === 'COLOANE_LIPSA' && d.nivel === 'BLOCANT' && d.exemple.includes('cant')));
+
+console.log('\n— Amprenta distinge conținutul REAL —');
+const cuMatrice = (m: unknown[][]): Parsat => ({ foaie: 'x', antete: ['A'], randuri: [{ A: 1 }], matrice: m });
+t('rapoartele citite din grilă nu împart amprenta doar pentru că antetele coincid',
+  amprentaSursa('PMIX_47', cuMatrice([['Crispy', 10, 20]]))
+  !== amprentaSursa('PMIX_47', cuMatrice([['Crispy', 999, 20], ['Wrap', 500, 15]])));
+t('două coloane care se normalizează la fel rămân distincte în amprentă',
+  amprentaSursa('PRETURI_INGREDIENTE', { foaie: 'x', antete: ['Cod', 'Pret', 'Preț'], randuri: [{ Cod: 'I001', Pret: 1, 'Preț': 5 }] })
+  !== amprentaSursa('PRETURI_INGREDIENTE', { foaie: 'x', antete: ['Cod', 'Pret', 'Preț'], randuri: [{ Cod: 'I001', Pret: 1, 'Preț': 99 }] }));
+t('opțiunile de import fac parte din amprentă',
+  amprentaSursa('PMIX_47', PN, { optiuni: { canalImplicit: 'INSTORE' } })
+  !== amprentaSursa('PMIX_47', PN, { optiuni: { canalImplicit: 'DELIVERY' } }));
+t('numărul 1 și textul „1" nu sunt același conținut',
+  amprentaSursa('PRETURI_INGREDIENTE', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 1 }] })
+  !== amprentaSursa('PRETURI_INGREDIENTE', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: '1' }] }));
+
+console.log('\n— Istoricul de preț nu inventează o variație care nu a existat —');
+const sUnPret: AppState = {
+  ...s0,
+  ingrediente: [{ cod: 'I001', denumire: 'Piept de pui', categorie: 'Carne', tip: 'FOOD', um: 'kg', activ: true, preturi: [{ validDeLa: '2026-06-01', pret: 10 }] }],
+};
+const retro = importaPrinCentru(sUnPret, cer('preturi ianuarie.xlsx',
+  { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 8 }] }, { dataValabil: '2026-01-01' }));
+t('un preț anterior oricărui preț cunoscut are pretVechi null, nu prețul din viitor',
+  (() => { const h = istoricPret(retro.stareNoua, 'I001').find(x => x.dataEfectiva === '2026-01-01')!;
+    return h.pretVechi === null && h.deltaRON === null && h.deltaPct === null; })());
+
+console.log('\n— O pregătire învechită nu poate rescrie starea —');
+const prepA = pregatesteImport(s0, cer('a.xlsx', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 50 }] }, { dataValabil: '2026-08-01' }));
+const prepB = pregatesteImport(s0, cer('b.xlsx', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I002', Pret: 60 }] }, { dataValabil: '2026-08-01' }));
+const dupaA = activeazaImport(s0, prepA);
+const dupaB = activeazaImport(dupaA.stareNoua, prepB);
+t('a doua pregătire, făcută pe starea veche, e RESPINSĂ la activare',
+  !dupaB.rezultat.activat && dupaB.rezultat.stare === 'RESPINS'
+  && dupaB.rezultat.erori.some(e => e.includes('s-a schimbat')));
+t('… iar primul import rămâne intact, nu e rulat înapoi',
+  dupaB.stareNoua.ingrediente.find(i => i.cod === 'I001')!.preturi.some(p => p.pret === 50));
+t('a doua activare a ACELEIAȘI pregătiri e refuzată',
+  !activeazaImport(dupaA.stareNoua, prepA).rezultat.activat);
+t('pregătirea reluată pe starea curentă funcționează',
+  activeazaImport(dupaA.stareNoua, pregatesteImport(dupaA.stareNoua, cer('b.xlsx',
+    { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I002', Pret: 60 }] }, { dataValabil: '2026-08-01' }))).rezultat.activat);
+
+console.log('\n— Starea rezultată e reproductibilă bit cu bit —');
+const st1 = importaPrinCentru(s0, cer('nomenclator august.xlsx', PN, { dataValabil: '2026-08-01', actor: 'valentin' })).stareNoua;
+const st2 = importaPrinCentru(s0, cer('nomenclator august.xlsx', PN, { dataValabil: '2026-08-01', actor: 'valentin' })).stareNoua;
+t('două importuri identice produc stări identice (inclusiv lotul de import)', JSON.stringify(st1) === JSON.stringify(st2));
+t('lotul poartă ora declarată a importului, nu ceasul mașinii',
+  st1.importuri.find(b => b.fisier === 'nomenclator august.xlsx')!.data === ACUM);
+
+console.log('\n— Rețetarul se datează la data cerută, iar retroactivul nu devine rețeta de azi —');
+const PRD = (cant: number): Parsat => ({
+  foaie: 'x', antete: ['Cod reteta', 'Denumire reteta', 'Cod componenta', 'Cantitate', 'UM'],
+  randuri: [{ 'Cod reteta': 'P002', 'Denumire reteta': 'Test', 'Cod componenta': 'I009', Cantitate: cant, UM: 'g' }],
+});
+const rIunie = importaPrinCentru(s0, cer('retetar iunie.xlsx', PRD(10), { dataValabil: '2026-06-01' }));
+t('versiunea de rețetă poartă data cerută, nu ziua importului',
+  rIunie.stareNoua.retete.find(r => r.cod === 'P002')!.versiuni.some(v => v.data === '2026-06-01'));
+t('versiunea din iunie chiar se aplică în iunie',
+  versiuneLa(rIunie.stareNoua.retete.find(r => r.cod === 'P002')!, '2026-06-15').data === '2026-06-01');
+const rOct = importaPrinCentru(rIunie.stareNoua, cer('retetar octombrie.xlsx', PRD(30), { dataValabil: '2026-10-01' }));
+const rMai = importaPrinCentru(rOct.stareNoua, cer('retetar retroactiv mai.xlsx', PRD(99), { dataValabil: '2026-05-01' }));
+const retetaFinal = rMai.stareNoua.retete.find(r => r.cod === 'P002')!;
+t('importul retroactiv NU devine versiunea activă de azi',
+  versiuneActiva(retetaFinal).data === '2026-10-01', versiuneActiva(retetaFinal).data);
+t('… dar rămâne în istoric și se aplică perioadei lui',
+  retetaFinal.versiuni.some(v => v.data === '2026-05-01')
+  && versiuneLa(retetaFinal, '2026-05-15').data === '2026-05-01');
+t('bookkeeping-ul și datele spun același lucru despre versiunea curentă',
+  versiuneActivaSursa(rMai.stareNoua, 'RETETAR')!.dataEfectiva === '2026-10-01');
+
+console.log('\n— Nomenclatorul fără coloană de preț e importabil —');
+const rNomPur = importaPrinCentru(s0, cer('nomenclator pur.xlsx', {
+  foaie: 'x', antete: ['Cod', 'Denumire', 'UM'],
+  randuri: [{ Cod: 'Y100', Denumire: 'Articol nou fără preț', UM: 'kg' }],
+}));
+t('se importă și creează ingredientul', rNomPur.rezultat.activat && rNomPur.stareNoua.ingrediente.some(i => i.cod === 'Y100'));
+t('fără preț inventat: istoricul de preț rămâne gol pentru el',
+  rNomPur.stareNoua.ingrediente.find(i => i.cod === 'Y100')!.preturi.length === 0
+  && istoricPret(rNomPur.stareNoua, 'Y100').length === 0);
+
+console.log('\n— Un import care nu importă nimic nu se activează —');
+const zero = pregatesteImport(s0, cer('pmix 4.7 gol.xlsx',
+  { foaie: 'x', antete: ['Data', 'Restaurant', 'Cod produs', 'Cantitate'], randuri: [] }, { tip: 'PMIX_47' }));
+t('fișierul fără rânduri e BLOCAT, nu „importat cu succes"',
+  !zero.valid && zero.rezultat.diagnostice.some(d => d.cod === 'NIMIC_IMPORTAT' && d.nivel === 'BLOCANT'));
+t('… și nu creează versiune', (activeazaImport(s0, zero).stareNoua.versiuniImport ?? []).length === 0);
+
+console.log('\n— Acoperirea nu numără agregarea drept rânduri sărite —');
+const agg = importaPrinCentru(s0, cer('pmix 4.7 agregat.xlsx', {
+  foaie: 'x', antete: ['Data', 'Restaurant', 'Canal', 'Cod produs', 'Cantitate', 'Valoare neta'],
+  randuri: [
+    { Data: '2026-07-05', Restaurant: 'L01', Canal: 'InStore', 'Cod produs': 'P001', Cantitate: 3, 'Valoare neta': 60 },
+    { Data: '2026-07-05', Restaurant: 'L01', Canal: 'InStore', 'Cod produs': 'P001', Cantitate: 4, 'Valoare neta': 80 },
+  ],
+}));
+t('trei rânduri cu aceeași cheie = o înregistrare, nu două „sărite"',
+  agg.rezultat.sarite === 0 && agg.rezultat.acoperire === 100, `sarite=${agg.rezultat.sarite} acoperire=${agg.rezultat.acoperire}`);
+t('cantitățile chiar s-au însumat',
+  agg.stareNoua.vanzari.some(v => v.data === '2026-07-05' && v.produs === 'P001' && v.locatie === 'L01' && v.cant === 7));
+
+console.log('\n— Linia de total din josul raportului nu blochează fișierul —');
+const cuTotal = pregatesteImport(s0, cer('NBO 2.9 cu total.xlsx', {
+  foaie: 'x', antete: ['Perioada', 'Locatie', 'Categorie', 'Valoare'],
+  randuri: [
+    { Perioada: '2026-07', Locatie: 'L01', Categorie: 'Carne și pui', Valoare: 1000 },
+    { Perioada: '', Locatie: '', Categorie: '', Valoare: '' },
+  ],
+}));
+t('rândul complet gol nu produce granularitate mixtă',
+  cuTotal.valid && !cuTotal.rezultat.diagnostice.some(d => d.cod === 'GRANULARITATE_MIXTA'));
+
+console.log('\n— Data efectivă vine din fișier când el o poartă —');
+const cuData = importaPrinCentru(s0, cer('preturi martie.xlsx', {
+  foaie: 'x', antete: ['Cod', 'Pret', 'Valabil de la'], randuri: [{ Cod: 'I001', Pret: 11, 'Valabil de la': '2026-03-01' }],
+}));
+t('coloana de valabilitate dă data efectivă a versiunii',
+  cuData.rezultat.dataEfectiva === '2026-03-01'
+  && versiuneActivaSursa(cuData.stareNoua, 'PRETURI_INGREDIENTE')!.dataEfectiva === '2026-03-01');
+t('un fișier ulterior devine corect versiunea activă',
+  versiuneActivaSursa(importaPrinCentru(cuData.stareNoua, cer('preturi aprilie.xlsx',
+    { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 12 }] }, { dataValabil: '2026-04-01' })).stareNoua,
+    'PRETURI_INGREDIENTE')!.dataEfectiva === '2026-04-01');
+
+console.log('\n— Reimportul identic e DUPLICAT, nu „eșec" —');
+const dubl = importaPrinCentru(rNom.stareNoua, cer('nomenclator august.xlsx', PN, { dataValabil: '2026-08-01' }));
+t('starea și auditul spun „duplicat", nu „respins"',
+  dubl.rezultat.stare === 'DUPLICAT' && dubl.stareNoua.auditImport!.slice(-1)[0].validare === 'DUPLICAT');
+t('fără erori inventate pentru un fișier care e pur și simplu deja importat', dubl.rezultat.erori.length === 0);
+
+console.log('\n— Lista de prețuri nu se prezintă ca revizie de nomenclator —');
+t('un fișier de prețuri nu raportează tot nomenclatorul ca „absent"',
+  importaPrinCentru(s0, cer('preturi scurte.xlsx',
+    { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 15 }] }, { dataValabil: '2026-08-01' }))
+    .rezultat.schimbari!.nomenclator === null);
+
+console.log('\n— Auditul distinge intrările —');
+t('două importuri diferite au id-uri de audit diferite',
+  (() => { const a = importaPrinCentru(s0, cer('x1.xlsx', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 21 }] }, { dataValabil: '2026-08-01' }));
+    const b = importaPrinCentru(a.stareNoua, cer('x2.xlsx', { foaie: 'x', antete: ['Cod', 'Pret'], randuri: [{ Cod: 'I001', Pret: 22 }] }, { dataValabil: '2026-09-01' }));
+    const ids = b.stareNoua.auditImport!.map(x => x.id);
+    return new Set(ids).size === ids.length; })());
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

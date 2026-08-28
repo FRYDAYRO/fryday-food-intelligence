@@ -67,7 +67,7 @@ export type CodDiagnosticImport =
   | 'COLOANE_LIPSA' | 'COLOANE_NECUNOSCUTE' | 'RANDURI_DUPLICATE' | 'DATE_INVALIDE'
   | 'NUMERE_INVALIDE' | 'LOCATIE_LIPSA' | 'PRODUS_LIPSA' | 'INGREDIENT_LIPSA'
   | 'PRET_LIPSA' | 'RETETA_LIPSA' | 'CATEGORIE_NECUNOSCUTA' | 'CANAL_NECUNOSCUT'
-  | 'GRANULARITATE_MIXTA' | 'IMPORT_DUPLICAT' | 'VERSIUNI_IN_CONFLICT';
+  | 'GRANULARITATE_MIXTA' | 'IMPORT_DUPLICAT' | 'VERSIUNI_IN_CONFLICT' | 'NIMIC_IMPORTAT';
 
 export interface DiagnosticImport {
   cod: CodDiagnosticImport;
@@ -93,12 +93,28 @@ export interface Detectie {
   motiv: string;
 }
 
+/**
+ * Rapoarte pe care acest centru NU le importă, dar al căror vocabular structural seamănă
+ * cu al celor importate (inventarul are cod + denumire + cantitate, ca un raport de vânzări).
+ * Un nume din familia asta oprește detecția automată: cantitățile lor n-au voie să intre
+ * ca lei sau ca vânzări.
+ */
+export const numeExclus = (numeFisier: string) => /inventar|stoc|waste|pierder|risipa/.test(norm(numeFisier));
+
+/**
+ * Numărul de raport dintr-un nume de fișier, cu granițe de cifră: „2.9" din „12.9.2026" e
+ * o dată, nu raportul 2.9 — iar „4.1" apare în orice „2026.04.10".
+ */
+const numarRaport = (n: string, numar: string) =>
+  new RegExp(`(^|[^0-9])${numar.replace('.', '\\.')}([^0-9]|$)`).test(n);
+
 /** Semnalul din numele fișierului. Ordinea contează: „sales mix" e PMIX, nu 4.1. */
 export function semnalDinNume(numeFisier: string): TipSursaFC | null {
   const n = norm(numeFisier);
-  if (/2\.9|2 9|nbo 29/.test(n)) return 'NBO_29';
-  if (/4\.1|4 1|nbo 41/.test(n)) return 'NBO_41';
-  if (/sales mix|4\.7|4 7|pmix/.test(n)) return 'PMIX_47';
+  if (numeExclus(n)) return null;
+  if (numarRaport(n, '2.9') || /2 9|nbo 29/.test(n)) return 'NBO_29';
+  if (numarRaport(n, '4.1') || /4 1|nbo 41/.test(n)) return 'NBO_41';
+  if (/sales mix|4 7|pmix/.test(n) || numarRaport(n, '4.7')) return 'PMIX_47';
   if (/sales report|raport vanzari|vanzari nete/.test(n)) return 'NBO_41';
   if (/retet|recipe/.test(n)) return 'RETETAR';
   if (/nomenclator|master|articole|catalog/.test(n)) return 'NOMENCLATOR';
@@ -106,7 +122,12 @@ export function semnalDinNume(numeFisier: string): TipSursaFC | null {
   return null;
 }
 
-interface RegulaContinut { tip: TipSursaFC; intern: TipImport; cerute: string[]; }
+interface RegulaContinut {
+  tip: TipSursaFC; intern: TipImport; cerute: string[];
+  /** Regulă SLABĂ: câmpuri prea generice ca să identifice singure raportul (denumire + cantitate
+   *  se potrivesc la fel de bine cu un inventar sau cu o listă de waste). Cere semnal de nume. */
+  slaba?: boolean;
+}
 
 /** Regulile de conținut: ce câmpuri trebuie mapate ca fișierul să poată fi acel tip. */
 const REGULI_CONTINUT: RegulaContinut[] = [
@@ -114,7 +135,7 @@ const REGULI_CONTINUT: RegulaContinut[] = [
   { tip: 'NBO_29', intern: 'FC29', cerute: ['perioada', 'categorie', 'valoare'] },
   { tip: 'NBO_41', intern: 'SALES', cerute: ['data', 'locatie', 'net'] },
   { tip: 'PMIX_47', intern: 'PMIX', cerute: ['data', 'produs', 'cant'] },
-  { tip: 'PMIX_47', intern: 'SALES_MIX', cerute: ['denumire', 'cant'] },
+  { tip: 'PMIX_47', intern: 'SALES_MIX', cerute: ['denumire', 'cant'], slaba: true },
   { tip: 'RETETAR', intern: 'RETETAR', cerute: ['reteta', 'comp', 'cant'] },
   { tip: 'RETETAR', intern: 'RETETAR_NBO', cerute: ['comp', 'cant', 'um'] },
   { tip: 'NOMENCLATOR', intern: 'COST_INGREDIENTE', cerute: ['cod', 'denumire', 'um'] },
@@ -138,6 +159,7 @@ export function variantaInterna(tip: TipSursaFC, antete: string[]): TipImport | 
 export function detecteazaSursa(antete: string[], numeFisier: string): Detectie {
   const semnalNume = semnalDinNume(numeFisier);
   const potriviri = new Map<TipSursaFC, CandidatDetectie>();
+  const tari = new Set<TipSursaFC>();
   for (const r of REGULI_CONTINUT) {
     const m = mapeazaAntete(antete, r.intern);
     const gasite = r.cerute.filter(c => m[c] !== undefined);
@@ -145,8 +167,8 @@ export function detecteazaSursa(antete: string[], numeFisier: string): Detectie 
     const scor = 40 + gasite.length * 5;
     const c = potriviri.get(r.tip);
     const motiv = `structura ${r.intern}: ${gasite.join(', ')}`;
-    if (!c) potriviri.set(r.tip, { tip: r.tip, scor, motive: [motiv] });
-    else { c.scor = Math.max(c.scor, scor); c.motive.push(motiv); }
+    if (!c) { potriviri.set(r.tip, { tip: r.tip, scor, motive: [motiv] }); if (!r.slaba) tari.add(r.tip); }
+    else { c.scor = Math.max(c.scor, scor); c.motive.push(motiv); if (!r.slaba) tari.add(r.tip); }
   }
   const candidati = [...potriviri.values()].sort((a, b) => b.scor - a.scor || a.tip.localeCompare(b.tip));
   for (const c of candidati) if (c.tip === semnalNume) { c.scor += 40; c.motive.push(`numele fișierului indică ${ETICHETA_SURSA[c.tip]}`); }
@@ -156,6 +178,11 @@ export function detecteazaSursa(antete: string[], numeFisier: string): Detectie 
   const cereConfirmare = (motiv: string, incredere: number): Detectie =>
     ({ tip: null, incredere, stare: 'NECESITA_CONFIRMARE', semnalNume, semnalContinut, candidati, motiv });
 
+  if (numeExclus(numeFisier)) {
+    return cereConfirmare('Numele fișierului arată a inventar / stoc / waste — rapoarte pe care acest '
+      + 'centru nu le importă, dar a căror structură seamănă cu a celor importate. Confirmă explicit tipul, '
+      + 'altfel cantitățile ar putea intra ca vânzări sau ca lei.', 20);
+  }
   if (!candidati.length) {
     return cereConfirmare(semnalNume
       ? `Numele fișierului sugerează ${ETICHETA_SURSA[semnalNume]}, dar antetele nu au coloanele acelui raport.`
@@ -174,9 +201,14 @@ export function detecteazaSursa(antete: string[], numeFisier: string): Detectie 
     return cereConfirmare(`Numele fișierului sugerează ${ETICHETA_SURSA[semnalNume]}, dar structura arată `
       + `${ETICHETA_SURSA[candidati[0].tip]}. Confirmă tipul — un raport importat greșit corupe datele.`, 30);
   }
-  // fără semnal de nume: conținutul decide doar dacă un singur tip se potrivește
-  if (candidati.length === 1) {
+  // fără semnal de nume: conținutul decide doar dacă un singur tip se potrivește PRINTR-O
+  // regulă tare; o potrivire slabă (denumire + cantitate) se potrivește și cu un inventar
+  if (candidati.length === 1 && tari.has(candidati[0].tip)) {
     return { tip: candidati[0].tip, incredere: 75, stare: 'SIGUR', semnalNume, semnalContinut, candidati, motiv: 'Un singur raport are această structură.' };
+  }
+  if (candidati.length === 1) {
+    return cereConfirmare(`Structura (${candidati[0].motive.join('; ')}) e prea generică pentru a identifica `
+      + `singură ${ETICHETA_SURSA[candidati[0].tip]}: aceleași coloane apar și în inventar sau waste. Confirmă tipul.`, 35);
   }
   return cereConfirmare('Structura se potrivește cu mai multe rapoarte: '
     + `${candidati.slice(0, 3).map(c => ETICHETA_SURSA[c.tip]).join(', ')}. Confirmă tipul.`, 45);
@@ -199,15 +231,22 @@ function fnv1a(s: string): string {
  * de ordinea coloanelor. Rândurile își păstrează ordinea (o reordonare e alt conținut).
  */
 export function amprentaSursa(
-  tip: TipSursaFC, p: Parsat, opt?: { dataValabil?: string; locatie?: string },
+  tip: TipSursaFC, p: Parsat, opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport },
 ): string {
-  const antete = [...p.antete].map(norm).sort();
-  const linii = p.randuri.map(r => antete.map(a => {
-    const cheie = p.antete.find(x => norm(x) === a);
-    return `${a}=${String(cheie !== undefined ? r[cheie] ?? '' : '')}`;
-  }).join('|'));
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', antete.join(','), ...linii].join('\n');
-  return `fp_${fnv1a(canonic)}_${p.randuri.length}`;
+  // antetele se ordonează canonic, dar se păstrează ORIGINALELE: două coloane care se
+  // normalizează la fel („Pret" și „Preț") rămân distincte, altfel conținut diferit ar
+  // produce aceeași amprentă și al doilea fișier ar fi respins ca duplicat
+  const ordine = p.antete.map((a, i) => ({ a, i }))
+    .sort((x, y) => norm(x.a).localeCompare(norm(y.a)) || x.i - y.i);
+  const val = (v: unknown) => (v === undefined ? '\u2205' : `${typeof v}:${String(v)}`);
+  const linii = p.randuri.map(r => ordine.map(({ a }) => `${a}=${val(r[a])}`).join('\u0001'));
+  // pentru rapoartele citite din grilă (4.7, cardurile NBO) conținutul REAL e în matrice
+  const matrice = (p.matrice ?? []).map(rand => rand.map(val).join('\u0001'));
+  const o = opt?.optiuni ?? {};
+  const optiuni = JSON.stringify(o, Object.keys(o).sort());
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni,
+    ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
+  return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
 
 // ————————————————————————————————————————————————————————— schimbările detectate
@@ -344,7 +383,11 @@ function schimbariPret(inainte: AppState, dupa: AppState, fisier: string, ampren
     const cunoscute = new Set((v?.preturi ?? []).map(p => `${p.validDeLa}|${p.pret}`));
     for (const p of i.preturi) {
       if (cunoscute.has(`${p.validDeLa}|${p.pret}`)) continue;
-      const anterior = v && v.preturi.length ? pretLa(v, p.validDeLa) : null;
+      // `pretLa` retro-umple cu cel mai vechi preț cunoscut când nimic nu era în vigoare;
+      // pentru ISTORIC asta ar inventa o variație care nu a existat, deci se cere explicit
+      // un preț care chiar era în vigoare la data respectivă
+      const eraInVigoare = (v?.preturi ?? []).some(x => x.validDeLa <= p.validDeLa);
+      const anterior = v && eraInVigoare ? pretLa(v, p.validDeLa) : null;
       const pretVechi = anterior !== null && anterior > 0 ? anterior : null;
       rez.push({
         ingredient: i.cod, denumire: i.denumire, dataEfectiva: p.validDeLa,
@@ -374,7 +417,8 @@ export interface RezultatCentral {
   restaurante: string[];
   randuri: number;
   importate: number;
-  sarite: number;
+  /** `null` pentru rapoartele citite din grilă, unde un rând-sursă nu corespunde 1:1 unei înregistrări. */
+  sarite: number | null;
   avertismente: string[];
   erori: string[];
   /** importate ÷ rânduri, %. */
@@ -383,7 +427,7 @@ export interface RezultatCentral {
   amprenta: string;
   versiune: string | null;
   activat: boolean;
-  stare: 'VALIDAT' | 'ACTIVAT' | 'RESPINS' | 'NECESITA_CONFIRMARE';
+  stare: 'VALIDAT' | 'ACTIVAT' | 'RESPINS' | 'NECESITA_CONFIRMARE' | 'DUPLICAT';
   importatLa: string;
   actor: string;
   diagnostice: DiagnosticImport[];
@@ -410,7 +454,19 @@ export interface PregatireImport {
   /** Starea rezultată, calculată pe o COPIE — se aplică doar prin `activeazaImport`. */
   stareCandidat: AppState | null;
   valid: boolean;
+  /**
+   * Amprenta stării pe care s-a făcut pregătirea. Activarea o verifică: o pregătire
+   * calculată pe o stare care între timp s-a schimbat ar rescrie, tăcut, importul dintre
+   * timp — inclusiv pe al ei propriu, la o a doua activare.
+   */
+  bazaStare: string;
 }
+
+/** Amprenta datelor unei stări — baza verificării de concurență la activare. */
+export const amprentaStare = (s: AppState): string => `st_${fnv1a(JSON.stringify([
+  s.ingrediente, s.produse, s.retete, s.vanzari, s.salesReport, s.linii29, s.materiale29,
+  s.waste, s.inventar, s.locatii, s.versiuniImport ?? [], s.istoricPreturi ?? [],
+]))}`;
 
 const ACTOR_SISTEM = 'SISTEM';
 
@@ -445,6 +501,44 @@ const CAMP_LOCATIE: Partial<Record<TipImport, string>> = {
   FC29: 'locatie', FC29_MATERIAL: 'locatie', SALES: 'locatie', PMIX: 'locatie',
 };
 
+/**
+ * Variante al căror model de date CERE un restaurant pe fiecare rând: fără el, importul
+ * ar atribui tăcut totul primului restaurant din nomenclator (și, la 2.9, ar șterge luna
+ * acelui restaurant). Doar 2.9 pe material poate fi stocat cu adevărat agregat (`locatie: null`).
+ */
+const NECESITA_RESTAURANT: TipImport[] = ['PMIX', 'SALES', 'FC29', 'SALES_MIX'];
+
+/** Rapoarte citite din grilă: un rând-sursă nu corespunde 1:1 unei înregistrări importate. */
+const CITITE_DIN_GRILA: TipImport[] = ['SALES_MIX', 'RETETAR_NBO'];
+
+const ANTET_LOCATIE = 'Locatie (declarat la import)';
+
+/** Un rând complet gol (linie de total sau separator) nu contează la nicio statistică. */
+const randGol = (r: Record<string, unknown>) =>
+  Object.values(r).every(v => String(v ?? '').trim() === '');
+
+/**
+ * Restaurantul declarat de utilizator trebuie să AJUNGĂ în date, nu doar în metadate:
+ * se injectează ca o coloană sintetică pe copia parsată, atunci când fișierul nu are
+ * deloc coloană de restaurant (sau o are complet goală). Un fișier care are restaurante
+ * pe unele rânduri NU se completează: acolo problema e granularitatea mixtă, semnalată separat.
+ */
+function cuRestaurantDeclarat(p: Parsat, intern: TipImport, locatie: string): Parsat {
+  const camp = CAMP_LOCATIE[intern];
+  if (!camp) return p;
+  const antet = mapeazaAntete(p.antete, intern)[camp];
+  if (antet !== undefined) {
+    const areValori = p.randuri.some(r => String(r[antet] ?? '').trim() !== '');
+    if (areValori) return p;
+    return { ...p, randuri: p.randuri.map(r => ({ ...r, [antet]: locatie })) };
+  }
+  return {
+    ...p,
+    antete: [...p.antete, ANTET_LOCATIE],
+    randuri: p.randuri.map(r => ({ ...r, [ANTET_LOCATIE]: locatie })),
+  };
+}
+
 interface Scop { scop: ScopSursa; restaurante: string[]; mixt: boolean; cuLocatie: number; faraLocatie: number; }
 
 function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string): Scop {
@@ -457,7 +551,8 @@ function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Recor
       ? { scop: 'RESTAURANT', restaurante: [declarat], mixt: false, cuLocatie: p.randuri.length, faraLocatie: 0 }
       : { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: p.randuri.length };
   }
-  const valori = p.randuri.map(r => String(r[antet] ?? '').trim());
+  // rândurile complet goale (linii de total, separatoare) nu sunt „fără restaurant"
+  const valori = p.randuri.filter(r => !randGol(r)).map(r => String(r[antet] ?? '').trim());
   const cu = valori.filter(v => v.length > 0);
   const fara = valori.length - cu.length;
   const restaurante = [...new Set(cu)].sort();
@@ -468,7 +563,11 @@ function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Recor
     : { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: fara };
 }
 
-interface Perioade { perioade: string[]; granularitate: Granularitate; dateInvalide: string[]; }
+interface Perioade {
+  perioade: string[]; granularitate: Granularitate; dateInvalide: string[];
+  /** Cea mai veche dată de valabilitate din fișier — data efectivă a unei liste de prețuri. */
+  dataMin: string | null;
+}
 
 function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, string>, dataValabil?: string): Perioade {
   const dateInvalide: string[] = [];
@@ -496,9 +595,17 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
     granularitate = intern === 'COST_INGREDIENTE' ? 'FARA' : 'LUNA';
     if (intern !== 'COST_INGREDIENTE') luni.add(dataValabil.slice(0, 7));
   }
+  // o listă de prețuri / un nomenclator își poartă data de valabilitate pe rând
+  const valabilitati: string[] = [];
+  if (map.validDeLa !== undefined) {
+    for (const r of p.randuri) {
+      const d = parseData(r[map.validDeLa]);
+      if (d) valabilitati.push(d);
+    }
+  }
   const perioade = [...luni].sort();
   if (perioade.length > 1 && granularitate !== 'FARA') granularitate = 'INTERVAL';
-  return { perioade, granularitate, dateInvalide };
+  return { perioade, granularitate, dateInvalide, dataMin: valabilitati.sort()[0] ?? null };
 }
 
 /** Cheia de duplicat pe rând, pe variantă internă. */
@@ -537,7 +644,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       versiune: null, activat: false, stare, importatLa: acum, actor,
       diagnostice: col.diag, schimbari: null,
       audit: {
-        id: `A_${amprenta}`, actor, data: acum, fisier: cerere.fisier,
+        id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
         tip: tipRez ?? 'NEDETECTAT', tipIntern: '—', perioada: null,
         scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE', restaurante: [],
         randuri: p.randuri.length, importate: 0,
@@ -545,7 +652,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
         amprenta, versiune: null, activat: false,
       },
     };
-    return { rezultat, stareCandidat: null, valid: false };
+    return { rezultat, stareCandidat: null, valid: false, bazaStare: amprentaStare(state) };
   };
 
   if (!tip) {
@@ -553,12 +660,28 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       `fp_nedetectat_${p.randuri.length}`);
   }
 
-  const intern = variantaInterna(tip, p.antete);
-  const amprenta = amprentaSursa(tip, p, { dataValabil: cerere.dataValabil, locatie: cerere.locatie });
+  const amprenta = amprentaSursa(tip, p, {
+    dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
+  });
+  const internBrut = variantaInterna(tip, p.antete);
+  // restaurantul declarat se injectează ÎNAINTE de mapare: altfel ar rămâne o etichetă în
+  // metadate, iar rândurile ar ajunge, tăcut, pe primul restaurant din nomenclator
+  const pEfectiv = cerere.locatie && internBrut ? cuRestaurantDeclarat(p, internBrut, cerere.locatie) : p;
+  const intern = internBrut ?? variantaInterna(tip, pEfectiv.antete);
   if (!intern) {
     // structura nu e cea a tipului — NU se îndeasă într-un format vecin.
     // Tipul CONFIRMAT de utilizator face din nepotrivire o eroare de validare (fișier greșit
     // sau incomplet), nu o nouă cerere de confirmare: alegerea a fost deja făcută.
+    // ce anume lipsește, ca diagnostic structurat — nu doar un mesaj liber
+    const variante = REGULI_CONTINUT.filter(r => r.tip === tip);
+    const celMaiApropiat = variante
+      .map(r => ({ r, lipsa: r.cerute.filter(c => mapeazaAntete(pEfectiv.antete, r.intern)[c] === undefined) }))
+      .sort((a, b) => a.lipsa.length - b.lipsa.length)[0];
+    if (celMaiApropiat) {
+      adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Coloane obligatorii lipsă',
+        `Raportul ${ETICHETA_SURSA[tip]} (varianta ${celMaiApropiat.r.intern}) cere aceste câmpuri; `
+        + 'fără ele fișierul nu poate fi acel raport.', celMaiApropiat.lipsa);
+    }
     const mesaj = `Fișierul a fost tratat ca ${ETICHETA_SURSA[tip]}, dar antetele nu au structura acelui `
       + 'raport — nu se forțează într-un format vecin. Verifică fișierul sau tipul ales.';
     return cerere.tip
@@ -566,7 +689,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       : gol('NECESITA_CONFIRMARE', [mesaj], tip, amprenta);
   }
 
-  const map = mapeazaAntete(p.antete, intern);
+  const map = mapeazaAntete(pEfectiv.antete, intern);
   const obligatorii = OBLIGATORII[intern] ?? [];
   const lipsa = obligatorii.filter(c => map[c] === undefined);
   adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Coloane obligatorii lipsă',
@@ -578,11 +701,12 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     p.antete.filter(a => !folosite.has(a) && a.trim() !== ''));
 
   // — scopul: companie vs restaurant, niciodată amestecate
-  const scop = determinaScop(tip, intern, p, map, cerere.locatie);
-  if (eComuna(tip) && CAMP_LOCATIE[intern] === undefined && map.locatie !== undefined) {
+  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie);
+  if (eComuna(tip)) {
+    const coloanaLoc = p.antete.filter(a => /locatie|restaurant|unitate|magazin|store/.test(norm(a)));
     adaugaDiag(col, 'LOCATIE_LIPSA', 'ATENTIE', 'Date comune cu coloană de restaurant',
       `${ETICHETA_SURSA[tip]} este comun tuturor restaurantelor: coloana de restaurant se ignoră, `
-      + 'datele NU devin specifice unei unități.', [map.locatie]);
+      + 'datele NU devin specifice unei unități.', coloanaLoc);
   }
   if (scop.mixt) {
     adaugaDiag(col, 'GRANULARITATE_MIXTA', 'BLOCANT', 'Restaurant completat doar pe o parte din rânduri',
@@ -591,13 +715,23 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       + 'ori împarți fișierul.', [`${scop.cuLocatie} cu restaurant`, `${scop.faraLocatie} fără`]);
   }
   if (!eComuna(tip) && scop.scop === 'COMPANIE') {
-    adaugaDiag(col, 'LOCATIE_LIPSA', 'INFO', 'Import la nivel de companie',
-      'Fișierul nu precizează restaurantul: datele se înregistrează agregat, la nivel de rețea.',
-      ['fără coloană de restaurant']);
+    if (NECESITA_RESTAURANT.includes(intern)) {
+      // fără restaurant, motorul ar atribui totul primului restaurant din nomenclator —
+      // iar la 2.9 ar ȘTERGE luna acelui restaurant. Se blochează, nu se „agregă".
+      adaugaDiag(col, 'LOCATIE_LIPSA', 'BLOCANT', 'Raport fără restaurant, dar care cere unul',
+        `${ETICHETA_SURSA[tip]} (varianta ${intern}) se stochează pe restaurant: fără coloana de `
+        + 'restaurant, fiecare rând ar fi atribuit tăcut primului restaurant din nomenclator. '
+        + 'Declară restaurantul la import sau folosește fișiere separate pe unitate.',
+        ['fără coloană de restaurant']);
+    } else {
+      adaugaDiag(col, 'LOCATIE_LIPSA', 'INFO', 'Import la nivel de companie',
+        'Fișierul nu precizează restaurantul: datele se înregistrează agregat, la nivel de rețea '
+        + '(restaurant necunoscut, nu primul din listă).', ['fără coloană de restaurant']);
+    }
   }
 
   // — perioade și granularitate
-  const per = determinaPerioade(intern, p, map, cerere.dataValabil);
+  const per = determinaPerioade(intern, pEfectiv, map, cerere.dataValabil);
   adaugaDiag(col, 'DATE_INVALIDE', 'ATENTIE', 'Date calendaristice necitibile',
     'Rândurile cu dată invalidă nu pot fi atribuite unei perioade.', per.dateInvalide);
 
@@ -610,7 +744,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const numereInvalide: string[] = [];
   for (const c of campuriNumerice[intern] ?? []) {
     if (map[c] === undefined) continue;
-    p.randuri.forEach((r, i) => {
+    pEfectiv.randuri.forEach((r, i) => {
       const brut = r[map[c]!];
       if (String(brut ?? '').trim() === '') return;
       if (parseNumar(brut) === null) numereInvalide.push(`rândul ${i + 2}, ${c}: „${String(brut)}"`);
@@ -621,7 +755,8 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   // — rânduri duplicate în fișier
   const chei = new Map<string, number>();
-  for (const r of p.randuri) {
+  for (const r of pEfectiv.randuri) {
+    if (randGol(r)) continue;
     const k = cheieRand(intern, r, map);
     if (k === null || k.replace(/\|/g, '').trim() === '') continue;
     chei.set(k, (chei.get(k) ?? 0) + 1);
@@ -634,7 +769,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   if (intern === 'PMIX' || intern === 'SALES') {
     const necunoscute = new Set<string>();
     let fara = 0;
-    p.randuri.forEach(r => {
+    pEfectiv.randuri.forEach(r => {
       const brut = map.canal !== undefined ? r[map.canal] : '';
       const c = detecteazaCanal(brut, cerere.fisier);
       if (c) return;
@@ -654,7 +789,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // — referințe: produse, ingrediente, categorii
   if (intern === 'PMIX' && map.produs !== undefined) {
     const cunoscute = new Set(state.produse.map(x => x.cod));
-    const necunoscute = [...new Set(p.randuri
+    const necunoscute = [...new Set(pEfectiv.randuri
       .map(r => String(r[map.produs!] ?? '').trim())
       .filter(c => c && !cunoscute.has(c)))].sort();
     adaugaDiag(col, 'PRODUS_LIPSA', 'ATENTIE', 'Produse necunoscute în nomenclator',
@@ -662,7 +797,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     const cuReteta = new Set(state.retete.map(r => r.cod));
     adaugaDiag(col, 'RETETA_LIPSA', 'ATENTIE', 'Produse vândute fără rețetă',
       'Costul lor NU e presupus zero: rămâne necunoscut până la importul rețetei.',
-      [...new Set(p.randuri.map(r => String(r[map.produs!] ?? '').trim())
+      [...new Set(pEfectiv.randuri.map(r => String(r[map.produs!] ?? '').trim())
         .filter(c => c && cunoscute.has(c) && !cuReteta.has(c)))].sort());
   }
   if ((intern === 'RETETAR' || intern === 'RETETAR_NBO') && map.comp !== undefined) {
@@ -670,20 +805,20 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     const numeIng = new Map(state.ingrediente.map(i => [norm(i.denumire), i.cod]));
     adaugaDiag(col, 'INGREDIENT_LIPSA', 'ATENTIE', 'Componente absente din nomenclator',
       'Vor fi create sau vor rămâne fără preț — costul lor nu se poate calcula până la maparea corectă.',
-      [...new Set(p.randuri.map(r => String(r[map.comp!] ?? '').trim())
+      [...new Set(pEfectiv.randuri.map(r => String(r[map.comp!] ?? '').trim())
         .filter(c => c && !cunoscute.has(c) && !numeIng.has(norm(c))))].sort());
   }
   if (intern === 'FC29' || intern === 'FC29_MATERIAL') {
     const campCat = map.categorie;
     if (campCat !== undefined) {
-      const necunoscute = [...new Set(p.randuri.map(r => String(r[campCat] ?? '').trim())
+      const necunoscute = [...new Set(pEfectiv.randuri.map(r => String(r[campCat] ?? '').trim())
         .filter(c => c && clasificaNecunoscuta(c)))].sort();
       adaugaDiag(col, 'CATEGORIE_NECUNOSCUTA', 'ATENTIE', 'Categorii 2.9 nerecunoscute',
         'NU se presupun Food: rămân neclasificate până la o regulă explicită.', necunoscute);
     }
   }
   if (intern === 'COST_INGREDIENTE' && map.pret !== undefined) {
-    const faraPret = p.randuri
+    const faraPret = pEfectiv.randuri
       .map((r, i) => ({ i, cod: String(r[map.cod ?? ''] ?? '').trim(), pret: parseNumar(r[map.pret!]) }))
       .filter(x => x.cod && (x.pret === null || x.pret <= 0))
       .map(x => `${x.cod} (rândul ${x.i + 2})`);
@@ -702,7 +837,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       'Aceeași amprentă de conținut există deja: reimportul nu adaugă date noi și nu dublează nimic.',
       [amprenta]);
   }
-  const dataEfectiva = cerere.dataValabil
+  const dataEfectiva = cerere.dataValabil ?? per.dataMin
     ?? (per.perioade[0] ? `${per.perioade[0]}-01` : acum.slice(0, 10));
   const activaCurenta = acelasiFisier.find(v => v.activa);
   if (activaCurenta && dataEfectiva < activaCurenta.dataEfectiva) {
@@ -714,18 +849,38 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   // — rularea propriu-zisă, pe o COPIE: starea reală rămâne neatinsă
   const copie = clona(state);
-  const optiuni: OpteImport = { ...cerere.optiuni, ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}) };
-  const rulat = importa(intern, p, cerere.fisier, copie, undefined, optiuni);
+  const optiuni: OpteImport = {
+    ...cerere.optiuni,
+    ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+    // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
+    ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
+  };
+  const rulat = importa(intern, pEfectiv, cerere.fisier, copie, undefined, optiuni);
   const erori = [...rulat.batch.erori];
   const avertismente = [...rulat.batch.avertismente];
+
+  const importate = rulat.batch.importate;
+  const randuriUtile = pEfectiv.randuri.filter(r => !randGol(r)).length;
+  const dinGrila = CITITE_DIN_GRILA.includes(intern);
+  const randuriSursa = dinGrila ? (pEfectiv.matrice?.length ?? randuriUtile) : randuriUtile;
+  if (importate === 0) {
+    adaugaDiag(col, 'NIMIC_IMPORTAT', 'BLOCANT', 'Importul nu a adus niciun rând',
+      randuriSursa === 0
+        ? 'Fișierul nu conține rânduri de date.'
+        : 'Toate rândurile au fost ignorate de motor (coloane, date sau valori necitibile). '
+          + 'Un import care nu importă nimic nu se activează — altfel ar crea o versiune goală.',
+      [`${randuriSursa} rânduri în fișier, 0 importate`]);
+  }
 
   const blocante = col.diag.filter(d => d.nivel === 'BLOCANT');
   const valid = erori.length === 0 && blocante.length === 0 && !duplicatExact;
 
   const schimbari: SchimbariDetectate = {
-    nomenclator: intern === 'COST_INGREDIENTE' ? schimbariNomenclator(state, rulat.stateNou, p, map) : null,
+    // lista de prețuri folosește același motor ca nomenclatorul, dar NU e o revizie de
+    // nomenclator: altfel un fișier cu o linie ar raporta tot nomenclatorul drept „absent"
+    nomenclator: tip === 'NOMENCLATOR' ? schimbariNomenclator(state, rulat.stateNou, pEfectiv, map) : null,
     retete: intern === 'RETETAR' || intern === 'RETETAR_NBO'
-      ? schimbariReteta(state, rulat.stateNou, p, map) : null,
+      ? schimbariReteta(state, rulat.stateNou, pEfectiv, map) : null,
     preturi: schimbariPret(state, rulat.stateNou, cerere.fisier, amprenta),
   };
   if (schimbari.nomenclator?.coduriDuplicateInFisier.length) {
@@ -734,31 +889,58 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       schimbari.nomenclator.coduriDuplicateInFisier);
   }
 
-  const importate = rulat.batch.importate;
-  const nr = p.randuri.length;
+  // acoperirea se raportează față de ÎNREGISTRĂRILE așteptate, nu față de rândurile brute:
+  // motorul agregă rândurile cu aceeași cheie, iar o agregare nu e un rând „sărit"
+  const cheiDistincte = chei.size;
+  const asteptate = dinGrila ? null : (cheiDistincte > 0 ? cheiDistincte : randuriUtile);
+  const nr = randuriSursa;
   const rezultat: RezultatCentral = {
     fisier: cerere.fisier, tip, tipIntern: intern, detectie,
     perioada: per.perioade[0] ?? null, perioade: per.perioade, dataEfectiva, granularitate: per.granularitate,
     scop: scop.scop, restaurante: scop.restaurante,
-    randuri: nr, importate, sarite: Math.max(0, nr - importate),
+    randuri: nr, importate,
+    sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
     avertismente, erori,
-    acoperire: nr > 0 ? (importate / nr) * 100 : null,
+    acoperire: asteptate !== null && asteptate > 0 ? Math.min(100, (importate / asteptate) * 100) : null,
     duplicat, amprenta,
     versiune: null, activat: false,
-    stare: valid ? 'VALIDAT' : 'RESPINS',
+    stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
     diagnostice: sorteazaDiag(col.diag),
     schimbari,
     audit: {
-      id: `A_${amprenta}`, actor, data: acum, fisier: cerere.fisier,
+      id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
       tip, tipIntern: intern, perioada: per.perioade[0] ?? null,
       scop: scop.scop, restaurante: scop.restaurante,
       randuri: nr, importate,
-      validare: valid ? 'VALIDAT' : 'RESPINS',
+      validare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
       amprenta, versiune: null, activat: false,
     },
   };
-  return { rezultat, stareCandidat: valid ? rulat.stateNou : null, valid };
+  return {
+    rezultat,
+    stareCandidat: valid ? deterministaBatch(rulat.stateNou, state, amprenta, acum) : null,
+    valid,
+    bazaStare: amprentaStare(state),
+  };
+}
+
+/**
+ * Lotul de import scris de motor poartă un id aleator și ceasul mașinii. Pentru ca aceeași
+ * pregătire să dea aceeași stare, lotul nou primește un id derivat din amprentă și ora
+ * declarată a importului.
+ */
+function deterministaBatch(dupa: AppState, inainte: AppState, amprenta: string, acum: string): AppState {
+  if (dupa.importuri.length <= inainte.importuri.length) return dupa;
+  // motorul poate adăuga lotul la început SAU la sfârșit — îl recunoaștem după id-ul
+  // care nu exista înainte, nu după poziție
+  const vechi = new Set(inainte.importuri.map(b => b.id));
+  let normalizat = 0;
+  return {
+    ...dupa,
+    importuri: dupa.importuri.map(b =>
+      vechi.has(b.id) ? b : { ...b, id: `B_${amprenta}_${normalizat++}`, data: acum }),
+  };
 }
 
 const sorteazaDiag = (d: DiagnosticImport[]): DiagnosticImport[] =>
@@ -780,6 +962,21 @@ export interface RezultatActivare { stareNoua: AppState; rezultat: RezultatCentr
  */
 export function activeazaImport(state: AppState, pregatire: PregatireImport): RezultatActivare {
   const r = pregatire.rezultat;
+  // pregătirea e valabilă doar pentru starea pe care a fost calculată: altfel activarea ei
+  // ar rescrie datele cu un instantaneu vechi și ar șterge, tăcut, importul dintre timp
+  // (inclusiv la o a doua activare a ACELEIAȘI pregătiri)
+  if (pregatire.valid && pregatire.bazaStare !== amprentaStare(state)) {
+    const respins: RezultatCentral = {
+      ...r, stare: 'RESPINS', activat: false,
+      erori: [...r.erori, 'Starea s-a schimbat de la pregătirea acestui import (alt import activat între timp, '
+        + 'sau aceeași pregătire activată de două ori). Repetă pregătirea pe starea curentă.'],
+    };
+    const audit: IntrareAudit = { ...(respins.audit ?? auditGol(respins)), validare: 'RESPINS', activat: false };
+    return {
+      stareNoua: { ...state, auditImport: [...(state.auditImport ?? []), audit] },
+      rezultat: { ...respins, audit },
+    };
+  }
   if (!pregatire.valid || !pregatire.stareCandidat || !r.tip || !r.tipIntern) {
     const audit: IntrareAudit = { ...(r.audit ?? auditGol(r)), activat: false };
     return {
@@ -822,7 +1019,7 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
 }
 
 const auditGol = (r: RezultatCentral): IntrareAudit => ({
-  id: `A_${r.amprenta}`, actor: r.actor, data: r.importatLa, fisier: r.fisier,
+  id: `A_${fnv1a(`${r.amprenta}|${r.importatLa}|${r.fisier}|${r.actor}`)}`, actor: r.actor, data: r.importatLa, fisier: r.fisier,
   tip: r.tip ?? 'NEDETECTAT', tipIntern: r.tipIntern ?? '—', perioada: r.perioada,
   scop: r.scop, restaurante: r.restaurante, randuri: r.randuri, importate: 0,
   validare: r.stare === 'NECESITA_CONFIRMARE' ? 'NECESITA_CONFIRMARE' : 'RESPINS',

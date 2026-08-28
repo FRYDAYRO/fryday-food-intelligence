@@ -310,6 +310,15 @@ export function detecteazaCanal(v: unknown, numeFisier: string): Canal | null {
 
 const idBatch = () => `B${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
 
+/**
+ * Versiunea activă a unei rețete = cea în vigoare AZI, adică versiunea cu cea mai recentă
+ * dată (la egalitate, numărul mai mare). Un import retroactiv adaugă istoric, dar NU preia
+ * rolul de versiune curentă — altfel rețeta de azi ar fi rescrisă de un fișier vechi.
+ */
+function activaDupaData(r: Reteta): number {
+  return r.versiuni.reduce((a, b) => (b.data > a.data || (b.data === a.data && b.nr > a.nr) ? b : a), r.versiuni[0]).nr;
+}
+
 export interface RezultatImport { stateNou: AppState; batch: ImportBatch; }
 
 const fmtNr = (n: number) => n.toLocaleString('ro-RO');
@@ -1077,15 +1086,19 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       stateNou = { ...state, materiale29, linii29 };
     }
   } else if (tip === 'COST_INGREDIENTE') {
-    const lipsa = lipsesc(['cod', 'pret']);
+    // prețul e opțional: un nomenclator pur (cod + denumire + UM) creează ingredientele
+    // fără preț — costul lor rămâne NECUNOSCUT, niciodată presupus zero
+    const lipsa = lipsesc(['cod']);
     if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
     else {
       const ingrediente = state.ingrediente.map(x => ({ ...x, preturi: [...x.preturi] }));
       const azi = opt?.dataValabil ?? new Date().toISOString().slice(0, 10);   // fișierele fără coloană de dată se aplică de la data cerută, altfel de azi
       p.randuri.forEach((r, i) => {
         const cod = String(g(r, 'cod')).trim();
-        const pret = parseNumar(g(r, 'pret'));
-        if (!cod || pret == null) { if (cod) avert.push(`Rând ${i + 2}: preț invalid — ignorat`); return; }
+        const pret = map.pret !== undefined ? parseNumar(g(r, 'pret')) : null;
+        const fisierCuPret = map.pret !== undefined;
+        if (!cod) return;
+        if (fisierCuPret && pret == null) { avert.push(`Rând ${i + 2}: preț invalid — ignorat`); return; }
         const validDeLa = parseData(g(r, 'validDeLa')) ?? azi;
         let ing = ingrediente.find(x => x.cod === cod);
         if (!ing) {
@@ -1103,11 +1116,13 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           ingrediente.push(ing);
           avert.push(`Ingredient nou creat: ${cod} — ${denumire}`);
         }
-        const vechi = ing.preturi.length ? ing.preturi[ing.preturi.length - 1].pret : null;
-        if (vechi != null && vechi > 0 && Math.abs(pret - vechi) / vechi * 100 > state.setari.pragAlertaPret) {
-          avert.push(`Preț ${ing.denumire}: ${vechi} → ${pret} lei (variație > ${state.setari.pragAlertaPret}%)`);
+        if (pret != null) {
+          const vechi = ing.preturi.length ? ing.preturi[ing.preturi.length - 1].pret : null;
+          if (vechi != null && vechi > 0 && Math.abs(pret - vechi) / vechi * 100 > state.setari.pragAlertaPret) {
+            avert.push(`Preț ${ing.denumire}: ${vechi} → ${pret} lei (variație > ${state.setari.pragAlertaPret}%)`);
+          }
+          ing.preturi = adaugaPretDatat(ing.preturi, validDeLa, pret, ing.denumire, avert);
         }
-        ing.preturi = adaugaPretDatat(ing.preturi, validDeLa, pret, ing.denumire, avert);
         importate++;
       });
       stateNou = { ...state, ingrediente };
@@ -1318,7 +1333,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         }
         const nr = (ret.versiuni[ret.versiuni.length - 1]?.nr ?? 0) + 1;
         ret.versiuni = [...ret.versiuni, { nr, data: azi, nota: `Import NBO ${numeFisier}`, linii }];
-        ret.activa = nr;
+        ret.activa = activaDupaData(ret);
         ret.denumire = card.denumire || ret.denumire;
 
         // ——— cardul NBO nu are dimensiunea de canal: ambalajul intră pe ambele canale
@@ -1357,7 +1372,10 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         arr.push(r); grupe.set(cod, arr);
       }
       const retete = state.retete.map(x => ({ ...x, versiuni: [...x.versiuni] }));
-      const azi = new Date().toISOString().slice(0, 10);
+      // versiunea se datează la data cerută de import, nu la ceasul mașinii: altfel o
+      // versiune „din iunie" nu s-ar aplica în iunie, iar recalculul istoric ar folosi
+      // rețeta greșită (invariantul costului istoric)
+      const azi = opt?.dataValabil ?? new Date().toISOString().slice(0, 10);
       for (const [cod, randuri] of grupe) {
         const linii: LinieReteta[] = [];
         let randCant: number | null = null; let randUm: 'kg' | 'l' | 'buc' = 'kg';
@@ -1397,7 +1415,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           nr, data: azi, nota: `Import ${numeFisier}`, linii,
           randament: eSPReteta ? { cant: randCant ?? 1, um: randUm } : undefined,
         }];
-        ret.activa = nr;
+        ret.activa = activaDupaData(ret);
         importate++;
       }
       stateNou = { ...state, retete };
