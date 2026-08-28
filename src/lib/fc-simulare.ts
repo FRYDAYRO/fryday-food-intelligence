@@ -8,10 +8,13 @@
 //  · datele reale sunt INTANGIBILE: funcția nu scrie nimic, nicăieri — lucrează exclusiv
 //    pe copii; PMIX-ul, rețetele, prețurile și perioadele istorice rămân neatinse;
 //  · totul e determinist: aceleași intrări → exact același rezultat, fără LLM, fără aleator;
-//  · baseline-ul se ALINIAZĂ (convenția BUG-1): entitățile atinse de scenariu se reduc la
-//    versiunea activă / prețul curent, datate la origine, în AMBELE contexte — astfel delta
-//    reflectă DOAR schimbarea cerută, nu și istoricul de versiuni dintre timp; entitățile
-//    neatinse își păstrează istoricul datat și se anulează în diferență;
+//  · baseline-ul este STAREA DE AZI aplicată pe mixul perioadei: TOATE rețetele la versiunea
+//    activă și TOATE prețurile la prețul curent, datate la origine, în ambele contexte
+//    (extensia convenției BUG-1). Fără colapsul integral, consumul, dovezile și identitățile
+//    de detaliu s-ar calcula pe versiunea activă în timp ce costarea ar folosi versiunea
+//    în vigoare la data vânzării — iar cele două ar diverge tăcut ori de câte ori istoricul
+//    de versiuni sau de prețuri taie perioada. FC-ul ISTORIC real rămâne treaba lui
+//    `recipeFC`; simulatorul răspunde la „cu rețetele și prețurile DE AZI, ce-ar fi dacă…";
 //  · fără preț valid nu se presupune zero: schimbarea de preț pe un ingredient fără preț
 //    se refuză, iar componentele fără preț din rețetele afectate se semnalează;
 //  · fără rețetă nu se presupune zero: produsele fără rețetă rămân în afara costului,
@@ -154,7 +157,7 @@ export interface SimulareFC {
 
   /** Cât din vânzările nete ale scopului au rețetă calculabilă (baseline). */
   dataCoverage: number | null;
-  /** Componente fără preț valid din rețetele afectate — costate azi cu 0 de motor, semnalate aici. */
+  /** Componente fără preț valid din rețetele SCOPULUI (baseline și scenariu) — costate azi cu 0 de motor, semnalate aici. */
   ingredienteFaraPret: string[];
   confidence: ConfidentaSim;
   complete: boolean;
@@ -198,16 +201,24 @@ function aplicaOpe(r: Reteta, ops: SchimbareRetetaFC[]): Reteta {
 
 // ————————————————————————————————————————————————————————— costarea unui scop
 
-interface Agregat { buc: number; net: number; netAcoperit: number; cost: number; faraReteta: Set<string>; }
+interface Agregat {
+  buc: number; net: number; netAcoperit: number; cost: number;
+  faraReteta: Set<string>;
+  /** Produse a căror rețetă conține componente NECOSTABILE (referință lipsă, UM neconvertibil):
+   *  motorul le costează parțial — costul lor e subestimat, nu zero declarat. */
+  necostabile: Set<string>;
+}
 
 function costeaza(rows: VanzareFapt[], ctx: CtxFC): Agregat {
   const memo = new Map<string, unknown>();
-  const rez: Agregat = { buc: 0, net: 0, netAcoperit: 0, cost: 0, faraReteta: new Set() };
+  const rez: Agregat = { buc: 0, net: 0, netAcoperit: 0, cost: 0, faraReteta: new Set(), necostabile: new Set() };
   for (const v of rows) {
     rez.buc += v.cant; rez.net += v.net;
     const c = costProdus(v.produs, v.canal, ctx, v.data, memo);
-    if (c) { rez.cost += c.total * v.cant; rez.netAcoperit += v.net; }
-    else rez.faraReteta.add(v.produs);
+    if (c) {
+      rez.cost += c.total * v.cant; rez.netAcoperit += v.net;
+      if (c.incomplet) rez.necostabile.add(v.produs);
+    } else rez.faraReteta.add(v.produs);
   }
   return rez;
 }
@@ -239,7 +250,18 @@ export function simuleazaFC(
     complete: false, motiveIncomplet: [motiv], surse: [],
   });
 
-  // ——— validarea scenariului: nimic necunoscut nu se ignoră tăcut
+  // ——— validarea scenariului: nimic necunoscut nu se ignoră tăcut, nimic dublat nu se
+  // rezolvă „ultimul câștigă" — costarea ar aplica o singură valoare, dar detaliile ar
+  // raporta fiecare rând cu impact întreg, iar cele două s-ar contrazice
+  const dublura = (lista: string[]) => lista.find((x, i) => lista.indexOf(x) !== i);
+  const dPret = dublura(preturi.map(p => p.ingredient));
+  if (dPret) return gol(`Scenariul conține două schimbări de preț pentru „${dPret}" — păstrează una singură.`);
+  const dMix = dublura(pmix.map(m => m.produs));
+  if (dMix) return gol(`Scenariul conține doi factori de mix pentru „${dMix}" — păstrează unul singur.`);
+  const dCant = dublura(opsRetete.filter(o => o.tip === 'CANTITATE')
+    .map(o => `${o.produs}|${(o as { component: string }).component}|${(o as { canal?: string }).canal ?? ''}`));
+  if (dCant) return gol(`Scenariul conține două cantități pentru aceeași componentă („${dCant.split('|')[1]}" în „${dCant.split('|')[0]}") — păstrează una singură.`);
+
   for (const p of preturi) {
     const ing = ctx.ingrediente.get(p.ingredient);
     if (!ing) return gol(`Ingredientul „${p.ingredient}" nu există în nomenclator — scenariul nu se poate evalua.`);
@@ -262,6 +284,18 @@ export function simuleazaFC(
     if (op.tip === 'ADAUGA') {
       const exista = op.linie.tipComp === 'SEMIPREPARAT' ? ctx.retete.has(op.linie.comp) : ctx.ingrediente.has(op.linie.comp);
       if (!exista) return gol(`Componenta adăugată „${op.linie.comp}" nu există în ${op.linie.tipComp === 'SEMIPREPARAT' ? 'rețetar' : 'nomenclator'}.`);
+      if (!(op.linie.cant >= 0)) return gol(`Cantitate invalidă pe linia adăugată „${op.linie.comp}": ${op.linie.cant}.`);
+      if (op.linie.tipComp !== 'SEMIPREPARAT') {
+        const ing = ctx.ingrediente.get(op.linie.comp)!;
+        if (!(ing.preturi.length > 0 && pretCurent(ing) > 0)) {
+          return gol(`Componenta adăugată „${op.linie.comp}" nu are preț valid în nomenclator — `
+            + 'costul ei ar fi presupus tăcut zero. Importă întâi prețul.');
+        }
+      }
+      if (costLinieLa({ ...op.linie }, ctx).incomplet) {
+        return gol(`Linia adăugată „${op.linie.comp}" nu se poate costa: UM-ul „${op.linie.um}" nu se `
+          + 'convertește la UM-ul de bază al componentei.');
+      }
     }
     if (op.tip === 'INLOCUIESTE') {
       if (!v.linii.some(l => l.comp === op.componentVechi)) {
@@ -271,6 +305,20 @@ export function simuleazaFC(
         || v.linii.some(l => l.comp === op.componentVechi && l.tipComp === 'SEMIPREPARAT' && !op.tipCompNou);
       if (eSp ? !ctx.retete.get(op.componentNou) : !ctx.ingrediente.get(op.componentNou)) {
         return gol(`Componenta nouă „${op.componentNou}" nu există în ${eSp ? 'rețetar' : 'nomenclator'}.`);
+      }
+      if (!eSp) {
+        const ing = ctx.ingrediente.get(op.componentNou)!;
+        if (!(ing.preturi.length > 0 && pretCurent(ing) > 0)) {
+          return gol(`Componenta nouă „${op.componentNou}" nu are preț valid în nomenclator — `
+            + 'costul ei ar fi presupus tăcut zero. Importă întâi prețul.');
+        }
+      }
+      for (const lv of v.linii.filter(l => l.comp === op.componentVechi)) {
+        const ln = { ...lv, comp: op.componentNou, ...(op.tipCompNou ? { tipComp: op.tipCompNou } : {}) };
+        if (costLinieLa(ln, ctx).incomplet) {
+          return gol(`Înlocuirea „${op.componentVechi}" → „${op.componentNou}" nu se poate costa: `
+            + `UM-ul liniei („${lv.um}") nu se convertește la UM-ul de bază al componentei noi.`);
+        }
       }
     }
   }
@@ -287,16 +335,17 @@ export function simuleazaFC(
       + `${cerere.canal !== 'TOTAL' ? ` pe canalul ${cerere.canal}` : ''} — nu e nimic de simulat.`);
   }
 
-  // ——— alinierea (convenția BUG-1): entitățile ATINSE se reduc la prețul curent / versiunea
-  // activă, datate la origine, în ambele contexte; restul rămân cu istoricul lor și se
-  // anulează în diferență
-  const ingAtinse = new Set(preturi.map(p => p.ingredient));
-  const retAtinse = new Set(opsRetete.map(o => o.produs));
-
-  const ingBaza = new Map(ctx.ingrediente);
-  for (const cod of ingAtinse) ingBaza.set(cod, cuPretUnic(ctx.ingrediente.get(cod)!, pretCurent(ctx.ingrediente.get(cod)!)));
-  const retBaza = new Map(ctx.retete);
-  for (const cod of retAtinse) retBaza.set(cod, inVigoareOricand(ctx.retete.get(cod)!));
+  // ——— colapsul integral: starea de AZI, în vigoare pentru orice zi a perioadei, în AMBELE
+  // contexte. Entitățile cu o singură versiune / un singur preț se refolosesc ca atare
+  // (nu se copiază și nu se mută) — comportamentul lor e deja identic la orice dată.
+  const ingBaza = new Map<string, Ingredient>();
+  for (const [cod, i] of ctx.ingrediente) {
+    ingBaza.set(cod, i.preturi.length > 1 ? cuPretUnic(i, pretCurent(i)) : i);
+  }
+  const retBaza = new Map<string, Reteta>();
+  for (const [cod, r] of ctx.retete) {
+    retBaza.set(cod, r.versiuni.length > 1 ? inVigoareOricand(r) : r);
+  }
   const ctxBaza = ctxDin(ctx, ingBaza, retBaza);
 
   const ingScenariu = new Map(ingBaza);
@@ -373,14 +422,16 @@ export function simuleazaFC(
 
   // ——— detaliile de rețetă: efectul IZOLAT al fiecărei schimbări (doar ea, pe baseline)
   const numeComp = (cod: string) => ctx.ingrediente.get(cod)?.denumire ?? ctx.retete.get(cod)?.denumire ?? cod;
-  /** Câte porții din `tinta` conține o unitate vândută din `cod` (combo-urile, cu multiplicitatea lor). */
-  const portiiPerUnitate = (tinta: string, cod: string, vazute = new Set<string>()): number => {
+  /** Câte porții din `tinta` conține o unitate vândută din `cod` (combo-urile, cu
+   *  multiplicitatea lor). Protecția la cicluri e pe CALEA curentă, nu globală — un
+   *  sub-combo accesibil pe două căi diferite se numără pe fiecare cale. */
+  const portiiPerUnitate = (tinta: string, cod: string, cale: ReadonlySet<string> = new Set()): number => {
     if (cod === tinta) return 1;
-    if (vazute.has(cod)) return 0;
+    if (cale.has(cod)) return 0;
     const p = ctx.produse.get(cod);
     if (p?.tip === 'COMBO' && p.combo?.length) {
-      vazute.add(cod);
-      return p.combo.reduce((s, c) => s + c.cant * portiiPerUnitate(tinta, c.cod, vazute), 0);
+      const cale2 = new Set(cale).add(cod);
+      return p.combo.reduce((s, c) => s + c.cant * portiiPerUnitate(tinta, c.cod, cale2), 0);
     }
     return 0;
   };
@@ -407,10 +458,18 @@ export function simuleazaFC(
       : null;
 
     // porțiile echivalente: pe produs, expandând combo-urile; pe semipreparat, unitățile
-    // vândute ale produselor al căror cost chiar se schimbă cu această operație
+    // vândute ale produselor al căror cost chiar se schimbă cu această operație.
+    // O schimbare care atinge doar liniile unui canal numără doar porțiile acelui canal —
+    // fie pentru că operația îl cere explicit, fie pentru că liniile atinse sunt toate pe el.
+    const canalOp = (op.tip === 'CANTITATE' || op.tip === 'ELIMINA') && op.canal && op.canal !== 'AMBELE'
+      ? op.canal : undefined;
+    const canaleLinii = new Set(liniiAtinse.map(l => l.canal));
+    const canalEfectiv = canalOp
+      ?? (canaleLinii.size === 1 && !canaleLinii.has('AMBELE') ? [...canaleLinii][0] : undefined);
     let portii: number;
     if (r.tip !== 'SEMIPREPARAT') {
-      portii = inScop.reduce((s, v) => s + v.cant * portiiPerUnitate(op.produs, v.produs), 0);
+      portii = inScop.reduce((s, v) =>
+        s + (canalEfectiv && v.canal !== canalEfectiv ? 0 : v.cant * portiiPerUnitate(op.produs, v.produs)), 0);
     } else {
       const atinse = new Set<string>();
       const mB = new Map<string, unknown>(), mO = new Map<string, unknown>();
@@ -491,52 +550,80 @@ export function simuleazaFC(
   const affectedStores = [...new Set(randuriAfectate.map(v => v.locatie))].sort();
   const canaleAfectate = [...new Set(randuriAfectate.map(v => v.canal))].sort() as FCChannelSursa[];
   const areSchimbari = preturi.length + opsRetete.length + pmix.length > 0;
-  // schimbare fără nicio dovadă în scop (nicio vânzare atinsă): canalul nu se poate ști
-  const affectedChannels: FCChannelSursa[] = randuriAfectate.length ? canaleAfectate : areSchimbari ? ['UNKNOWN'] : [];
+
+  // fiecare schimbare are nevoie de dovada EI în vânzările scopului — o schimbare cu dovadă
+  // nu acoperă una fără: cea fără rămâne cu impact nul și cu canalul de nestabilit
+  const memoDov = new Map<string, number>();
+  const faraDovada: string[] = [];
+  for (const p of preturi) {
+    if (!inScop.some(v => consumPerPortie(p.ingredient, v.produs, v.canal as Canal, ctxBaza, memoDov) > 0)) {
+      faraDovada.push(`prețul „${p.ingredient}"`);
+    }
+  }
+  for (const d of detaliiReteta) {
+    if (d.portii === 0 && d.costImpactRON === 0) faraDovada.push(`rețeta „${d.produs}"`);
+  }
+  for (const m of pmix) {
+    if (!inScop.some(v => v.produs === m.produs)) faraDovada.push(`mixul „${m.produs}"`);
+  }
+
+  const affectedChannels: FCChannelSursa[] = randuriAfectate.length
+    ? (faraDovada.length ? [...canaleAfectate, 'UNKNOWN'] : canaleAfectate)
+    : areSchimbari ? ['UNKNOWN'] : [];
   const affectedPeriods = [...new Set(randuriAfectate.map(v => v.data.slice(0, 7)))].sort();
 
-  // ——— calitatea datelor
+  // ——— calitatea datelor: prețurile lipsă se caută pe TOATE rețetele scopului (baseline și
+  // scenariu), nu doar pe cele afectate — un baseline subestimat tăcut e tot o presupunere de zero
   const dataCoverage = B.net > 0 ? (B.netAcoperit / B.net) * 100 : null;
+  const produseDeScanat = new Set([...inScop.map(v => v.produs), ...affectedProducts]);
+  const componenteScop = new Set<string>();
   const faraPret = new Set<string>();
   const memoC = new Map<string, number>();
-  for (const cod of affectedProducts) {
+  const memoC2 = new Map<string, number>();
+  for (const cod of produseDeScanat) {
     for (const [codIng, ing] of ctx.ingrediente) {
-      if (ing.preturi.length > 0 && pretCurent(ing) > 0) continue;
-      if (consumPerPortie(codIng, cod, 'INSTORE', ctxBaza, memoC) > 0
-        || consumPerPortie(codIng, cod, 'DELIVERY', ctxBaza, memoC) > 0) faraPret.add(codIng);
+      const consumat = consumPerPortie(codIng, cod, 'INSTORE', ctxBaza, memoC) > 0
+        || consumPerPortie(codIng, cod, 'DELIVERY', ctxBaza, memoC) > 0
+        || consumPerPortie(codIng, cod, 'INSTORE', ctxComplet, memoC2) > 0
+        || consumPerPortie(codIng, cod, 'DELIVERY', ctxComplet, memoC2) > 0;
+      if (!consumat) continue;
+      componenteScop.add(codIng);
+      if (!(ing.preturi.length > 0 && pretCurent(ing) > 0)) faraPret.add(codIng);
     }
   }
   const ingredienteFaraPret = [...faraPret].sort();
+  const necostabile = new Set([...B.necostabile, ...C.necostabile]);
 
   const motiveIncomplet: string[] = [];
   if (B.faraReteta.size) {
     motiveIncomplet.push(`${B.faraReteta.size} produse vândute în scop nu au rețetă — costul lor NU e presupus zero, `
       + `ci rămâne în afara calculului (acoperire ${dataCoverage?.toFixed(1)}%).`);
   }
+  if (necostabile.size) {
+    motiveIncomplet.push(`${necostabile.size} produse au rețete cu componente necostabile (referință lipsă sau `
+      + `UM neconvertibil): costul lor e SUBestimat, nu declarat zero — repară rețetele (${[...necostabile].sort().slice(0, 5).join(', ')}).`);
+  }
   if (ingredienteFaraPret.length) {
-    motiveIncomplet.push(`${ingredienteFaraPret.length} componente din rețetele afectate nu au preț valid: `
-      + 'contribuția lor la cost e azi 0 în motor, deci delta poate fi subestimată.');
+    motiveIncomplet.push(`${ingredienteFaraPret.length} componente din rețetele scopului nu au preț valid: `
+      + 'contribuția lor la cost e azi 0 în motor, deci costul și delta pot fi subestimate.');
   }
   if (detaliiPmix.some(d => !d.areReteta)) {
     motiveIncomplet.push('Schimbarea de mix atinge produse fără rețetă: efectul lor pe cost nu se poate calcula '
       + 'și NU e presupus zero.');
   }
-  if (affectedChannels.includes('UNKNOWN')) {
-    motiveIncomplet.push('Scenariul nu atinge nicio vânzare din scop: impactul e nul pe dovezile existente, '
-      + 'iar canalul nu se poate stabili.');
+  if (faraDovada.length) {
+    motiveIncomplet.push(`Schimbări fără nicio dovadă în vânzările scopului (${faraDovada.join(', ')}): `
+      + 'impactul lor e nul pe dovezile existente, iar canalul lor nu se poate stabili.');
   }
 
   // ——— încrederea: formulă deterministă pe acoperirea datelor
-  const componenteAfectate = new Set<string>();
-  for (const cod of affectedProducts) {
-    for (const [codIng] of ctx.ingrediente) {
-      if (consumPerPortie(codIng, cod, 'INSTORE', ctxBaza, memoC) > 0
-        || consumPerPortie(codIng, cod, 'DELIVERY', ctxBaza, memoC) > 0) componenteAfectate.add(codIng);
-    }
-  }
   const marg = (x: number) => Math.min(100, Math.max(0, x));
   const luniScop = luniAtinse(cerere.perioada);
   const luniCuVanzari = new Set(inScop.map(v => v.data.slice(0, 7)));
+  if (luniCuVanzari.size < luniScop.length) {
+    motiveIncomplet.push(`PMIX incomplet: doar ${luniCuVanzari.size} din ${luniScop.length} luni ale perioadei `
+      + 'au vânzări importate — scenariul acoperă numai lunile cu date.');
+  }
   const factori: FactorConfidentaSim[] = [
     {
       factor: 'acoperire_retete', eticheta: 'Acoperirea rețetelor', pondere: 0.4,
@@ -544,12 +631,12 @@ export function simuleazaFC(
       detaliu: `${dataCoverage?.toFixed(1) ?? '0'}% din vânzările scopului au rețetă calculabilă.`,
     },
     {
-      factor: 'preturi_componente', eticheta: 'Prețurile componentelor afectate', pondere: 0.35,
-      scor: marg(componenteAfectate.size
-        ? ((componenteAfectate.size - ingredienteFaraPret.length) / componenteAfectate.size) * 100
+      factor: 'preturi_componente', eticheta: 'Prețurile componentelor', pondere: 0.35,
+      scor: marg(componenteScop.size
+        ? ((componenteScop.size - ingredienteFaraPret.length) / componenteScop.size) * 100
         : 100),
-      detaliu: `${componenteAfectate.size - ingredienteFaraPret.length} din ${componenteAfectate.size} componente `
-        + 'ale rețetelor afectate au preț valid.',
+      detaliu: `${componenteScop.size - ingredienteFaraPret.length} din ${componenteScop.size} componente `
+        + 'ale rețetelor din scop au preț valid.',
     },
     {
       factor: 'pmix_prezent', eticheta: 'PMIX pe perioadă', pondere: 0.25,
@@ -566,8 +653,8 @@ export function simuleazaFC(
   const interval = `${cerere.perioada.de} → ${cerere.perioada.la}`;
   const surse: SursaFC[] = [
     { raport: 'PMIX', randuri: inScop.length, interval, nota: cerere.canal === 'TOTAL' ? 'ambele canale' : cerere.canal },
-    { raport: 'RETETAR', randuri: ctx.retete.size, interval, nota: 'baseline aliniat: rețetele atinse, la versiunea activă' },
-    { raport: 'NOMENCLATOR', randuri: ctx.ingrediente.size, interval, nota: 'baseline aliniat: prețurile atinse, la prețul curent' },
+    { raport: 'RETETAR', randuri: ctx.retete.size, interval, nota: 'starea de azi: toate rețetele la versiunea activă' },
+    { raport: 'NOMENCLATOR', randuri: ctx.ingrediente.size, interval, nota: 'starea de azi: toate prețurile la prețul curent' },
   ];
 
   return {

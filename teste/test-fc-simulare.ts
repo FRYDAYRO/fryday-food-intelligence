@@ -284,5 +284,201 @@ t('sursele sunt enumerate: PMIX, rețetar, nomenclator',
   ['PMIX', 'RETETAR', 'NOMENCLATOR'].every(r => simC.surse.some(x => x.raport === r)));
 t('rezumatul descrie simularea', descrieSimulare(simC).includes('Δcost'));
 
+// ————————————————————————————— corecturile din review-ul advers, fixate în teste
+
+console.log('\n— Istoric de prețuri și versiuni în perioadă: starea de AZI, uniform —');
+// I001 cu istoric de preț care taie luna; P001 cu o versiune nouă activată în mijlocul lunii
+const sIstoric: AppState = {
+  ...s0,
+  ingrediente: s0.ingrediente.map(i => (i.cod !== 'I001' ? i : {
+    ...i, preturi: [{ validDeLa: '2026-01-01', pret: 10 }, { validDeLa: '2026-07-15', pret: 14 }],
+  })),
+  retete: s0.retete.map(r => {
+    if (r.cod !== 'P001') return r;
+    const vAct = r.versiuni.find(v => v.nr === r.activa)!;
+    return {
+      ...r, activa: vAct.nr + 1,
+      versiuni: [...r.versiuni, {
+        ...vAct, nr: vAct.nr + 1, data: '2026-07-20',
+        linii: vAct.linii.map(l => (l.comp === 'SP-021' ? { ...l, cant: 100 } : { ...l })),
+      }],
+    };
+  }),
+};
+const ctxIstoric = buildCtx(sIstoric);
+const simIst = simuleazaFC(sIstoric, ctxIstoric, cer(), { preturi: [{ ingredient: 'I001', pretNou: 16 }] });
+t('identitatea Δpreț × consum = efect PRET ține și cu istoric în perioadă',
+  aprox(simIst.detaliiPret[0].costImpactRON, ef(simIst, 'PRET').costLei),
+  `${simIst.detaliiPret[0].costImpactRON.toFixed(2)} vs ${ef(simIst, 'PRET').costLei.toFixed(2)}`);
+t('prețul vechi e prețul CURENT, nu o medie de istoric', simIst.detaliiPret[0].oldUnitCost === 14);
+t('produsele afectate nu sunt goale — dovada nu se pierde în istoric', simIst.affectedProducts.length > 0);
+t('coerență: impact nenul → canale reale, nu UNKNOWN',
+  simIst.deltaCostRON !== 0 && !simIst.affectedChannels.includes('UNKNOWN'));
+t('starea cu istoric rămâne neatinsă: prețurile I001 sunt tot două',
+  sIstoric.ingrediente.find(i => i.cod === 'I001')!.preturi.length === 2);
+t('obiectele din context sunt CHIAR cele originale, nu copii rescrise',
+  ctxIstoric.ingrediente.get('I001') === sIstoric.ingrediente.find(i => i.cod === 'I001')
+  && ctxIstoric.retete.get('P001')!.versiuni.length === s0.retete.find(r => r.cod === 'P001')!.versiuni.length + 1);
+
+// ingredient prezent DOAR într-o versiune veche: cu starea de azi, impact zero + declarat fără dovadă
+const ingVechi: Ingredient = {
+  cod: 'I095', denumire: 'Ingredient scos din rețetă', categorie: 'Diverse', tip: 'FOOD', um: 'kg',
+  preturi: [{ validDeLa: '2026-01-01', pret: 8 }], activ: true,
+};
+const sVechi: AppState = {
+  ...s0,
+  ingrediente: [...s0.ingrediente, ingVechi],
+  retete: s0.retete.map(r => {
+    if (r.cod !== 'P002') return r;
+    const vAct = r.versiuni.find(v => v.nr === r.activa)!;
+    return {
+      ...r, activa: vAct.nr + 1,
+      versiuni: [
+        { ...vAct, linii: [...vAct.linii.map(l => ({ ...l })), { comp: 'I095', tipComp: 'INGREDIENT' as const, cant: 50, um: 'g' as const, canal: 'AMBELE' as const }] },
+        { ...vAct, nr: vAct.nr + 1, data: '2026-07-10', linii: vAct.linii.map(l => ({ ...l })) },
+      ],
+    };
+  }),
+};
+const simVechi = simuleazaFC(sVechi, buildCtx(sVechi), cer(), { preturi: [{ ingredient: 'I095', pretNou: 12 }] });
+t('ingredientul din versiunea RETRASĂ: impact zero pe starea de azi, fără contradicții',
+  simVechi.deltaCostRON === 0 && simVechi.affectedChannels.join(',') === 'UNKNOWN' && !simVechi.complete);
+t('motivul numește schimbarea fără dovadă', simVechi.motiveIncomplet.some(m => m.includes('I095')));
+
+console.log('\n— Dovadă mixtă: schimbarea cu dovadă nu o acoperă pe cea fără —');
+const simMixt = simuleazaFC(sVechi, buildCtx(sVechi), cer(),
+  { preturi: [{ ingredient: 'I001', pretNou: 16 }, { ingredient: 'I095', pretNou: 12 }] });
+t('canalele reale ȘI UNKNOWN apar împreună',
+  simMixt.affectedChannels.includes('INSTORE') && simMixt.affectedChannels.includes('UNKNOWN'));
+t('motivul numește exact schimbarea rămasă fără dovadă',
+  !simMixt.complete && simMixt.motiveIncomplet.some(m => m.includes('I095') && !m.includes('I001')));
+
+console.log('\n— Componenta fără preț nu intră pe ușa din spate a rețetei —');
+const sPretLipsa: AppState = { ...s0, ingrediente: [...s0.ingrediente, { cod: 'I096', denumire: 'Fără preț', categorie: 'Diverse', tip: 'FOOD' as const, um: 'kg' as const, preturi: [], activ: true }] };
+const ctxPretLipsa = buildCtx(sPretLipsa);
+t('ADAUGA cu componentă fără preț se refuză',
+  !simuleazaFC(sPretLipsa, ctxPretLipsa, cer(), {
+    retete: [{ tip: 'ADAUGA', produs: 'P001', linie: { comp: 'I096', tipComp: 'INGREDIENT', cant: 10, um: 'g', canal: 'AMBELE' } }],
+  }).disponibil);
+t('INLOCUIESTE cu componentă fără preț se refuză',
+  !simuleazaFC(sPretLipsa, ctxPretLipsa, cer(), {
+    retete: [{ tip: 'INLOCUIESTE', produs: 'P001', componentVechi: 'I009', componentNou: 'I096' }],
+  }).disponibil);
+t('refuzul explică de ce', simuleazaFC(sPretLipsa, ctxPretLipsa, cer(), {
+  retete: [{ tip: 'ADAUGA', produs: 'P001', linie: { comp: 'I096', tipComp: 'INGREDIENT', cant: 10, um: 'g', canal: 'AMBELE' } }],
+}).motivIndisponibil!.includes('preț valid'));
+t('ADAUGA cu cantitate negativă se refuză',
+  !simuleazaFC(s0, ctx0, cer(), {
+    retete: [{ tip: 'ADAUGA', produs: 'P001', linie: { comp: 'I012', tipComp: 'INGREDIENT', cant: -5, um: 'g', canal: 'AMBELE' } }],
+  }).disponibil);
+
+console.log('\n— UM neconvertibil: refuz, nu economie falsă —');
+t('ADAUGA în bucăți a unui ingredient cântărit se refuză',
+  !simuleazaFC(s0, ctx0, cer(), {
+    retete: [{ tip: 'ADAUGA', produs: 'P001', linie: { comp: 'I001', tipComp: 'INGREDIENT', cant: 1, um: 'buc', canal: 'AMBELE' } }],
+  }).disponibil);
+const simUmRau = simuleazaFC(s0, ctx0, cer(), { retete: [{ tip: 'INLOCUIESTE', produs: 'P001', componentVechi: 'I005', componentNou: 'I001' }] });
+t('INLOCUIESTE pe o linie în bucăți cu un ingredient în kg se refuză, cu UM-ul numit',
+  !simUmRau.disponibil && simUmRau.motivIndisponibil!.includes('UM'));
+
+console.log('\n— Componentele necostabile nu dispar tăcut din cost —');
+const sRupt: AppState = {
+  ...s0,
+  produse: [...s0.produse, { cod: 'PW', denumire: 'Produs cu rețetă ruptă', categorie: 'Diverse', tip: 'SIMPLU' as const, pretInstore: 30, tva: 9, activ: true }],
+  retete: [...s0.retete, {
+    cod: 'PW', tip: 'PRODUS' as const, denumire: 'Produs cu rețetă ruptă', activa: 1,
+    versiuni: [{ nr: 1, data: '2026-01-01', linii: [{ comp: 'SP-999', tipComp: 'SEMIPREPARAT' as const, cant: 100, um: 'g' as const, canal: 'AMBELE' as const }] }],
+  }],
+  vanzari: [...s0.vanzari, { data: '2026-07-12', locatie: 'L01', canal: 'INSTORE' as const, produs: 'PW', cant: 5, brut: 150, net: 137.61 }],
+};
+const simRupt = simuleazaFC(sRupt, buildCtx(sRupt), cer(), scenariuP);
+t('referința lipsă (SP-999) face scenariul incomplet, cu produsul numit',
+  !simRupt.complete && simRupt.motiveIncomplet.some(m => m.includes('necostabile') && m.includes('PW')));
+
+console.log('\n— Dubluri în scenariu: refuz, nu „ultimul câștigă" —');
+t('două prețuri pe același ingredient',
+  !simuleazaFC(s0, ctx0, cer(), { preturi: [{ ingredient: 'I001', pretNou: 15 }, { ingredient: 'I001', pretNou: 16 }] }).disponibil);
+t('doi factori de mix pe același produs',
+  !simuleazaFC(s0, ctx0, cer(), { pmix: [{ produs: 'P001', factor: 1.2 }, { produs: 'P001', factor: 0.8 }] }).disponibil);
+t('două cantități pe aceeași componentă',
+  !simuleazaFC(s0, ctx0, cer(), {
+    retete: [
+      { tip: 'CANTITATE', produs: 'P001', component: 'SP-021', cantNoua: 130 },
+      { tip: 'CANTITATE', produs: 'P001', component: 'SP-021', cantNoua: 110 },
+    ],
+  }).disponibil);
+
+console.log('\n— Porțiile respectă canalul liniilor atinse —');
+// A001 (hârtie ambalaj) există doar pe linia INSTORE a rețetei P001
+const simA001 = simuleazaFC(s0, ctx0, cer(), { retete: [{ tip: 'CANTITATE', produs: 'P001', component: 'A001', cantNoua: 2 }] });
+const dA001 = simA001.detaliiReteta[0];
+const portiiInstoreP001 = s0.vanzari
+  .filter(v => (v.produs === 'P001' || v.produs === 'P008') && v.data.startsWith('2026-07') && v.canal === 'INSTORE')
+  .reduce((s, v) => s + v.cant, 0);
+t('porțiile numără doar canalul liniei (InStore)', dA001.portii === portiiInstoreP001, `${dA001.portii} vs ${portiiInstoreP001}`);
+t('identitatea Δcant × unitCost × porții ține pe linia de canal',
+  aprox(dA001.costImpactRON, dA001.quantityDelta! * dA001.unitCost! * dA001.portii, 0.5));
+t('operația cu canal explicit e validată contra liniilor canalului',
+  !simuleazaFC(s0, ctx0, cer(), { retete: [{ tip: 'CANTITATE', produs: 'P001', component: 'A001', cantNoua: 2, canal: 'DELIVERY' }] }).disponibil);
+
+console.log('\n— Combo cu multiplicitate > 1 —');
+const sCombo: AppState = {
+  ...s0,
+  produse: [...s0.produse, { cod: 'PDBL', denumire: 'Dublu Crispy', categorie: 'Meniuri', tip: 'COMBO' as const, pretInstore: 50, tva: 9, activ: true, combo: [{ cod: 'P001', cant: 2 }] }],
+  vanzari: [...s0.vanzari, { data: '2026-07-11', locatie: 'L01', canal: 'INSTORE' as const, produs: 'PDBL', cant: 10, brut: 500, net: 458.72 }],
+};
+const simDbl = simuleazaFC(sCombo, buildCtx(sCombo), cer(), { retete: [{ tip: 'CANTITATE', produs: 'P001', component: 'SP-021', cantNoua: 132 }] });
+const portiiCuDublu = dr.portii + 2 * 10;   // porțiile din fixtura de bază + 10 combo × 2
+t('combo-ul cu 2×P001 numără fiecare porție de două ori',
+  simDbl.detaliiReteta[0].portii === portiiCuDublu, `${simDbl.detaliiReteta[0].portii} vs ${portiiCuDublu}`);
+t('identitatea ține și cu multiplicitate',
+  aprox(simDbl.detaliiReteta[0].costImpactRON,
+    simDbl.detaliiReteta[0].quantityDelta! * simDbl.detaliiReteta[0].unitCost! * simDbl.detaliiReteta[0].portii, 0.5));
+
+console.log('\n— Mixul se reconciliază: Σ detalii = efectul agregat —');
+const simM2 = simuleazaFC(s0, ctx0, cer(), { pmix: [{ produs: 'P001', factor: 1.2 }, { produs: 'P002', factor: 0.7 }] });
+t('Σ costImpact pe produse = efectul de mix',
+  aprox(simM2.detaliiPmix.reduce((s, d) => s + (d.costImpactRON ?? 0), 0), ef(simM2, 'MIX').costLei));
+t('Σ Δnet pe produse = netul efectului de mix',
+  aprox(simM2.detaliiPmix.reduce((s, d) => s + d.netScenariu - d.netBaseline, 0), ef(simM2, 'MIX').netLei));
+
+console.log('\n— Eliminarea, adăugarea și înlocuirea au impacturi EXACTE, nu doar semne —');
+const pretI009 = pretCurent(s0.ingrediente.find(i => i.cod === 'I009')!);
+const pretI010 = pretCurent(s0.ingrediente.find(i => i.cod === 'I010')!);
+const pretI012 = pretCurent(s0.ingrediente.find(i => i.cod === 'I012')!);
+t('ELIMINA I009 = −cant × preț × porții',
+  aprox(simE.detaliiReteta[0].costImpactRON, -(25 / 1000) * pretI009 * simE.detaliiReteta[0].portii, 0.5),
+  `${simE.detaliiReteta[0].costImpactRON.toFixed(2)}`);
+t('ADAUGA I012 = +cant × preț × porții',
+  aprox(simA.detaliiReteta[0].costImpactRON, (30 / 1000) * pretI012 * simA.detaliiReteta[0].portii, 0.5));
+t('INLOCUIESTE I009→I010 = cant × Δpreț × porții',
+  aprox(simI.detaliiReteta[0].costImpactRON, (25 / 1000) * (pretI010 - pretI009) * simI.detaliiReteta[0].portii, 0.5),
+  `${simI.detaliiReteta[0].costImpactRON.toFixed(2)}`);
+
+console.log('\n— PMIX incomplet pe luni: incomplet declarat, nu doar un factor —');
+const simDoua2 = simuleazaFC(s0, ctx0, { perioada: DOUA_LUNI, nivel: COMPANIE, canal: 'TOTAL' }, scenariuP);
+t('luna fără vânzări face scenariul incomplet, cu motiv',
+  !simDoua2.complete && simDoua2.motiveIncomplet.some(m => m.includes('PMIX incomplet')));
+
+console.log('\n— fcImpactPP folosește numitorul ACOPERIT, vizibil sub 100% acoperire —');
+const simFp2 = simuleazaFC(sFaraReteta, ctxFaraReteta, cer(), scenariuP);
+const netAcoperit = (simFp2.dataCoverage! / 100) * simFp2.currentNetRON;
+t('fcImpactPP = impact / net acoperit',
+  aprox(simFp2.detaliiPret[0].fcImpactPP!, (simFp2.detaliiPret[0].costImpactRON / netAcoperit) * 100, 1e-6));
+
+console.log('\n— Prețurile lipsă se văd și în produsele neatinse de scenariu —');
+const sPretLipsaScop: AppState = {
+  ...sPretLipsa,
+  retete: sPretLipsa.retete.map(r => {
+    if (r.cod !== 'P004') return r;   // P004 nu e atins de scenariul pe I001 prin SP-021? îl verificăm prin fixtură
+    const vAct = r.versiuni.find(v => v.nr === r.activa)!;
+    return { ...r, versiuni: r.versiuni.map(v => (v.nr !== vAct.nr ? v : { ...v, linii: [...v.linii.map(l => ({ ...l })), { comp: 'I096', tipComp: 'INGREDIENT' as const, cant: 5, um: 'g' as const, canal: 'AMBELE' as const }] })) };
+  }),
+};
+const simScop = simuleazaFC(sPretLipsaScop, buildCtx(sPretLipsaScop), cer(), { pmix: [{ produs: 'P002', factor: 1.1 }] });
+t('componenta fără preț dintr-un produs NEatins e totuși semnalată',
+  simScop.ingredienteFaraPret.includes('I096') && !simScop.complete,
+  simScop.ingredienteFaraPret.join(','));
+
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);
