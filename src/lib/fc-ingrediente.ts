@@ -19,7 +19,7 @@
 //    are baza ei de calcul scrisă;
 //  · compania = Σ restaurante prin construcție: aceeași trecere acumulează și pe
 //    magazin, și global, ca sume — nu există o a doua formulă pentru companie.
-import { UMS, cantBruta, pretLa, versiuneLa } from './engine';
+import { AZI_ISO, UMS, cantBruta, pretLa, versiuneLa } from './engine';
 import type { AppState, Canal, Reteta, UMCod } from './types';
 import {
   canalePentru, contineData, eLunaIntreaga, locatieDin, luniAtinse, perioadaAnterioara, perioadaDin,
@@ -60,6 +60,8 @@ export interface PraguriIngrediente {
   volatilitatePretPct: number;
   /** Câte prețuri istorice cere calculul volatilității. */
   istoricMinim: number;
+  /** Oportunitatea de control al consumului cere un efect de rețetă de măcar atâția lei. */
+  controlConsumMinLei: number;
   /** Oportunitatea de renegociere cere un cost curent de măcar atâția lei. */
   negociereMinLei: number;
   /** Risc de concentrare: ingredientul e cel puțin atâta % din costul total al perioadei. */
@@ -77,6 +79,7 @@ export const PRAGURI_IMPLICITE: PraguriIngrediente = {
   concentrareMinLei: 100,
   volatilitatePretPct: 8,
   istoricMinim: 3,
+  controlConsumMinLei: 100,
   negociereMinLei: 300,
   riscConcentrarePct: 20,
   optimizareSharePct: 15,
@@ -141,6 +144,8 @@ export interface RandIngredient {
   deltaPretPct: number | null;
   /** Prețul „precedent" e doar retro-umplerea celui mai vechi preț cunoscut. */
   pretPrecedentEstimat: boolean;
+  /** Nici prețul „curent" nu era în vigoare la finele perioadei — cel mai vechi preț e ulterior ei. */
+  pretCurentEstimat: boolean;
 
   /** Consum în UM de bază, pe rețetele ÎN VIGOARE la data fiecărei vânzări. */
   consumCurent: number;
@@ -220,12 +225,17 @@ export interface OportunitateIngredient {
   };
   confidence: { scor: number; motive: string[] };
   dovada: { calcul: string; surse: SursaFC[] };
-  /** Scenariul what-if echivalent, rulabil direct în `simuleazaFC` (unde există unul natural). */
+  /**
+   * Scenariul what-if legat, rulabil direct în `simuleazaFC`. ATENȚIE la semantică:
+   * simularea pornește de la STAREA DE AZI (prețul curent, rețetele active), deci delta ei
+   * coincide cu impactul estimat aici doar când prețul de azi e cel de la finele perioadei
+   * analizate — divergența, când există, e notată explicit în `dovada.calcul`.
+   */
   scenariu?: ScenariuFC;
 }
 
 export interface CalitateDate {
-  /** Ingrediente consumate în scop, fără preț valid. */
+  /** Ingrediente consumate în scop, fără preț valid în CEL PUȚIN una dintre perioade. */
   pretLipsa: string[];
   /** Componente referite de rețete, absente din nomenclator. */
   ingredientLipsa: string[];
@@ -235,8 +245,10 @@ export interface CalitateDate {
   pmixLipsa: boolean;
   /** Fără vânzări pe perioada de comparație (analiza refuză). */
   perioadaLipsa: boolean;
-  /** Prețul „precedent" nu era cunoscut atunci, sau istoricul e prea scurt pentru volatilitate. */
+  /** Prețuri retro-umplute: prețul folosit pentru o perioadă nu era de fapt cunoscut atunci. */
   istoricInsuficient: string[];
+  /** Rețete a căror primă versiune e ulterioară unor vânzări din scop: consum retro-umplut, nu măsurat. */
+  retetaRetroumpluta: string[];
 }
 
 export interface AnalizaIngrediente {
@@ -265,38 +277,54 @@ const conv = (um: UMCod, baza: string): number | null => {
   return u && u.baza === baza ? u.f : null;
 };
 
-interface ConsumPortie { cantitati: Map<string, number>; lipsa: Set<string>; faraReteta: boolean; }
+interface ConsumPortie {
+  cantitati: Map<string, number>;
+  lipsa: Set<string>;
+  faraReteta: boolean;
+  /** Rețete a căror primă versiune e ULTERIOARĂ datei vânzării: consumul e retro-umplut, nu măsurat. */
+  retro: Set<string>;
+}
 
 /** Consumul pe porție al TUTUROR ingredientelor unui produs, la data dată — versiunea
- *  în vigoare ATUNCI, nu cea activă azi (invariantul costului istoric). */
+ *  în vigoare ATUNCI, nu cea activă azi (invariantul costului istoric). Semipreparatele
+ *  sunt fără canal, ca în costare: filtrul de canal se aplică doar pe rețeta produsului. */
 function consumPortieLa(produs: string, canal: Canal, ctx: CtxFC, data: string): ConsumPortie {
-  const rez: ConsumPortie = { cantitati: new Map(), lipsa: new Set(), faraReteta: false };
+  const rez: ConsumPortie = { cantitati: new Map(), lipsa: new Set(), faraReteta: false, retro: new Set() };
+  const versiunea = (r: Reteta) => {
+    const v = versiuneLa(r, data);
+    if (v.data > data) rez.retro.add(r.cod);
+    return v;
+  };
   const aduna = (cod: string, factor: number, stack: Set<string>) => {
+    if (stack.has(`C|${cod}`)) return;   // protecție la combo-uri ciclice
     const p = ctx.produse.get(cod);
     if (p?.tip === 'COMBO' && p.combo?.length) {
+      stack.add(`C|${cod}`);
       for (const c of p.combo) aduna(c.cod, factor * c.cant, stack);
+      stack.delete(`C|${cod}`);
       return;
     }
     const r = ctx.retete.get(cod);
     if (!r) { rez.faraReteta = true; return; }
-    dinReteta(r, factor, stack);
+    dinReteta(r, factor, stack, false);
   };
-  const dinReteta = (r: Reteta, factor: number, stack: Set<string>) => {
+  const dinReteta = (r: Reteta, factor: number, stack: Set<string>, inSP: boolean) => {
     if (stack.has(r.cod)) return;
     stack.add(r.cod);
-    const v = versiuneLa(r, data);
+    const v = versiunea(r);
     for (const l of v.linii) {
-      if (l.canal !== 'AMBELE' && l.canal !== canal) continue;
+      // filtrul de canal doar la nivelul produsului — semipreparatele nu diferă pe canal
+      if (!inSP && l.canal !== 'AMBELE' && l.canal !== canal) continue;
       const cb = cantBruta(l);
       if (l.tipComp === 'SEMIPREPARAT') {
         const sp = ctx.retete.get(l.comp);
         if (!sp) { rez.lipsa.add(l.comp); continue; }
-        const vsp = versiuneLa(sp, data);
+        const vsp = versiunea(sp);
         const baza = vsp.randament?.um ?? 'kg';
         const f = conv(l.um, baza);
         if (f == null) { rez.lipsa.add(l.comp); continue; }
         const scala = vsp.randament && vsp.randament.cant > 0 ? (cb * f) / vsp.randament.cant : cb * f;
-        dinReteta(sp, factor * scala, stack);
+        dinReteta(sp, factor * scala, stack, true);
       } else {
         const ing = ctx.ingrediente.get(l.comp);
         if (!ing) { rez.lipsa.add(l.comp); continue; }
@@ -313,6 +341,9 @@ function consumPortieLa(produs: string, canal: Canal, ctx: CtxFC, data: string):
 
 interface AcumIngredient {
   qty: number;
+  /** Cheia e `produs|canal`: despărțirea rețetă/mix se face pe celule produs × canal, ca o
+   *  mutare de volum între canale (linii de rețetă diferite pe canal) să fie MIX, nu rețetă. */
+  perCelula: Map<string, { qty: number; buc: number }>;
   perProdus: Map<string, { qty: number; buc: number }>;
   perMagazin: Map<string, { qty: number }>;
   canale: Set<Canal>;
@@ -325,8 +356,12 @@ interface ConsumPerioada {
   buc: number;
   netPerMagazin: Map<string, number>;
   netPerProdus: Map<string, { net: number; buc: number }>;
+  /** Volumele REALE vândute pe `produs|canal` — indiferent dacă rețeta de atunci conținea
+   *  vreun ingredient anume; baza corectă pentru „produsul s-a vândut, ingredientul nu era în rețetă". */
+  bucPerCelula: Map<string, number>;
   faraReteta: Set<string>;
   componenteLipsa: Set<string>;
+  reteteRetro: Set<string>;
   randuri: number;
 }
 
@@ -337,8 +372,8 @@ function consumaPerioada(
 ): ConsumPerioada {
   const rez: ConsumPerioada = {
     peIngredient: new Map(), net: 0, buc: 0,
-    netPerMagazin: new Map(), netPerProdus: new Map(),
-    faraReteta: new Set(), componenteLipsa: new Set(), randuri: 0,
+    netPerMagazin: new Map(), netPerProdus: new Map(), bucPerCelula: new Map(),
+    faraReteta: new Set(), componenteLipsa: new Set(), reteteRetro: new Set(), randuri: 0,
   };
   const memo = new Map<string, ConsumPortie>();
   for (const v of state.vanzari) {
@@ -351,16 +386,22 @@ function consumaPerioada(
     const np = rez.netPerProdus.get(v.produs) ?? { net: 0, buc: 0 };
     np.net += v.net; np.buc += v.cant;
     rez.netPerProdus.set(v.produs, np);
+    const celula = `${v.produs}|${v.canal}`;
+    rez.bucPerCelula.set(celula, (rez.bucPerCelula.get(celula) ?? 0) + v.cant);
 
-    const cheie = `${v.produs}|${v.canal}|${v.data}`;
+    const cheie = `${celula}|${v.data}`;
     let cp = memo.get(cheie);
     if (!cp) { cp = consumPortieLa(v.produs, v.canal, ctx, v.data); memo.set(cheie, cp); }
     if (cp.faraReteta) rez.faraReteta.add(v.produs);
     for (const c of cp.lipsa) rez.componenteLipsa.add(c);
+    for (const c of cp.retro) rez.reteteRetro.add(c);
     for (const [cod, perPortie] of cp.cantitati) {
       const a = rez.peIngredient.get(cod)
-        ?? { qty: 0, perProdus: new Map(), perMagazin: new Map(), canale: new Set<Canal>(), luni: new Set<string>() };
+        ?? { qty: 0, perCelula: new Map(), perProdus: new Map(), perMagazin: new Map(), canale: new Set<Canal>(), luni: new Set<string>() };
       a.qty += perPortie * v.cant;
+      const pc = a.perCelula.get(celula) ?? { qty: 0, buc: 0 };
+      pc.qty += perPortie * v.cant; pc.buc += v.cant;
+      a.perCelula.set(celula, pc);
       const pp = a.perProdus.get(v.produs) ?? { qty: 0, buc: 0 };
       pp.qty += perPortie * v.cant; pp.buc += v.cant;
       a.perProdus.set(v.produs, pp);
@@ -387,7 +428,7 @@ export function analizaIngrediente(
 ): AnalizaIngrediente {
   const calitateGoala = (): CalitateDate => ({
     pretLipsa: [], ingredientLipsa: [], mapareLipsa: [],
-    pmixLipsa: false, perioadaLipsa: false, istoricInsuficient: [],
+    pmixLipsa: false, perioadaLipsa: false, istoricInsuficient: [], retetaRetroumpluta: [],
   });
   const gol = (motiv: string, calitate = calitateGoala(), perPrec: FCPeriod | null = null): AnalizaIngrediente => ({
     cerere, disponibil: false, motivIndisponibil: motiv,
@@ -443,6 +484,7 @@ export function analizaIngrediente(
   // ——— rândurile pe ingredient
   const calitate = calitateGoala();
   calitate.ingredientLipsa = [...new Set([...cur.componenteLipsa, ...prec.componenteLipsa])].sort();
+  calitate.retetaRetroumpluta = [...new Set([...cur.reteteRetro, ...prec.reteteRetro])].sort();
 
   const coduri = [...new Set([...cur.peIngredient.keys(), ...prec.peIngredient.keys()])].sort();
   const randuri: RandIngredient[] = [];
@@ -460,11 +502,13 @@ export function analizaIngrediente(
     const brutPrec = areIstoric ? pretLa(ing, perPrec.la) : 0;
     const pCur = brutCur > 0 ? brutCur : null;
     const pPrec = brutPrec > 0 ? brutPrec : null;
-    if (pCur === null && (qCur > 0 || qPrec > 0)) calitate.pretLipsa.push(cod);
+    // preț lipsă în ORICARE perioadă = descompunere imposibilă — se declară, nu se tace
+    if ((pCur === null || pPrec === null) && (qCur > 0 || qPrec > 0)) calitate.pretLipsa.push(cod);
     const celMaiVechi = areIstoric
       ? [...ing.preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa))[0].validDeLa : null;
     const pretPrecedentEstimat = pPrec !== null && celMaiVechi !== null && celMaiVechi > perPrec.la;
-    if (pretPrecedentEstimat) calitate.istoricInsuficient.push(cod);
+    const pretCurentEstimat = pCur !== null && celMaiVechi !== null && celMaiVechi > per.la;
+    if (pretPrecedentEstimat || pretCurentEstimat) calitate.istoricInsuficient.push(cod);
 
     const costCur = pCur !== null ? qCur * pCur : null;
     const costPrec = pPrec !== null ? qPrec * pPrec : null;
@@ -476,17 +520,18 @@ export function analizaIngrediente(
     if (pCur !== null && pPrec !== null) {
       const dP = pCur - pPrec;
       const dQ = qCur - qPrec;
-      // consumul pe porție pe produs, pe fiecare perioadă — despărțirea rețetă/mix
+      // despărțirea rețetă/mix, pe celule produs × canal, cu volumele REALE vândute:
+      //  · un produs vândut în ambele perioade, dar cu ingredientul introdus/scos de o
+      //    versiune, are consum pe porție 0 → schimbarea e efect de REȚETĂ, nu de volum;
+      //  · o mutare de volum între canale (linii de rețetă diferite pe canal) e MIX;
+      //  · doar celula care nu s-a vândut deloc într-o perioadă cade pe mix (volum nou).
       let pmixLei = 0, retetaLei = 0;
-      const produseToate = new Set([...(aCur?.perProdus.keys() ?? []), ...(aPrec?.perProdus.keys() ?? [])]);
-      for (const p of produseToate) {
-        const c = aCur?.perProdus.get(p);
-        const pr = aPrec?.perProdus.get(p);
-        const cppCur = c && c.buc > 0 ? c.qty / c.buc : null;
-        const cppPrec = pr && pr.buc > 0 ? pr.qty / pr.buc : null;
-        const bucCur = c?.buc ?? 0;
-        const bucPrec = pr?.buc ?? 0;
-        // produs nou: tot consumul lui e efect de mix, la consumul pe porție curent
+      const celule = new Set([...(aCur?.perCelula.keys() ?? []), ...(aPrec?.perCelula.keys() ?? [])]);
+      for (const cel of celule) {
+        const bucCur = cur.bucPerCelula.get(cel) ?? 0;
+        const bucPrec = prec.bucPerCelula.get(cel) ?? 0;
+        const cppCur = bucCur > 0 ? (aCur?.perCelula.get(cel)?.qty ?? 0) / bucCur : null;
+        const cppPrec = bucPrec > 0 ? (aPrec?.perCelula.get(cel)?.qty ?? 0) / bucPrec : null;
         const cppBaza = cppPrec ?? cppCur ?? 0;
         pmixLei += pPrec * (bucCur - bucPrec) * cppBaza;
         if (cppCur !== null && cppPrec !== null) retetaLei += pPrec * bucPrec * (cppCur - cppPrec);
@@ -548,7 +593,7 @@ export function analizaIngrediente(
       pretCurent: pCur, pretPrecedent: pPrec,
       deltaPretLei: pCur !== null && pPrec !== null ? pCur - pPrec : null,
       deltaPretPct: pCur !== null && pPrec !== null ? pct(pCur, pPrec) : null,
-      pretPrecedentEstimat,
+      pretPrecedentEstimat, pretCurentEstimat,
       consumCurent: qCur, consumPrecedent: qPrec,
       deltaConsumPct: pct(qCur, qPrec),
       costCurent: costCur, costPrecedent: costPrec,
@@ -613,9 +658,12 @@ export function analizaIngrediente(
           varf.shareDinDeltaPct, praguri.concentrareMagazinPct, varf.deltaCostLei);
       }
     }
-    if (r.pretCurent === null) {
+    if (r.pretCurent === null || r.pretPrecedent === null) {
       an('PRET_LIPSA', r,
-        'Consumat în scop, dar fără preț valid în nomenclator: costul lui NU e presupus zero — e necunoscut.',
+        r.pretCurent === null && r.pretPrecedent === null
+          ? 'Consumat în scop, dar fără preț valid în nomenclator: costul lui NU e presupus zero — e necunoscut.'
+          : `Fără preț valid pe perioada ${r.pretCurent === null ? 'curentă' : 'de comparație'}: `
+            + 'descompunerea mișcării lui e imposibilă — costul lipsă NU e presupus zero.',
         null, null, null);
     }
   }
@@ -670,6 +718,19 @@ export function analizaIngrediente(
     magazine: r.magazine.map(m => m.locatie),
   });
 
+  // scenariul what-if pornește de la starea de AZI — divergența față de perioada analizată se declară
+  const notaDrift = (r: RandIngredient): string => {
+    const ing = ctx.ingrediente.get(r.ingredient)!;
+    const azi = ing.preturi.length ? pretLa(ing, '9999-12-31') : 0;
+    return r.pretCurent !== null && azi > 0 && Math.abs(azi - r.pretCurent) > 1e-9
+      ? ` · ATENȚIE: prețul de AZI (${azi} lei) diferă de cel de la finele perioadei (${r.pretCurent} lei) — `
+        + 'scenariul what-if pornește de la prețul de azi, deci delta lui va diferi de impactul estimat aici'
+      : '';
+  };
+  const notaBaza = calitate.pretLipsa.length
+    ? ` · procent calculat DOAR pe ingredientele cu preț valid (${calitate.pretLipsa.length} fără preț rămân în afara bazei)`
+    : '';
+
   const costTotal = randuri.reduce((s, r) => s + (r.costCurent ?? 0), 0);
   for (const r of randuri) {
     if (r.efecte && r.deltaPretPct !== null && r.deltaPretPct >= praguri.pretCrestereMarePct
@@ -684,13 +745,13 @@ export function analizaIngrediente(
         scop: scop(r), confidence: incredere(r),
         dovada: {
           calcul: `economie = (preț curent ${r.pretCurent} − preț precedent ${r.pretPrecedent}) × consum curent `
-            + `${r.consumCurent.toFixed(2)} ${UMS[r.um].baza} = ${economie.toFixed(0)} lei/perioadă`,
+            + `${r.consumCurent.toFixed(2)} ${UMS[r.um].baza} = ${economie.toFixed(0)} lei/perioadă${notaDrift(r)}`,
           surse,
         },
         scenariu: { nume: `Renegociere ${r.denumire}`, preturi: [{ ingredient: r.ingredient, pretNou: r.pretPrecedent! }] },
       });
     }
-    if (r.efecte && r.efecte.reteta > praguri.concentrareMinLei) {
+    if (r.efecte && r.efecte.reteta > praguri.controlConsumMinLei) {
       const vinovate = r.produse.filter(p => {
         const prPr = prec.peIngredient.get(r.ingredient)?.perProdus.get(p.produs);
         const cppPrec = prPr && prPr.buc > 0 ? prPr.qty / prPr.buc : null;
@@ -721,7 +782,7 @@ export function analizaIngrediente(
         scop: scop(r), confidence: incredere(r),
         dovada: {
           calcul: `expunere = costul curent ${Math.round(r.costCurent!)} lei din ${Math.round(costTotal)} lei total ingrediente `
-            + `= ${((r.costCurent! / costTotal) * 100).toFixed(1)}% (prag ${praguri.riscConcentrarePct}%)`,
+            + `= ${((r.costCurent! / costTotal) * 100).toFixed(1)}% (prag ${praguri.riscConcentrarePct}%)${notaBaza}`,
           surse,
         },
       });
@@ -737,7 +798,7 @@ export function analizaIngrediente(
         scop: scop(r), confidence: incredere(r),
         dovada: {
           calcul: `bază declarată: 1% din consumul curent = ${lei1pct.toFixed(0)} lei/perioadă `
-            + '(NU o economie promisă — unitatea de măsură a oricărei reformulări)',
+            + `(NU o economie promisă — unitatea de măsură a oricărei reformulări)${notaBaza}`,
           surse,
         },
       });
@@ -756,7 +817,7 @@ export function analizaIngrediente(
       fcImpactPp: cur.net > 0 ? (lei1pct / cur.net) * 100 : null,
       scop: scop(r), confidence: incredere(r),
       dovada: {
-        calcul: `bază declarată: 1% din prețul curent × consumul curent = ${lei1pct.toFixed(0)} lei/perioadă`,
+        calcul: `bază declarată: 1% din prețul curent × consumul curent = ${lei1pct.toFixed(0)} lei/perioadă${notaDrift(r)}`,
         surse,
       },
       scenariu: { nume: `−1% preț ${r.denumire}`, preturi: [{ ingredient: r.ingredient, pretNou: r.pretCurent! * 0.99 }] },
@@ -779,8 +840,17 @@ export function analizaIngrediente(
     motiveIncomplet.push(`${calitate.pretLipsa.length} ingrediente consumate nu au preț valid: costul lor e necunoscut, nu zero.`);
   }
   if (calitate.istoricInsuficient.length) {
-    motiveIncomplet.push(`${calitate.istoricInsuficient.length} ingrediente au prețul „precedent" retro-umplut — `
-      + 'istoricul de prețuri nu acoperă perioada de comparație.');
+    motiveIncomplet.push(`${calitate.istoricInsuficient.length} ingrediente au prețuri retro-umplute — `
+      + 'istoricul de prețuri nu acoperă perioadele comparate.');
+  }
+  if (calitate.retetaRetroumpluta.length) {
+    motiveIncomplet.push(`${calitate.retetaRetroumpluta.length} rețete au prima versiune ULTERIOARĂ unor vânzări `
+      + `din scop (${calitate.retetaRetroumpluta.slice(0, 5).join(', ')}): consumul lor de atunci e retro-umplut `
+      + 'din versiunea cea mai veche, nu măsurat.');
+  }
+  if (per.la >= AZI_ISO()) {
+    motiveIncomplet.push(`Perioada ${per.cheie} nu s-a încheiat: comparația pune o perioadă parțială `
+      + 'lângă una întreagă, iar orice „scădere" poate fi doar calendarul.');
   }
 
   return {

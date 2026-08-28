@@ -86,9 +86,12 @@ t('efect preț = Δpreț × consum precedent = 30', aprox(eA.pret, 30));
 t('efect consum = Δconsum × preț precedent = 90', aprox(eA.consum, 90));
 t('interacțiune preț = Δpreț × Δconsum = 18', aprox(eA.interactiunePret, 18));
 t('IDENTITATE: Δcost = preț + consum + interacțiune', aprox(eA.pret + eA.consum + eA.interactiunePret, rA.deltaCostLei!));
-t('efect mix = preț × Δvolum × consum/porție precedent = 50', aprox(eA.pmix, 50));
+// mixul se calculează pe celule produs × canal: InStore 10×(180−150)×0,1 = 30, iar celula
+// NOUĂ de Delivery (20 buc, fără corespondent în iunie) intră la consumul/porție curent:
+// 10×20×0,12 = 24 → mix 54; interacțiunea = doar termenul încrucișat InStore 10×30×0,02 = 6
+t('efect mix = Σ pe celule produs × canal = 54', aprox(eA.pmix, 54));
 t('efect rețetă = preț × volum precedent × Δconsum/porție = 30', aprox(eA.reteta, 30));
-t('interacțiune consum = 10', aprox(eA.interactiuneConsum, 10));
+t('interacțiune consum = 6', aprox(eA.interactiuneConsum, 6));
 t('IDENTITATE: consum = rețetă + mix + interacțiune', aprox(eA.reteta + eA.pmix + eA.interactiuneConsum, eA.consum));
 t('mișcarea totală NU e pusă pe seama prețului singur', eA.pret < rA.deltaCostLei!);
 t('B (preț neschimbat): efect preț 0, tot consumul e mix',
@@ -146,7 +149,7 @@ t('încrederea e deterministă cu motive', oNeg.confidence.scor === 100 && oNeg.
 const simNeg = simuleazaFC(sFix, ctxFix, { perioada: LUNA, nivel: COMPANIE, canal: 'TOTAL' }, oNeg.scenariu!);
 t('scenariul what-if legat chiar rulează și confirmă economia',
   simNeg.disponibil && aprox(simNeg.deltaCostRON, -48), `${simNeg.deltaCostRON.toFixed(1)}`);
-const cuControl = analizaIngrediente(sFix, ctxFix, cer(), { ...PRAGURI_IMPLICITE, concentrareMinLei: 20 });
+const cuControl = analizaIngrediente(sFix, ctxFix, cer(), { ...PRAGURI_IMPLICITE, controlConsumMinLei: 20 });
 const oCtrl = cuControl.oportunitati.find(o => o.tip === 'CONTROL_CONSUM' && o.ingredient === 'ING-A')!;
 t('controlul consumului = exact efectul de rețetă măsurat (30 lei), nu o estimare',
   !!oCtrl && aprox(oCtrl.impactEstimatLei, 30));
@@ -305,6 +308,211 @@ t('rândurile sunt ordonate descrescător după |Δcost|',
   aSeed.randuri.every((r, i, arr) => i === 0
     || (arr[i - 1].deltaCostLei === null ? r.deltaCostLei === null
       : r.deltaCostLei === null || Math.abs(arr[i - 1].deltaCostLei!) >= Math.abs(r.deltaCostLei))));
+
+// ————————————————————————————— corecturile din review-ul advers, fixate în teste
+
+console.log('\n— Ingredientul introdus/scos de o versiune e efect de REȚETĂ, nu de volum —');
+// PC vinde EXACT 100 buc în ambele luni; v2 (1 iulie) ADAUGĂ 50g de ING-A
+const retetaPC = (liniiV2Extra: boolean): Reteta => ({
+  cod: 'PC', tip: 'PRODUS', denumire: 'Produs C', activa: 2,
+  versiuni: [
+    { nr: 1, data: '2026-01-01', linii: [{ comp: 'ING-B', tipComp: 'AMBALAJ', cant: 1, um: 'buc', canal: 'AMBELE' }] },
+    { nr: 2, data: '2026-07-01', linii: [
+      { comp: 'ING-B', tipComp: 'AMBALAJ', cant: 1, um: 'buc', canal: 'AMBELE' },
+      ...(liniiV2Extra ? [{ comp: 'ING-A', tipComp: 'INGREDIENT' as const, cant: 50, um: 'g' as const, canal: 'AMBELE' as const }] : []),
+    ] },
+  ],
+});
+const vzPC = (data: string, cant: number, net: number): VanzareFapt =>
+  ({ data, locatie: 'L01', canal: 'INSTORE', produs: 'PC', cant, brut: net * 1.09, net });
+const sAdaugat: AppState = {
+  ...golut, ingrediente: [ingA, ingB], produse: [{ ...produsPA, cod: 'PC', denumire: 'Produs C' }],
+  retete: [retetaPC(true)], vanzari: [vzPC('2026-06-10', 100, 3000), vzPC('2026-07-10', 100, 3000)],
+};
+const aAdaugat = analizaIngrediente(sAdaugat, buildCtx(sAdaugat), cer());
+const rAdaugat = aAdaugat.randuri.find(r => r.ingredient === 'ING-A')!;
+t('volume identice + ingredient adăugat de v2 → TOT efectul e de rețetă: 10×100×0,05 = 50',
+  aprox(rAdaugat.efecte!.reteta, 50), `${rAdaugat.efecte!.reteta.toFixed(1)}`);
+t('efectul de mix e zero — volumele chiar nu s-au mișcat', aprox(rAdaugat.efecte!.pmix, 0));
+t('identitatea consumului ține', aprox(rAdaugat.efecte!.reteta + rAdaugat.efecte!.pmix + rAdaugat.efecte!.interactiuneConsum, rAdaugat.efecte!.consum));
+t('CONTROL_CONSUM prinde creșterea de rețetă',
+  analizaIngrediente(sAdaugat, buildCtx(sAdaugat), cer(), { ...PRAGURI_IMPLICITE, controlConsumMinLei: 20 })
+    .oportunitati.some(o => o.tip === 'CONTROL_CONSUM' && o.ingredient === 'ING-A'));
+// … și invers: v1 AVEA 100g, v2 îl scoate → economie de rețetă, nu prăbușire de volum
+const retetaScos: Reteta = {
+  cod: 'PC', tip: 'PRODUS', denumire: 'Produs C', activa: 2,
+  versiuni: [
+    { nr: 1, data: '2026-01-01', linii: [{ comp: 'ING-A', tipComp: 'INGREDIENT', cant: 100, um: 'g', canal: 'AMBELE' }] },
+    { nr: 2, data: '2026-07-01', linii: [{ comp: 'ING-B', tipComp: 'AMBALAJ', cant: 1, um: 'buc', canal: 'AMBELE' }] },
+  ],
+};
+const sScos: AppState = { ...sAdaugat, retete: [retetaScos] };
+const rScos = analizaIngrediente(sScos, buildCtx(sScos), cer()).randuri.find(r => r.ingredient === 'ING-A')!;
+t('ingredientul SCOS de v2: rețetă −100 lei, mix 0', aprox(rScos.efecte!.reteta, -100) && aprox(rScos.efecte!.pmix, 0),
+  `reteta ${rScos.efecte!.reteta.toFixed(1)} pmix ${rScos.efecte!.pmix.toFixed(1)}`);
+
+console.log('\n— Mutarea de volum ÎNTRE canale e MIX, nu rețetă —');
+// ING-D există doar pe linia de DELIVERY; volumul migrează spre delivery, rețeta neschimbată
+const ingD: Ingredient = { cod: 'ING-D', denumire: 'Cutie delivery', categorie: 'Ambalaje', tip: 'PACKAGING', um: 'buc', preturi: [{ validDeLa: '2026-01-01', pret: 1 }], activ: true };
+const retetaPD: Reteta = {
+  cod: 'PD', tip: 'PRODUS', denumire: 'Produs D', activa: 1,
+  versiuni: [{ nr: 1, data: '2026-01-01', linii: [
+    { comp: 'ING-B', tipComp: 'AMBALAJ', cant: 1, um: 'buc', canal: 'INSTORE' },
+    { comp: 'ING-D', tipComp: 'AMBALAJ', cant: 1, um: 'buc', canal: 'DELIVERY' },
+  ] }],
+};
+const vzPD = (data: string, canal: 'INSTORE' | 'DELIVERY', cant: number): VanzareFapt =>
+  ({ data, locatie: 'L01', canal, produs: 'PD', cant, brut: cant * 21.8, net: cant * 20 });
+const sCanalMix: AppState = {
+  ...golut, ingrediente: [ingB, ingD], produse: [{ ...produsPA, cod: 'PD', denumire: 'Produs D' }],
+  retete: [retetaPD],
+  vanzari: [vzPD('2026-06-10', 'INSTORE', 100), vzPD('2026-06-10', 'DELIVERY', 20),
+    vzPD('2026-07-10', 'INSTORE', 80), vzPD('2026-07-10', 'DELIVERY', 40)],
+};
+const aCanalMix = analizaIngrediente(sCanalMix, buildCtx(sCanalMix), cer());
+const rD = aCanalMix.randuri.find(r => r.ingredient === 'ING-D')!;
+t('cutia de delivery: consumul crește DOAR din mutarea volumului → mix, rețetă zero',
+  aprox(rD.efecte!.reteta, 0) && aprox(rD.efecte!.pmix, rD.efecte!.consum),
+  `reteta ${rD.efecte!.reteta.toFixed(2)} pmix ${rD.efecte!.pmix.toFixed(2)}`);
+t('scopul pe DELIVERY funcționează și vede doar canalul lui',
+  aprox(analizaIngrediente(sCanalMix, buildCtx(sCanalMix), cer('LUNA_PRECEDENTA', COMPANIE, 'DELIVERY'))
+    .randuri.find(r => r.ingredient === 'ING-D')!.consumCurent, 40));
+
+console.log('\n— Retro-umplerile se declară, pe prețuri ȘI pe rețete —');
+t('vânzarea de dinaintea primei versiuni e semnalată: rețeta PA e retro-umplută pe 2025',
+  (() => { const a = analizaIngrediente(sFix, ctxFix, cer('LUNA_AN_PRECEDENT'));
+    return a.calitate.retetaRetroumpluta.includes('PA') && a.motiveIncomplet.some(m => m.includes('ULTERIOARĂ')); })());
+const ingViitor: Ingredient = { cod: 'ING-V2', denumire: 'Preț din viitor', categorie: 'Diverse', tip: 'FOOD', um: 'kg', preturi: [{ validDeLa: '2026-09-01', pret: 15 }], activ: true };
+const sViitor: AppState = {
+  ...sFix, ingrediente: [ingA, ingB, ingViitor],
+  retete: [{ ...retetaPA, versiuni: retetaPA.versiuni.map(v => ({ ...v, linii: [...v.linii, { comp: 'ING-V2', tipComp: 'INGREDIENT' as const, cant: 10, um: 'g' as const, canal: 'AMBELE' as const }] })) }],
+};
+const aViitor = analizaIngrediente(sViitor, buildCtx(sViitor), cer());
+const rViitor = aViitor.randuri.find(r => r.ingredient === 'ING-V2')!;
+t('prețul valabil abia din septembrie e marcat retro-umplut și pe perioada CURENTĂ',
+  rViitor.pretCurentEstimat && aViitor.calitate.istoricInsuficient.includes('ING-V2') && !aViitor.complete);
+const ingPrecLipsa: Ingredient = { cod: 'ING-P0', denumire: 'Preț zero în iunie', categorie: 'Diverse', tip: 'FOOD', um: 'kg', preturi: [{ validDeLa: '2026-01-01', pret: 0 }, { validDeLa: '2026-07-01', pret: 12 }], activ: true };
+const sPrecLipsa: AppState = {
+  ...sFix, ingrediente: [ingA, ingB, ingPrecLipsa],
+  retete: [{ ...retetaPA, versiuni: retetaPA.versiuni.map(v => ({ ...v, linii: [...v.linii, { comp: 'ING-P0', tipComp: 'INGREDIENT' as const, cant: 10, um: 'g' as const, canal: 'AMBELE' as const }] })) }],
+};
+const aPrecLipsa = analizaIngrediente(sPrecLipsa, buildCtx(sPrecLipsa), cer());
+const rPrecLipsa = aPrecLipsa.randuri.find(r => r.ingredient === 'ING-P0')!;
+t('prețul lipsă doar pe perioada de COMPARAȚIE e tot preț lipsă: efecte null + anomalie + calitate',
+  rPrecLipsa.pretPrecedent === null && rPrecLipsa.efecte === null
+  && aPrecLipsa.anomalii.some(a => a.tip === 'PRET_LIPSA' && a.ingredient === 'ING-P0' && a.detaliu.includes('comparație'))
+  && aPrecLipsa.calitate.pretLipsa.includes('ING-P0'));
+
+console.log('\n— Semipreparatele sunt fără canal, ca în costare —');
+const spX: Reteta = {
+  cod: 'SP-X', tip: 'SEMIPREPARAT', denumire: 'Semipreparat X', activa: 1,
+  versiuni: [{ nr: 1, data: '2026-01-01', randament: { cant: 1, um: 'kg' },
+    linii: [{ comp: 'ING-A', tipComp: 'INGREDIENT', cant: 1, um: 'kg', canal: 'INSTORE' }] }],
+};
+const retetaPE: Reteta = {
+  cod: 'PE', tip: 'PRODUS', denumire: 'Produs E', activa: 1,
+  versiuni: [{ nr: 1, data: '2026-01-01', linii: [{ comp: 'SP-X', tipComp: 'SEMIPREPARAT', cant: 100, um: 'g', canal: 'AMBELE' }] }],
+};
+const sSp: AppState = {
+  ...golut, ingrediente: [ingA, ingB], produse: [{ ...produsPA, cod: 'PE', denumire: 'Produs E' }],
+  retete: [spX, retetaPE],
+  vanzari: [
+    { data: '2026-06-10', locatie: 'L01', canal: 'DELIVERY', produs: 'PE', cant: 50, brut: 1090, net: 1000 },
+    { data: '2026-07-10', locatie: 'L01', canal: 'DELIVERY', produs: 'PE', cant: 50, brut: 1090, net: 1000 },
+  ],
+};
+const rSp = analizaIngrediente(sSp, buildCtx(sSp), cer()).randuri.find(r => r.ingredient === 'ING-A')!;
+t('linia internă a SP-ului marcată InStore contează și pe vânzarea Delivery (SP-ul nu are canal)',
+  aprox(rSp.consumCurent, 50 * 0.1), `${rSp.consumCurent}`);
+
+console.log('\n— Combo-ul ciclic nu crapă analiza —');
+const sCiclu: AppState = {
+  ...golut, ingrediente: [ingA], retete: [],
+  produse: [{ cod: 'CX', denumire: 'Combo ciclic', categorie: 'Test', tip: 'COMBO', pretInstore: 10, tva: 9, activ: true, combo: [{ cod: 'CX', cant: 1 }] }],
+  vanzari: [
+    { data: '2026-06-10', locatie: 'L01', canal: 'INSTORE', produs: 'CX', cant: 5, brut: 55, net: 50 },
+    { data: '2026-07-10', locatie: 'L01', canal: 'INSTORE', produs: 'CX', cant: 5, brut: 55, net: 50 },
+  ],
+};
+t('analiza rulează și rămâne cinstită (nimic de consumat, nimic inventat)',
+  analizaIngrediente(sCiclu, buildCtx(sCiclu), cer()).disponibil);
+
+console.log('\n— Pragul controlului de consum e AL LUI, nu împrumutat de la concentrare —');
+t('schimbarea pragului de concentrare nu atinge CONTROL_CONSUM',
+  analizaIngrediente(sAdaugat, buildCtx(sAdaugat), cer(),
+    { ...PRAGURI_IMPLICITE, concentrareMinLei: 1e6, controlConsumMinLei: 20 })
+    .oportunitati.some(o => o.tip === 'CONTROL_CONSUM' && o.ingredient === 'ING-A'));
+
+console.log('\n— COST_MARE și OPTIMIZARE_RETETA au cifre verificate, nu doar existență —');
+const oCost = aFix.oportunitati.find(o => o.tip === 'COST_MARE' && o.ingredient === 'ING-B')!;
+t('COST_MARE: baza = 1% din costul curent (400 lei → 4 lei)', !!oCost && aprox(oCost.impactEstimatLei, 4));
+const simCost = simuleazaFC(sFix, ctxFix, { perioada: LUNA, nivel: COMPANIE, canal: 'TOTAL' }, oCost.scenariu!);
+t('scenariul COST_MARE rulează și confirmă ordinea de mărime (−1% preț → −4 lei)',
+  simCost.disponibil && aprox(simCost.deltaCostRON, -4, 0.1), `${simCost.deltaCostRON.toFixed(2)}`);
+const oOpt = aFix.oportunitati.find(o => o.tip === 'OPTIMIZARE_RETETA' && o.ingredient === 'ING-A')!;
+t('OPTIMIZARE_RETETA: baza = 1% din costul curent (288 → 2,88 lei), cu formula în dovadă',
+  !!oOpt && aprox(oOpt.impactEstimatLei, 2.88) && oOpt.dovada.calcul.includes('NU o economie promisă'));
+
+console.log('\n— Produsul vândut FĂRĂ rețetă: consum necunoscut, declarat —');
+const sFaraReteta2: AppState = {
+  ...sFix,
+  produse: [...sFix.produse, { cod: 'PF', denumire: 'Fără rețetă', categorie: 'Test', tip: 'SIMPLU', pretInstore: 10, tva: 9, activ: true }],
+  vanzari: [...VANZARI,
+    { data: '2026-06-15', locatie: 'L01', canal: 'INSTORE', produs: 'PF', cant: 10, brut: 109, net: 100 },
+    { data: '2026-07-15', locatie: 'L01', canal: 'INSTORE', produs: 'PF', cant: 10, brut: 109, net: 100 }],
+};
+const aFaraReteta2 = analizaIngrediente(sFaraReteta2, buildCtx(sFaraReteta2), cer());
+t('motivul numără produsele fără rețetă și analiza e incompletă',
+  !aFaraReteta2.complete && aFaraReteta2.motiveIncomplet.some(m => m.includes('rețetă')));
+
+console.log('\n— Luna parțială sau intervalul de mai multe luni refuză —');
+t('luna tăiată la jumătate refuză',
+  !analizaIngrediente(sFix, ctxFix, { perioada: { tip: 'LUNA', cheie: '2026-07', de: '2026-07-01', la: '2026-07-15', zile: 15, partiala: true }, nivel: COMPANIE, canal: 'TOTAL', comparatie: 'LUNA_PRECEDENTA' }).disponibil);
+t('intervalul de două luni refuză',
+  !analizaIngrediente(sFix, ctxFix, { perioada: { tip: 'LUNA', cheie: '2026-06', de: '2026-06-01', la: '2026-07-31', zile: 61, partiala: false }, nivel: COMPANIE, canal: 'TOTAL', comparatie: 'LUNA_PRECEDENTA' }).disponibil);
+
+console.log('\n— Încrederea chiar scade când prețul e retro-umplut —');
+const aAnNeg = analizaIngrediente(sFix, ctxFix, cer('LUNA_AN_PRECEDENT'), { ...PRAGURI_IMPLICITE, negociereMinLei: 100 });
+const oAnNeg = aAnNeg.oportunitati.find(o => o.tip === 'NEGOCIERE_PRET' && o.ingredient === 'ING-A');
+t('oportunitatea pe comparația cu anul trecut pierde 30 de puncte, cu motivul scris',
+  !!oAnNeg && oAnNeg!.confidence.scor <= 70 && oAnNeg!.confidence.motive.some(m => m.includes('retro-umplut')),
+  `${oAnNeg?.confidence.scor}`);
+
+console.log('\n— Baza procentelor declară ingredientele fără preț —');
+const aBaza = analizaIngrediente(sFaraPret, buildCtx(sFaraPret), cer());
+const oBaza = aBaza.oportunitati.find(o => o.tip === 'RISC_CONCENTRARE');
+t('RISC_CONCENTRARE spune că baza exclude ingredientele fără preț',
+  !!oBaza && oBaza!.dovada.calcul.includes('în afara bazei'));
+
+console.log('\n— Deriva scenariului what-if e declarată când prețul de azi diferă —');
+const sDerive: AppState = {
+  ...sFix,
+  ingrediente: [{ ...ingA, preturi: [...ingA.preturi, { validDeLa: '2026-08-01', pret: 15 }] }, ingB],
+};
+const aDerive = analizaIngrediente(sDerive, buildCtx(sDerive), cer(), { ...PRAGURI_IMPLICITE, negociereMinLei: 100 });
+const oDerive = aDerive.oportunitati.find(o => o.tip === 'NEGOCIERE_PRET' && o.ingredient === 'ING-A')!;
+t('prețul din august (15) nu murdărește analiza lui iulie (12)', aDerive.randuri.find(r => r.ingredient === 'ING-A')!.pretCurent === 12);
+t('dovada avertizează că scenariul pornește de la prețul de AZI',
+  oDerive.dovada.calcul.includes('ATENȚIE') && oDerive.dovada.calcul.includes('15'));
+
+console.log('\n— Săptămâna care taie granița lunii: prețul de la finele EI, versiunea de atunci —');
+const sSaptGranita: AppState = { ...sFix, vanzari: [...VANZARI, vz('2026-07-01', 'L01', 'INSTORE', 30, 600)] };
+const s27 = { tip: 'SAPTAMANA' as const, cheie: '2026-S27', de: '2026-06-29', la: '2026-07-05', zile: 7, partiala: false };
+const s28fix = perioadeDinLuna('2026-07', 'SAPTAMANA').filter(x => !x.partiala).find(x => x.de === '2026-07-06')!;
+const aGranita = analizaIngrediente(sSaptGranita, buildCtx(sSaptGranita), { perioada: s28fix, nivel: COMPANIE, canal: 'TOTAL', comparatie: 'SAPTAMANA_PRECEDENTA' });
+const rGranita = aGranita.randuri.find(r => r.ingredient === 'ING-A')!;
+t('săptămâna precedentă taie granița: vânzarea din 1 iulie e pe v2 (0,12) → 3,6 kg',
+  aprox(rGranita.consumPrecedent, 3.6), `${rGranita.consumPrecedent}`);
+t('prețul precedent e cel de la finele săptămânii S27 (5 iulie) = 12, nu al lunii iunie',
+  rGranita.pretPrecedent === 12);
+
+console.log('\n— Perioada neîncheiată se declară parțială —');
+const azi = new Date().toISOString().slice(0, 10);
+const lunaCurenta = perioadaDin(azi, 'LUNA');
+const sInCurs: AppState = { ...sFix, vanzari: [...VANZARI, vz(`${azi.slice(0, 7)}-05`, 'L01', 'INSTORE', 10, 200)] };
+const aInCurs = analizaIngrediente(sInCurs, buildCtx(sInCurs), { perioada: lunaCurenta, nivel: COMPANIE, canal: 'TOTAL', comparatie: 'LUNA_PRECEDENTA' });
+t('luna în curs: analiza rulează, dar se declară incompletă cu motivul calendarului',
+  !aInCurs.disponibil || (!aInCurs.complete && aInCurs.motiveIncomplet.some(m => m.includes('nu s-a încheiat'))));
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);
