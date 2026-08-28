@@ -178,6 +178,58 @@ export interface Nemapat {
   fisier: string;
 }
 
+/**
+ * O versiune de sursă importată. Versiunile NU se suprascriu: fiecare import adaugă o
+ * intrare, cea nouă devine activă de la data ei efectivă, iar cele vechi rămân în listă
+ * ca istoric — analizele pe trecut folosesc în continuare versiunea corectă atunci.
+ */
+export interface VersiuneSursa {
+  id: string;                 // `${tip}#${nr}` — determinist
+  tip: string;                // tipul canonic de sursă (TipSursaFC)
+  nr: number;                 // numerotare incrementală pe tip
+  fisier: string;
+  amprenta: string;           // amprenta deterministă a conținutului
+  dataEfectiva: string;       // de la ce dată se aplică
+  importatLa: string;
+  activa: boolean;
+  scop: string;               // COMUN | COMPANIE | RESTAURANT
+  restaurante: string[];
+  perioada: string | null;
+  randuri: number;
+}
+
+/** O schimbare de preț înregistrată la import, cu sursa ei. */
+export interface IntrarePretIstoric {
+  ingredient: string;
+  denumire: string;
+  dataEfectiva: string;
+  pretVechi: number | null;   // null = ingredient nou, fără preț anterior
+  pretNou: number;
+  deltaRON: number | null;
+  deltaPct: number | null;
+  fisier: string;
+  amprenta: string;
+}
+
+/** Urma de audit a unui import: cine, când, ce, pe ce scop, cu ce rezultat. */
+export interface IntrareAudit {
+  id: string;
+  actor: string;              // utilizatorul, sau actorul de sistem când identitatea lipsește
+  data: string;
+  fisier: string;
+  tip: string;
+  tipIntern: string;
+  perioada: string | null;
+  scop: string;
+  restaurante: string[];
+  randuri: number;
+  importate: number;
+  validare: string;           // VALIDAT | RESPINS | NECESITA_CONFIRMARE
+  amprenta: string;
+  versiune: string | null;    // versiunea activată, când importul a fost activat
+  activat: boolean;
+}
+
 export interface AppState {
   locatii: Locatie[];
   furnizori: Furnizor[];
@@ -193,6 +245,12 @@ export interface AppState {
   reguli: RegulaClasificare[];
   tinte: Tinta[];
   importuri: ImportBatch[];
+  /** Istoricul versiunilor de sursă (Import Center). Opțional: instantaneele vechi nu îl au. */
+  versiuniImport?: VersiuneSursa[];
+  /** Istoricul datat al prețurilor de ingrediente, cu fișierul sursă al fiecărei schimbări. */
+  istoricPreturi?: IntrarePretIstoric[];
+  /** Urma de audit a importurilor. */
+  auditImport?: IntrareAudit[];
   scenarii: Scenariu[];
   pretFurnizori: PretFurnizor[];
   labor: CostLabor[];
