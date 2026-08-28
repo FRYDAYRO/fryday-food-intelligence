@@ -350,7 +350,7 @@ interface AcumIngredient {
   luni: Set<string>;
 }
 
-interface ConsumPerioada {
+export interface ConsumPerioada {
   peIngredient: Map<string, AcumIngredient>;
   net: number;
   buc: number;
@@ -367,7 +367,7 @@ interface ConsumPerioada {
 
 /** O singură trecere prin vânzările perioadei: acumulează global, pe produs și pe restaurant
  *  CA SUME — compania nu are o formulă separată, e chiar suma restaurantelor. */
-function consumaPerioada(
+export function consumaPerioada(
   state: AppState, ctx: CtxFC, per: FCPeriod, loc: string | undefined, canale: Canal[],
 ): ConsumPerioada {
   const rez: ConsumPerioada = {
