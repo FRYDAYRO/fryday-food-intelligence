@@ -86,6 +86,20 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
   // „FRYDAY" și ar fi aruncat tăcut, iar orfanul „FRYDAY" ar trece drept restaurant. De aceea
   // zona se adună întâi ca text continuu și abia apoi se desparte pe virgule.
   let tamponMagazine = '';
+  /**
+   * A doua formă de antet: raportul rulat pe UN SINGUR restaurant nu are secțiunea
+   * „Groups/Stores" — pune numele în colțul din stânga sus, pe două coloane:
+   *
+   *   FRYDAY TIMISOARA      Fiscal Year: 2026
+   *   4.7 Sales Mix
+   *   IULIUS TOWN           Period: 8 Week: 4
+   *
+   * Numele se rupe între rânduri, cu titlul raportului la mijloc. Se adună partea din
+   * stânga a rândurilor de antet și se lipește la final — altfel raportul unui restaurant
+   * ar rămâne fără restaurant, iar cifrele lui n-ar avea unde să meargă.
+   */
+  const fragmenteAntet: string[] = [];
+  let inAntet = true;
   let categorie = '';
   let perioadaDe: string | null = null, perioadaLa: string | null = null;
   let totalQty: number | null = null, totalExt: number | null = null;
@@ -101,6 +115,21 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     const celule = rand.map(c => String(c ?? '').trim());
     const text = celule.filter(Boolean).join(' ').trim();
     if (!text) continue;
+
+    // antetul pe coloane al raportului pe un singur restaurant: se citește doar la început,
+    // înainte de capul de tabel sau de prima categorie
+    if (inAntet) {
+      if (/^menu item name/i.test(text) || /^category\b/i.test(text) || /^groups?\/stores/i.test(text)) {
+        inAntet = false;
+      } else {
+        const stanga = text.replace(/\s*(fiscal\s+year|period|week)\b.*$/i, '').trim();
+        if (stanga && !/^4\.7\b/i.test(stanga) && !/sales\s+mix/i.test(stanga)
+          && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga) && !/^v \d+\./i.test(stanga)
+          && !/copyright/i.test(stanga)) {
+          fragmenteAntet.push(stanga);
+        }
+      }
+    }
 
     // perioada raportului
     if (/\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)) {
@@ -136,6 +165,12 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
 
     const { numeBaza, canal, meniuComponenta } = despartaCanal(nume);
     linii.push({ nume, numeBaza, categorie, canal, meniuComponenta, qty: q.v, pret: p.v, ext: e.v });
+  }
+
+  // raportul pe un singur restaurant: numele adunat din antet, dacă nu exista deja o listă
+  if (!tamponMagazine.trim() && fragmenteAntet.length) {
+    const nume = fragmenteAntet.join(' ').replace(/\s+/g, ' ').trim();
+    if (/fryday|chicken/i.test(nume)) magazine.push(nume);
   }
 
   // subsolul raportului se poate lipi de ultima intrare — se taie, dar numele rămâne întreg
@@ -185,6 +220,12 @@ export function matriceDinText(text: string): unknown[][] {
       rez.push([l]);
       continue;
     }
+    // Antetul pe coloane al raportului pe un singur restaurant: numele restaurantului stă
+    // în stânga, iar în dreapta „Fiscal Year / Period / Week". Rândurile astea nu sunt
+    // vânzări — dacă ajung în tamponul de denumiri se pierd la prima resetare, iar raportul
+    // rămâne fără restaurant. Trec ca rânduri proprii, ca parserul să le poată citi.
+    if (/\b(fiscal\s+year|period\s*:|week\s*:)/i.test(l)) { tampon = []; rez.push([l]); continue; }
+
     const m = FINAL.exec(l);
     if (!m) {
       const ultim = rez[rez.length - 1];

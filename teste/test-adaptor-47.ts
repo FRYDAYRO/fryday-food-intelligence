@@ -44,6 +44,68 @@ Copyright © NCR Corporation 2022`)), 'x.pdf');
   'numele rămâne întreg, subsolul se taie');
 t('toate se identifică în Store Master', r.rezumat.matched === 7);
 
+console.log('\n— A2. Antetul raportului pe UN SINGUR restaurant —');
+// Forma reală: numele stă în colțul din stânga sus, pe două coloane, rupt între rânduri,
+// cu titlul raportului la mijloc. Nu există secțiunea „Groups/Stores".
+const PE_RESTAURANT = `FRYDAY TIMISOARA Fiscal Year: 2026
+4.7 Sales Mix
+IULIUS TOWN Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Menu Item Name Qty Price Extension
+CATEGORY BERE
+Bere Corona new 1 15.990 $15.99
+Total BERE 1 $15.99`;
+const unu = analizeaza47(parseSalesMix(matriceDinText(PE_RESTAURANT)), 'restaurant.pdf');
+t('numele rupt de layout-ul pe coloane se reface întreg',
+  unu.restaurante[0]?.valoareSursa === 'FRYDAY TIMISOARA IULIUS TOWN',
+  unu.restaurante[0]?.valoareSursa ?? '(niciunul)');
+t('titlul raportului nu intră în numele restaurantului',
+  !(unu.restaurante[0]?.valoareSursa ?? '').toLowerCase().includes('sales mix'));
+t('anul fiscal și perioada nu intră în nume',
+  !/fiscal|period|week/i.test(unu.restaurante[0]?.valoareSursa ?? ''));
+t('scopul e RESTAURANT_UNIC, fără secțiune Groups/Stores', unu.scop === 'RESTAURANT_UNIC');
+t('se identifică în Store Master', unu.rezumat.matched === 1);
+t('e atribuibil pe restaurant', unu.atribuibilPeRestaurant === true);
+t('… lui exact restaurantul din antet', unu.restaurantUnic === 'FRYDAY TIMISOARA IULIUS TOWN');
+t('… fără storeId inventat', unu.restaurante[0].storeId === null);
+t('perioada se citește tot din antet', unu.perioadaDe === '2026-08-17' && unu.perioadaLa === '2026-08-23');
+t('liniile de vânzare se citesc normal', unu.liniiTotal === 1);
+t('rândurile de antet NU devin linii de vânzare',
+  parseSalesMix(matriceDinText(PE_RESTAURANT)).linii.every(l => !/fiscal|iulius town/i.test(l.nume)));
+t('„Multiple Selection" nu e citit drept nume de restaurant',
+  (() => {
+    const x = parseSalesMix(matriceDinText(`4.7 Sales Mix
+Multiple Selection Fiscal Year: 2026 Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Menu Item Name Qty Price Extension
+CATEGORY BERE
+Bere Corona new 1 15.990 $15.99
+Groups/Stores Selected for this Report
+FRYDAY ORADEA, FRYDAY GALATI
+Copyright © NCR Corporation 2022`));
+    return !x.magazine.some(m => /multiple selection/i.test(m)) && x.magazine.length === 2;
+  })(),
+  'lista explicită are precădere peste antetul de sus');
+
+t('când există AMBELE antete, lista Groups/Stores are precădere',
+  (() => {
+    // capcană: antetul de sus arată a raport pe un restaurant, dar fișierul are și lista
+    // explicită. Lista e sursa autoritară — altfel un raport de rețea ar fi citit ca al
+    // primului restaurant din antet, iar cifrele întregii rețele i s-ar pune în cârcă.
+    const x = parseSalesMix(matriceDinText(`FRYDAY ORADEA Fiscal Year: 2026
+4.7 Sales Mix
+Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Menu Item Name Qty Price Extension
+CATEGORY BERE
+Bere Corona new 1 15.990 $15.99
+Groups/Stores Selected for this Report
+FRYDAY GALATI, FRYDAY GALATI, FRYDAY CRAIOVA
+Copyright © NCR Corporation 2022`));
+    return !x.magazine.includes('FRYDAY ORADEA') && x.magazine.length === 2;
+  })(),
+  'antetul de sus nu poate deturna un raport de rețea');
+
 console.log('\n— B. Scopul fișierului se stabilește din antet —');
 t('mai multe restaurante ⇒ raport de REȚEA',
   din('FRYDAY ORADEA, FRYDAY GALATI').scop === 'RETEA_AGREGAT');
