@@ -106,6 +106,89 @@ Copyright © NCR Corporation 2022`));
   })(),
   'antetul de sus nu poate deturna un raport de rețea');
 
+console.log('\n— A3. Alte rapoarte NCR, același antet (4.1 Sales Journal) —');
+// 4.1 are EXACT aceeași structură de antet ca 4.7-ul pe restaurant, doar titlul diferă.
+// Nu are „Menu Item Name" și nici categorii — deci scanarea antetului trebuie să se oprească
+// singură, la intervalul de date. Altfel numele ar înghiți tot raportul.
+const JURNAL_41 = `FRYDAY TIMISOARA Fiscal Year: 2026
+4.1 Sales Journal
+IULIUS TOWN Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Sales Cash Reconciliation
+Net Sales $189,606.42 Net Sales $189,606.42
+Total Comps 25% $163.63 - Charge Deposits $89,060.48
+TVA 11% $18,733.16 Total TVA $22,765.53
+Gross Sales $212,371.95
+Total Payments CASH $50,212.56
+V 21.1.126.0 - 91 - 8/24/2026 9:10 AM Copyright © NCR Corporation 2022 1 of 1`;
+const j41 = parseSalesMix(matriceDinText(JURNAL_41));
+t('restaurantul se identifică și dintr-un 4.1',
+  j41.magazine.length === 1 && j41.magazine[0] === 'FRYDAY TIMISOARA IULIUS TOWN',
+  JSON.stringify(j41.magazine));
+t('titlul „4.1 Sales Journal" nu intră în nume',
+  !(j41.magazine[0] ?? '').toLowerCase().includes('journal'));
+t('antetul se OPREȘTE la intervalul de date, nu înghite raportul',
+  !(j41.magazine[0] ?? '').includes('$') && (j41.magazine[0] ?? '').length <= 60,
+  `${(j41.magazine[0] ?? '').length} caractere`);
+t('sumele din raport nu ajung în numele restaurantului',
+  !/189|212|Comps|TVA/i.test(j41.magazine[0] ?? ''));
+t('perioada se citește și din 4.1',
+  j41.perioadaDe === '2026-08-17' && j41.perioadaLa === '2026-08-23');
+t('un 4.1 nu produce linii de vânzare — nu e un Sales Mix', j41.linii.length === 0);
+t('adaptorul îl declară raport pe un singur restaurant',
+  analizeaza47(j41, '4.1.pdf').scop === 'RESTAURANT_UNIC');
+t('… identificat în Store Master', analizeaza47(j41, '4.1.pdf').rezumat.matched === 1);
+t('titlul se sare după FORMĂ, deci merge și pentru rapoarte viitoare',
+  (() => {
+    const x = parseSalesMix(matriceDinText(`FRYDAY ORADEA Fiscal Year: 2026
+9.9 Raport Viitor
+Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Net Sales $1.00`));
+    return x.magazine[0] === 'FRYDAY ORADEA';
+  })());
+// plasa de siguranță, testată direct: un raport FĂRĂ interval de date nu are unde să
+// oprească antetul, deci scanarea ajunge departe. Atunci numele trebuie respins, nu
+// declarat — mai bine niciun magazin decât unul inventat din resturi de raport.
+t('un antet nemărginit NU produce un nume de restaurant din resturi',
+  (() => {
+    const x = parseSalesMix(matriceDinText(`FRYDAY TIMISOARA Fiscal Year: 2026
+4.1 Sales Journal
+IULIUS TOWN Period: 8 Week: 4
+Sales Cash Reconciliation
+Net Sales $189,606.42 Net Sales $189,606.42
+Total Comps 25% $163.63 - Charge Deposits $89,060.48`));
+    return x.magazine.length === 0;
+  })(),
+  'fără interval de date, antetul curge — plasa îl oprește');
+t('un nume care ajunge să conțină sume e respins',
+  (() => {
+    // parseSalesMix e exportat și primește matrici și din Excel, unde celulele cu valute
+    // ajung direct la el — nu trec prin filtrarea din matriceDinText
+    const x = parseSalesMix([
+      ['FRYDAY ORADEA', 'Fiscal Year: 2026'],
+      ['Net Sales $189,606.42'],
+      ['Total Comps 25% $163.63'],
+    ]);
+    return x.magazine.length === 0;
+  })(),
+  'un nume cu sume în el nu e un nume');
+t('un nume absurd de lung e respins',
+  (() => {
+    const lung = 'FRYDAY ' + 'CUVANT '.repeat(15);
+    const x = parseSalesMix(matriceDinText(`${lung} Fiscal Year: 2026\nPeriod: 8`));
+    return x.magazine.length === 0;
+  })());
+t('un antet fără nume de restaurant nu inventează unul',
+  (() => {
+    const x = parseSalesMix(matriceDinText(`Multiple Selection Fiscal Year: 2026
+4.1 Sales Journal
+Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Net Sales $1.00`));
+    return x.magazine.length === 0;
+  })());
+
 console.log('\n— B. Scopul fișierului se stabilește din antet —');
 t('mai multe restaurante ⇒ raport de REȚEA',
   din('FRYDAY ORADEA, FRYDAY GALATI').scop === 'RETEA_AGREGAT');

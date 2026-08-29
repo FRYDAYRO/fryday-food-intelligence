@@ -119,13 +119,21 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     // antetul pe coloane al raportului pe un singur restaurant: se citește doar la început,
     // înainte de capul de tabel sau de prima categorie
     if (inAntet) {
-      if (/^menu item name/i.test(text) || /^category\b/i.test(text) || /^groups?\/stores/i.test(text)) {
+      // Antetul se termină la intervalul de date — în toate rapoartele NCR observate el vine
+      // imediat după nume. Fără capătul ăsta, un raport care nu are „Menu Item Name" (4.1
+      // Sales Journal, de pildă) ar fi citit ca antet până la ultimul rând, iar numele
+      // restaurantului ar înghiți jumătate de raport.
+      if (/^menu item name/i.test(text) || /^category\b/i.test(text) || /^groups?\/stores/i.test(text)
+        || /\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)) {
         inAntet = false;
       } else {
         const stanga = text.replace(/\s*(fiscal\s+year|period|week)\b.*$/i, '').trim();
-        if (stanga && !/^4\.7\b/i.test(stanga) && !/sales\s+mix/i.test(stanga)
-          && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga) && !/^v \d+\./i.test(stanga)
-          && !/copyright/i.test(stanga)) {
+        // titlul raportului („4.7 Sales Mix", „4.1 Sales Journal", „2.9 Food Cost…") stă
+        // între fragmentele numelui și nu face parte din el — se sare după formă, nu după
+        // numărul raportului, ca să meargă și pentru rapoartele viitoare
+        const eTitlu = /^\d+\.\d+\b/.test(stanga);
+        if (stanga && !eTitlu && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga)
+          && !/^v \d+\./i.test(stanga) && !/copyright/i.test(stanga)) {
           fragmenteAntet.push(stanga);
         }
       }
@@ -170,7 +178,11 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
   // raportul pe un singur restaurant: numele adunat din antet, dacă nu exista deja o listă
   if (!tamponMagazine.trim() && fragmenteAntet.length) {
     const nume = fragmenteAntet.join(' ').replace(/\s+/g, ' ').trim();
-    if (/fryday|chicken/i.test(nume)) magazine.push(nume);
+    // plasă de siguranță: un nume de restaurant nu conține sume și nu are zeci de cuvinte.
+    // Dacă antetul a prins altceva decât un nume, e mai bine să nu declarăm niciun magazin
+    // decât să declarăm unul inventat din resturi de raport.
+    const pareNume = /fryday|chicken/i.test(nume) && !/[$%]/.test(nume) && nume.length <= 60;
+    if (pareNume) magazine.push(nume);
   }
 
   // subsolul raportului se poate lipi de ultima intrare — se taie, dar numele rămâne întreg
