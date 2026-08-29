@@ -19,7 +19,7 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { genereazaSeed } from '../src/lib/seed';
 import { buildCtx } from '../src/lib/engine';
-import { COMPANIE, perioadaDin, restaurant } from '../src/lib/fc-domeniu';
+import { perioadaDin, restaurant } from '../src/lib/fc-domeniu';
 import { analizaTimeline, type CerereTimeline } from '../src/lib/fc-timeline';
 import { bridgeFC, ORDINE_COMPONENTE } from '../src/lib/fc-bridge';
 import { analizaIngrediente } from '../src/lib/fc-ingrediente';

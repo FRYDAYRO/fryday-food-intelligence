@@ -1,5 +1,5 @@
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, kpiProdus, consumLunarIngredient, volumeLuna, perProdus } from '../src/lib/engine';
+import { buildCtx, kpiProdus, consumLunarIngredient, volumeLuna } from '../src/lib/engine';
 import {
   componenteCost, driveriProfit, grafIngredient, impactIngredient, optimizariMeniu,
   scaraPret, optimizariReteta, cicluViata, oportunitati, narativExecutiv, cockpit,

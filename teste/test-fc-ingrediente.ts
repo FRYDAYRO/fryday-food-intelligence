@@ -497,7 +497,6 @@ t('dovada avertizează că scenariul pornește de la prețul de AZI',
 
 console.log('\n— Săptămâna care taie granița lunii: prețul de la finele EI, versiunea de atunci —');
 const sSaptGranita: AppState = { ...sFix, vanzari: [...VANZARI, vz('2026-07-01', 'L01', 'INSTORE', 30, 600)] };
-const s27 = { tip: 'SAPTAMANA' as const, cheie: '2026-S27', de: '2026-06-29', la: '2026-07-05', zile: 7, partiala: false };
 const s28fix = perioadeDinLuna('2026-07', 'SAPTAMANA').filter(x => !x.partiala).find(x => x.de === '2026-07-06')!;
 const aGranita = analizaIngrediente(sSaptGranita, buildCtx(sSaptGranita), { perioada: s28fix, nivel: COMPANIE, canal: 'TOTAL', comparatie: 'SAPTAMANA_PRECEDENTA' });
 const rGranita = aGranita.randuri.find(r => r.ingredient === 'ING-A')!;
