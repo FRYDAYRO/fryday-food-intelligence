@@ -11,6 +11,7 @@ import {
 } from '../../lib/import-center';
 import { Btn, Camp, In, Insigna, Sel, cx } from '../../lib/ui';
 import { randImport, type RandImportTower } from '../../lib/fc-tower';
+import { verificaImport, verificaScriere } from '../../lib/fc-acces';
 import { useTower } from './context';
 import { Sectiune } from './parti';
 
@@ -31,13 +32,13 @@ export default function ImportCenter() {
   const [mesaj, setMesaj] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  if (!acces.poateScrie) {
+  const poateScrie = verificaScriere(acces.context);
+  if (!poateScrie.permis) {
     return (
       <div className="rounded-md border border-dashed bg-card p-6 text-center" data-zona="import-interzis">
         <div className="font-semibold">Importurile sunt rezervate analiștilor și administratorilor</div>
         <div className="mt-1 text-sm text-muted-foreground">
-          Rolul tău ({acces.rolSursa}) primește date deja importate. Serverul respinge oricum scrierea stării comune
-          pentru manageri — restricția nu e doar în interfață.
+          Rolul tău ({acces.rolSursa}) primește date deja importate. {poateScrie.motiv}
         </div>
       </div>
     );
@@ -72,7 +73,12 @@ export default function ImportCenter() {
     setPregatire(null); setParsat(null);
   };
 
-  const rand = pregatire ? randImport(pregatire.rezultat) : null;
+  const randBrut = pregatire ? randImport(pregatire.rezultat) : null;
+  // a doua poartă: chiar validat de motor, un import în afara scopului autorizat nu se activează
+  const poarta = randBrut ? verificaImport(acces.context, { scop: randBrut.scop, restaurante: randBrut.restaurante }) : null;
+  const rand = randBrut && poarta && !poarta.permis
+    ? { ...randBrut, poateActiva: false, motivBlocare: poarta.motiv }
+    : randBrut;
   const versiuni = state.versiuniImport ?? [];
 
   return (

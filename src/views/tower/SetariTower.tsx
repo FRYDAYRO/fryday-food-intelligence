@@ -5,6 +5,7 @@
 import { fmtPct } from '../../lib/engine';
 import { Insigna } from '../../lib/ui';
 import { descrieSelectie, origineDate } from '../../lib/fc-tower';
+import { etichetaScop } from '../../lib/fc-acces';
 import { useTower } from './context';
 import { Sectiune } from './parti';
 
@@ -23,10 +24,13 @@ export default function SetariTower() {
           <div>Restaurante vizibile: <b>{acces.locatiiVizibile.join(', ') || '—'}</b></div>
           <div>Vederea pe companie: <b>{acces.poateVedeaCompania ? 'permisă' : 'blocată'}</b></div>
           <div>Import și scriere: <b>{acces.poateScrie ? 'permise' : 'blocate'}</b></div>
+          <div>Scop curent: <b data-zona="eticheta-scop">{etichetaScop(acces.context)}</b></div>
+          <div>Canale permise: <b>{acces.context.channelAccess.join(', ')}</b></div>
           <div>
-            Filtrare aplicată de server:{' '}
-            <b>{acces.enforcatPeServer ? 'da — datele vin deja filtrate' : 'nu'}</b>
+            Unde e impusă restricția:{' '}
+            <b>{acces.context.enforcement === 'SERVER' ? 'pe server' : 'doar în client'}</b>
           </div>
+          <div className="text-xs text-muted-foreground">{acces.context.motivEnforcement}</div>
           {acces.avertismentEnforcement && (
             <div className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-orange-900"
               data-zona="avertisment-enforcement">
@@ -76,6 +80,45 @@ export default function SetariTower() {
 
       <Sectiune titlu="Scopul curent">
         <div className="rounded-md border bg-card px-3 py-2 text-sm" data-zona="scop-curent">{descrieSelectie(sel)}</div>
+      </Sectiune>
+
+      <Sectiune titlu="Urma de acces" sub="ultimele acțiuni înregistrate pe această stare">
+        <div className="overflow-x-auto rounded-md border bg-card" data-zona="audit-acces">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Când</th><th className="px-3 py-2">Actor</th>
+                <th className="px-3 py-2">Acțiune</th><th className="px-3 py-2">Scop</th>
+                <th className="px-3 py-2">Rezultat</th><th className="px-3 py-2">Detaliu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...(state.auditAcces ?? [])].reverse().slice(0, 25).map(x => (
+                <tr key={x.id} className="border-t align-top" data-audit={x.actiune}>
+                  <td className="num px-3 py-1.5 text-xs">{x.data.slice(0, 19).replace('T', ' ')}</td>
+                  <td className="px-3 py-1.5 text-xs">{x.actor}</td>
+                  <td className="px-3 py-1.5 text-xs font-semibold">{x.actiune}</td>
+                  <td className="px-3 py-1.5 text-xs">{x.scop}</td>
+                  <td className="px-3 py-1.5 text-xs">
+                    {x.rezultat === 'REFUZAT'
+                      ? <Insigna fel="EXCLUS">refuzat</Insigna>
+                      : <Insigna fel="ok">permis</Insigna>}
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{x.detaliu}</td>
+                </tr>
+              ))}
+              {(state.auditAcces ?? []).length === 0 && (
+                <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">
+                  Nicio acțiune înregistrată încă pe această stare.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          Se rețin ultimele intrări, fără date personale peste identificatorul de actor deja folosit
+          de auditul de import. Jurnalul complet și de nefalsificat e cel de pe serverul comun.
+        </p>
       </Sectiune>
     </div>
   );

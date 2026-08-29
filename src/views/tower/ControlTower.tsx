@@ -6,6 +6,8 @@
  */
 import { useMemo, useState } from 'react';
 import { configServer, useStore } from '../../lib/store';
+import { buildCtx } from '../../lib/engine';
+import { etichetaScop, inregistreazaAcces, stareAutorizata, verificaCerere } from '../../lib/fc-acces';
 import { Insigna, cx } from '../../lib/ui';
 import {
   SECTIUNI, accesTower, normalizeazaSelectie, origineDate, selectieImplicita,
@@ -44,16 +46,14 @@ export function BandaContext() {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-4 py-1.5 text-xs" data-zona="banda">
       <Insigna fel={acces.rol === 'TOP_MANAGEMENT' ? 'ok' : 'info'}>{acces.rol}</Insigna>
-      {acces.locatieImpusa && (
-        <span className="font-semibold" data-zona="locatie-impusa">restaurant: {acces.locatieImpusa}</span>
-      )}
+      <span className="font-semibold" data-zona="scop-banda">{etichetaScop(acces.context)}</span>
       <Insigna fel={origine.origine === 'IMPORTAT' ? 'ok' : origine.origine === 'GOL' ? 'EXCLUS' : 'warn'}>
         {origine.eticheta}
       </Insigna>
       {acces.enforcatPeServer
         ? <span className="text-muted-foreground">datele vin filtrate de server</span>
-        : <span className="text-orange-700" data-zona="fara-enforcement">
-          vizibilitatea e doar de interfață — vezi Setări
+        : <span className="text-orange-700" data-zona="fara-enforcement" title={acces.context.motivEnforcement}>
+          restricția nu e garantată de server — vezi Setări
         </span>}
     </div>
   );
@@ -98,20 +98,47 @@ export function ContinutTower({ initial = 'OVERVIEW' }: { initial?: IdSectiune }
 }
 
 export default function ControlTower() {
-  const { state, ctx, update, serverStare } = useStore();
+  const { state: stareIntreaga, update, serverStare } = useStore();
   const cfg = configServer();
   const acces = useMemo(
-    () => accesTower(state, cfg ? cfg.utilizator : null, !!serverStare?.filtrat),
-    [state.locatii, cfg?.utilizator.rol, cfg?.utilizator.locatie, serverStare?.filtrat],
+    () => accesTower(stareIntreaga, cfg ? cfg.utilizator : null, !!serverStare?.filtrat),
+    [stareIntreaga.locatii, cfg?.utilizator.rol, cfg?.utilizator.locatie, serverStare?.filtrat],
   );
+  /**
+   * Autorizarea taie datele ÎNAINTE de motoare, nu ascunde butoane după ele: turnul
+   * primește o stare din care rândurile neautorizate lipsesc, deci nici măcar o cerere
+   * fabricată de mână nu are ce să găsească.
+   */
+  const state = useMemo(() => stareAutorizata(stareIntreaga, acces.context), [stareIntreaga, acces]);
+  const ctx = useMemo(() => buildCtx(state), [state]);
   const [sel, setSelBrut] = useState<SelectieFC | null>(null);
+  /**
+   * Schimbarea de scop intră în urma de acces — inclusiv (mai ales) cea refuzată.
+   * Perioada și granularitatea nu: ele nu schimbă cine ce are voie să vadă.
+   */
+  const jurnalizeazaScop = (inainte: SelectieFC, dupa: SelectieFC) => {
+    const cerut = dupa.scop === 'RESTAURANT' ? dupa.locatie : null;
+    const acelasi = inainte.scop === dupa.scop && inainte.locatie === dupa.locatie && inainte.canal === dupa.canal;
+    if (acelasi) return;
+    const v = verificaCerere(acces.context, { locatie: cerut, canal: dupa.canal });
+    update(s => inregistreazaAcces(s, acces.context, {
+      actiune: v.permis ? 'SCHIMBARE_SCOP' : 'ACCES_REFUZAT',
+      scop: `${cerut ?? 'COMPANIE'} · ${dupa.canal}`,
+      rezultat: v.permis ? 'PERMIS' : 'REFUZAT',
+      detaliu: v.motiv ?? `Scop schimbat în ${cerut ?? 'Companie'}.`,
+      acum: new Date().toISOString(),
+    }));
+  };
   // selecția se re-normalizează la FIECARE randare: dacă rolul sau lista de restaurante
   // se schimbă după ce utilizatorul a ales ceva, alegerea veche nu are voie să supraviețuiască
   const efectiv = useMemo(
     () => normalizeazaSelectie(state, sel ?? selectieImplicita(state, acces), acces),
     [state, acces, sel],
   );
-  const setSel = (s: SelectieFC) => setSelBrut(normalizeazaSelectie(state, s, acces));
+  const setSel = (s: SelectieFC) => {
+    jurnalizeazaScop(efectiv, s);
+    setSelBrut(normalizeazaSelectie(state, s, acces));
+  };
 
   return (
     <TowerProvider value={{ state, ctx, sel: efectiv, setSel, acces, update }}>

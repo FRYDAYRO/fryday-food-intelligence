@@ -37,6 +37,7 @@ import {
   normalizeazaSelectie, punteTower, semnaleCalitate, sorteazaMagazine, tabelMagazine,
   type AccesTower, type GrupBridge, type SelectieFC, type SemnalCalitate,
 } from './fc-tower';
+import { stareAutorizata, verificaCerere, type Verdict } from './fc-acces';
 
 /** Formula exactă pe care Advisorul o rostește când dovezile nu ajung. */
 export const MESAJ_INSUFICIENT = 'Date insuficiente pentru o concluzie sigură.';
@@ -837,6 +838,9 @@ export function dosarAdvisor(state: AppState, ctx: Ctx, cerere: CerereAdvisor): 
   const praguri = cerere.praguri ?? PRAGURI_ADVISOR;
   const acces = cerere.acces;
   const sel = normalizeazaSelectie(state, cerere.selectie, acces);
+  // apărare în adâncime: chiar dacă apelantul a uitat proiecția, Advisorul nu vede
+  // rândurile altui restaurant. Pentru cine are acces la tot, e același obiect.
+  state = stareAutorizata(state, acces.context);
   const scop = descrieSelectie(sel);
   const cerereFC = cerereBaza(sel);
 
@@ -968,6 +972,16 @@ function lipsuri(a: AnalizaTimeline, bridge: FCBridge, ing: AnalizaIngrediente):
   }
   return rez;
 }
+
+/**
+ * Verdictul de autorizare al unei cereri de Advisor, ÎNAINTE de a o rula. Interfața îl
+ * folosește ca să refuze explicit, nu să ajusteze tăcut scopul cerut.
+ */
+export const verificaCerereAdvisor = (acces: AccesTower, sel: SelectieFC): Verdict =>
+  verificaCerere(acces.context, {
+    locatie: sel.scop === 'RESTAURANT' ? sel.locatie : null,
+    canal: sel.canal,
+  });
 
 /** Comoditate: construiește accesul și dosarul într-un singur apel. */
 export const dosarPentru = (
