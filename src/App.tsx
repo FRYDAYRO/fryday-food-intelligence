@@ -24,8 +24,10 @@ import RnDLab from './views/RnDLab';
 import Topuri from './views/Topuri';
 import ProductImpact from './views/ProductImpact';
 import Setari from './views/Setari';
+import ControlTower from './views/tower/ControlTower';
 
 const MODULE = [
+  { id: 'tower', nume: 'FC Control Tower', C: ControlTower },
   { id: 'cockpit', nume: 'Executive Cockpit', C: ExecutiveCockpit },
   { id: 'board', nume: 'Opportunity Board', C: OpportunityBoard },
   { id: 'dashboard', nume: 'Dashboard', C: Dashboard },
@@ -146,7 +148,7 @@ function AliniazaSelectia() {
 }
 
 function Continut() {
-  const [modul, setModul] = useState<(typeof MODULE)[number]['id']>('cockpit');
+  const [modul, setModul] = useState<(typeof MODULE)[number]['id']>('tower');
   const Activ = MODULE.find(m => m.id === modul)!.C;
   return (
     <div className="flex min-h-screen">
