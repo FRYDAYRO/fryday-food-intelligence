@@ -230,6 +230,24 @@ export interface IntrareAudit {
   activat: boolean;
 }
 
+export type ActiuneAuditAcces =
+  | 'SESIUNE' | 'SCHIMBARE_SCOP' | 'IMPORT' | 'ACTIVARE' | 'SIMULARE' | 'ADVISOR' | 'ACCES_REFUZAT';
+
+/** Urma de audit a accesului: cine, ce a cerut, pe ce scop, permis sau refuzat. */
+export interface IntrareAuditAcces {
+  id: string;
+  data: string;
+  /** Identificatorul actorului — exact cel folosit deja de auditul de import. */
+  actor: string;
+  rol: 'STORE_MANAGER' | 'TOP_MANAGEMENT';
+  actiune: ActiuneAuditAcces;
+  /** Scopul asupra căruia s-a acționat. */
+  scop: string;
+  rezultat: 'PERMIS' | 'REFUZAT';
+  /** Motivul refuzului sau o descriere scurtă. Fără date personale. */
+  detaliu: string;
+}
+
 export interface AppState {
   locatii: Locatie[];
   furnizori: Furnizor[];
@@ -251,6 +269,8 @@ export interface AppState {
   istoricPreturi?: IntrarePretIstoric[];
   /** Urma de audit a importurilor. */
   auditImport?: IntrareAudit[];
+  /** Urma de audit a accesului (scop, simulări, Advisor, importuri). */
+  auditAcces?: IntrareAuditAcces[];
   scenarii: Scenariu[];
   pretFurnizori: PretFurnizor[];
   labor: CostLabor[];

@@ -568,8 +568,11 @@ t('manager NEfiltrat de server → avertisment explicit',
 t('banda arată lipsa de enforcement',
   randeaza(h(BandaContext, {}), context({ acces: accesTower(s0, null, false) }))
     .includes('data-zona="fara-enforcement"'));
-t('banda arată restaurantul impus al managerului',
-  randeaza(h(BandaContext, {}), context({ acces: ACCES_MANAGER })).includes('data-zona="locatie-impusa"'));
+t('banda arată scopul, fără ambiguitate, pentru manager',
+  randeaza(h(BandaContext, {}), context({ acces: ACCES_MANAGER })).includes('Restaurant: L02'));
+t('… și pentru management', randeaza(h(BandaContext, {})).includes('Companie'));
+t('scopul e marcat ca zonă proprie, mereu vizibilă',
+  randeaza(h(BandaContext, {})).includes('data-zona="scop-banda"'));
 
 // ————————————————————————————————————————————————————————— scopul se propagă în rezultate
 

@@ -9,6 +9,7 @@ import {
   type GranularitateTower, type SelectieFC,
 } from '../../lib/fc-tower';
 import type { FCChannel } from '../../lib/fc-domeniu';
+import { restauranteVizibile } from '../../lib/fc-acces';
 import { useTower } from './context';
 
 const CANALE: { v: FCChannel; l: string }[] = [
@@ -82,11 +83,11 @@ export default function Bara() {
         disabled={sel.scop !== 'RESTAURANT' || !!acces.locatieImpusa}
         onChange={e => aplica({ locatie: e.target.value })}>
         {sel.scop !== 'RESTAURANT' && <option value="">toată rețeaua</option>}
-        {acces.locatiiVizibile.map(l => <option key={l} value={l}>{l}</option>)}
+        {restauranteVizibile(state, acces.context).map(l => <option key={l} value={l}>{l}</option>)}
       </Sel>
 
       <div className="inline-flex overflow-hidden rounded-md border" role="group" aria-label="Canal">
-        {CANALE.map(c => (
+        {CANALE.filter(c => acces.context.channelAccess.includes(c.v)).map(c => (
           <button key={c.v} type="button" data-canal={c.v}
             aria-pressed={sel.canal === c.v}
             onClick={() => aplica({ canal: c.v })}

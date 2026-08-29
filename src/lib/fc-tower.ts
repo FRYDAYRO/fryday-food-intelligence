@@ -30,6 +30,10 @@ import type {
 import type { SimulareFC, ScenariuFC, IdEfect } from './fc-simulare';
 import { ETICHETA_SURSA, type RezultatCentral } from './import-center';
 import { areDateDemo } from './reconciliere';
+import {
+  ENFORCEMENT_LOCAL, ENFORCEMENT_NEFILTRAT, contextAutorizare, verificaCerere,
+  type ContextAutorizare, type UtilizatorAutorizat,
+} from './fc-acces';
 
 // ————————————————————————————————————————————————————————— navigarea
 
@@ -73,7 +77,7 @@ export const sectiuneDupaId = (id: IdSectiune): Sectiune =>
  */
 export type RolTower = 'STORE_MANAGER' | 'TOP_MANAGEMENT';
 
-export interface UtilizatorTower { rol: string; locatie?: string | null; nume?: string | null }
+export type UtilizatorTower = UtilizatorAutorizat;
 
 export interface AccesTower {
   rol: RolTower;
@@ -91,15 +95,12 @@ export interface AccesTower {
   enforcatPeServer: boolean;
   avertismentEnforcement: string | null;
   sectiuni: IdSectiune[];
+  /**
+   * Contextul canonic de autorizare. TOATE drepturile de mai sus se derivă din el:
+   * există o singură sursă de adevăr, nu două care pot diverge.
+   */
+  context: ContextAutorizare;
 }
-
-const AVERTISMENT_LOCAL =
-  'Aplicația rulează fără server: datele sunt locale și integrale, iar rolul e doar o preferință de afișare. '
-  + 'Restricția reală pe restaurant există numai când ești autentificat pe serverul comun, care filtrează datele înainte de a le trimite.';
-
-const AVERTISMENT_NEFILTRAT =
-  'Ești autentificat ca manager, dar serverul nu a marcat starea ca filtrată — interfața limitează vederea, '
-  + 'însă limitarea nu e garantată de server. Tratează-o ca pe o comoditate, nu ca pe o măsură de securitate.';
 
 /**
  * Ce vede utilizatorul curent. `filtratDeServer` vine din răspunsul serverului
@@ -110,33 +111,27 @@ export function accesTower(
   utilizator: UtilizatorTower | null,
   filtratDeServer: boolean,
 ): AccesTower {
-  const toate = state.locatii.map(l => l.cod).sort();
-  const rolSursa = utilizator?.rol ?? 'LOCAL';
-  const eManager = rolSursa === 'MANAGER' && !!utilizator?.locatie;
-
-  if (eManager) {
-    const loc = utilizator!.locatie!;
-    return {
-      rol: 'STORE_MANAGER', rolSursa, locatieImpusa: loc,
-      poateVedeaCompania: false, poateScrie: false,
-      locatiiVizibile: toate.includes(loc) ? [loc] : [loc],
-      enforcatPeServer: filtratDeServer,
-      avertismentEnforcement: filtratDeServer ? null : AVERTISMENT_NEFILTRAT,
-      sectiuni: SECTIUNI.filter(s => !s.doarCompanie && !s.scrie).map(s => s.id),
-    };
-  }
+  const context = contextAutorizare(state, utilizator, filtratDeServer);
+  const eManager = context.role === 'STORE_MANAGER';
   return {
-    rol: 'TOP_MANAGEMENT', rolSursa, locatieImpusa: null,
-    poateVedeaCompania: true, poateScrie: true,
-    locatiiVizibile: toate,
-    enforcatPeServer: utilizator !== null,
-    avertismentEnforcement: utilizator === null ? AVERTISMENT_LOCAL : null,
-    sectiuni: SECTIUNI.map(s => s.id),
+    rol: context.role,
+    rolSursa: context.rolSursa,
+    locatieImpusa: context.storeId,
+    poateVedeaCompania: context.companyAccess,
+    poateScrie: context.role === 'TOP_MANAGEMENT',
+    locatiiVizibile: context.allowedStoreIds,
+    enforcatPeServer: context.enforcement === 'SERVER',
+    avertismentEnforcement: context.enforcement === 'SERVER' ? null
+      : (eManager ? ENFORCEMENT_NEFILTRAT : ENFORCEMENT_LOCAL),
+    sectiuni: eManager
+      ? SECTIUNI.filter(s => !s.doarCompanie && !s.scrie).map(s => s.id)
+      : SECTIUNI.map(s => s.id),
+    context,
   };
 }
 
 export const poateVedeaLocatia = (a: AccesTower, locatie: string): boolean =>
-  a.locatieImpusa === null || a.locatieImpusa === locatie;
+  verificaCerere(a.context, { locatie }).permis;
 
 export const poateVedeaSectiunea = (a: AccesTower, id: IdSectiune): boolean =>
   a.sectiuni.includes(id);
