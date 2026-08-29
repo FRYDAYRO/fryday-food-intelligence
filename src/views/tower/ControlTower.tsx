@@ -9,6 +9,7 @@ import { configServer, useStore } from '../../lib/store';
 import { buildCtx } from '../../lib/engine';
 import { etichetaScop, inregistreazaAcces, stareAutorizata, verificaCerere } from '../../lib/fc-acces';
 import { Insigna, cx } from '../../lib/ui';
+import { MESAJ_NEMAPAT } from '../../lib/restaurante-fryday';
 import {
   SECTIUNI, accesTower, normalizeazaSelectie, origineDate, selectieImplicita,
   type IdSectiune, type SelectieFC,
@@ -79,9 +80,31 @@ export function NavigareTower({ activ, onAlege }: { activ: IdSectiune; onAlege: 
   );
 }
 
+/**
+ * Ce se vede când selecția e un restaurant real fără identificator verificat. Nu e o eroare:
+ * e singurul răspuns onest. Alternativa — să arăți cifrele altcuiva sub numele lui — ar fi
+ * o cifră greșită prezentată drept corectă.
+ */
+function RestaurantNemapat({ nume }: { nume: string }) {
+  return (
+    <div className="rounded-md border border-dashed bg-card px-6 py-10 text-center" data-zona="restaurant-nemapat">
+      <div className="font-display text-lg font-extrabold tracking-tight">{nume}</div>
+      <div className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+        <b>{MESAJ_NEMAPAT}</b>
+      </div>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+        Numele vine din raportul 4.7, care listează restaurantele doar pe nume — fără
+        identificator de magazin. Până la un export cu acest identificator, restaurantul nu se
+        poate lega de vânzări, consum sau Food Cost. Nu se afișează datele altui restaurant în
+        locul lui și nu se ghicește o potrivire după nume.
+      </p>
+    </div>
+  );
+}
+
 /** Conținutul turnului, presupunând contextul deja pus — ușor de randat și în teste. */
 export function ContinutTower({ initial = 'OVERVIEW' }: { initial?: IdSectiune }) {
-  const { acces } = useTower();
+  const { acces, nemapat } = useTower();
   const [sectiune, setSectiune] = useState<IdSectiune>(initial);
   const activ = acces.sectiuni.includes(sectiune) ? sectiune : 'OVERVIEW';
   const Ecran = ECRANE[activ];
@@ -91,7 +114,7 @@ export function ContinutTower({ initial = 'OVERVIEW' }: { initial?: IdSectiune }
       <Bara />
       <BandaContext />
       <main className="p-4 md:p-6" data-zona="continut" data-sectiune-activa={activ}>
-        <Ecran onNavigheaza={setSectiune} />
+        {nemapat ? <RestaurantNemapat nume={nemapat} /> : <Ecran onNavigheaza={setSectiune} />}
       </main>
     </div>
   );
@@ -112,6 +135,8 @@ export default function ControlTower() {
   const state = useMemo(() => stareAutorizata(stareIntreaga, acces.context), [stareIntreaga, acces]);
   const ctx = useMemo(() => buildCtx(state), [state]);
   const [sel, setSelBrut] = useState<SelectieFC | null>(null);
+  // restaurantul real ales fără identificator verificat — cât e setat, nu se arată cifre
+  const [nemapat, setNemapat] = useState<string | null>(null);
   /**
    * Schimbarea de scop intră în urma de acces — inclusiv (mai ales) cea refuzată.
    * Perioada și granularitatea nu: ele nu schimbă cine ce are voie să vadă.
@@ -141,7 +166,7 @@ export default function ControlTower() {
   };
 
   return (
-    <TowerProvider value={{ state, ctx, sel: efectiv, setSel, acces, update }}>
+    <TowerProvider value={{ state, ctx, sel: efectiv, setSel, acces, update, nemapat, setNemapat }}>
       <div className="-m-4 md:-m-6">
         <ContinutTower />
       </div>
