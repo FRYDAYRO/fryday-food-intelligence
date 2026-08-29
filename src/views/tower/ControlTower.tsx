@@ -18,6 +18,7 @@ import { TowerProvider, useTower } from './context';
 import Bara from './Bara';
 import Overview from './Overview';
 import AnalizaFC from './AnalizaFC';
+import Variatii from './Variatii';
 import Nbo29 from './Nbo29';
 import Pmix47 from './Pmix47';
 import Reconciliere from './Reconciliere';
@@ -30,6 +31,7 @@ import SetariTower from './SetariTower';
 const ECRANE: Record<IdSectiune, (p: { onNavigheaza: (s: IdSectiune) => void }) => React.ReactElement> = {
   OVERVIEW: ({ onNavigheaza }) => <Overview onNavigheaza={onNavigheaza} />,
   ANALIZA_FC: () => <AnalizaFC />,
+  VARIATII: () => <Variatii />,
   NBO29: () => <Nbo29 />,
   PMIX47: () => <Pmix47 />,
   RECONCILIERE: () => <Reconciliere />,

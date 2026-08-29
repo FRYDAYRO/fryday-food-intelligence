@@ -81,14 +81,16 @@ const bridge = bridgeFC(s0, ctx0, cerereBaza(SEL));
 
 // ————————————————————————————————————————————————————————— navigarea
 
-console.log('— Navigarea: zece secțiuni, în ordinea cerută —');
-const NUME_CERUTE = ['Overview', 'Analiză FC', 'NBO 2.9', 'PMIX 4.7', 'Reconciliere',
+console.log('— Navigarea: unsprezece secțiuni, în ordinea cerută —');
+const NUME_CERUTE = ['Overview', 'Analiză FC', 'Variații', 'NBO 2.9', 'PMIX 4.7', 'Reconciliere',
   'Ingredient Intelligence', 'Simulări', 'Importuri', 'AI Advisor', 'Setări'];
-t('există exact zece secțiuni', SECTIUNI.length === 10, `${SECTIUNI.length}`);
+t('există exact unsprezece secțiuni', SECTIUNI.length === 11, `${SECTIUNI.length}`);
 t('numele și ordinea sunt cele cerute', SECTIUNI.map(s => s.nume).join('|') === NUME_CERUTE.join('|'));
 t('AI Advisor nu mai e rezervat: are motor determinist în spate', !sectiuneDupaId('AI_ADVISOR').placeholder);
 t('nicio secțiune nu mai e placeholder', SECTIUNI.filter(s => s.placeholder).length === 0);
 t('un id necunoscut cade pe Overview', sectiuneDupaId('OVERVIEW').id === 'OVERVIEW');
+t('Variații e o secțiune de citire, vizibilă și managerului de restaurant',
+  !sectiuneDupaId('VARIATII').scrie && !sectiuneDupaId('VARIATII').doarCompanie);
 
 const htmlNav = randeaza(h(NavigareTower, { activ: 'OVERVIEW', onAlege: () => undefined }));
 t('navigarea randează toate secțiunile pentru management',

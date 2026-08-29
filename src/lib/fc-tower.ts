@@ -42,7 +42,7 @@ import {
 // ————————————————————————————————————————————————————————— navigarea
 
 export type IdSectiune =
-  | 'OVERVIEW' | 'ANALIZA_FC' | 'NBO29' | 'PMIX47' | 'RECONCILIERE'
+  | 'OVERVIEW' | 'ANALIZA_FC' | 'VARIATII' | 'NBO29' | 'PMIX47' | 'RECONCILIERE'
   | 'INGREDIENTE' | 'SIMULARI' | 'IMPORTURI' | 'AI_ADVISOR' | 'SETARI';
 
 export interface Sectiune {
@@ -60,6 +60,7 @@ export interface Sectiune {
 export const SECTIUNI: Sectiune[] = [
   { id: 'OVERVIEW', nume: 'Overview', descriere: 'KPI-urile perioadei, puntea FC și restaurantele', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'ANALIZA_FC', nume: 'Analiză FC', descriere: 'Evoluția în timp, defalcări și clasamente', doarCompanie: false, scrie: false, placeholder: false },
+  { id: 'VARIATII', nume: 'Variații', descriere: 'Săptămâna și luna încheiate: ΔFC, Δpreț pe ingredient și de unde vine mișcarea', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'NBO29', nume: 'NBO 2.9', descriere: 'Consumul raportat, pe material și categorie', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'PMIX47', nume: 'PMIX 4.7', descriere: 'Vânzările pe produs care stau sub FC-ul teoretic', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'RECONCILIERE', nume: 'Reconciliere', descriere: 'Ce explică puntea și ce rămâne neexplicat', doarCompanie: false, scrie: false, placeholder: false },

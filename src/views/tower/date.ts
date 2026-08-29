@@ -7,6 +7,7 @@ import { analizaTimeline, serieTimeline, type AnalizaTimeline, type PunctTimelin
 import { bridgeFC, type FCBridge } from '../../lib/fc-bridge';
 import { analizaIngrediente, type AnalizaIngrediente } from '../../lib/fc-ingrediente';
 import { simuleazaFC, type ScenariuFC, type SimulareFC } from '../../lib/fc-simulare';
+import { tablouVariatii, type TabloulVariatii } from '../../lib/fc-variatii';
 import {
   cerereBaza, cerereDin, comparatieIngrediente, intervalSerie, nivelDin,
   type CaleDrill, type SelectieFC,
@@ -46,6 +47,18 @@ export function useSerie(nrPerioade = 12): PunctTimeline[] {
       granularitate: sel.granularitate, nivel: nivelDin(sel), canal: sel.canal,
     });
   }, [state, ctx, sel.ancora, sel.granularitate, sel.scop, sel.locatie, sel.canal, nrPerioade]);
+}
+
+/**
+ * Tabloul de variații. Ia din bară scopul (companie/restaurant), canalul și ancora;
+ * granularitatea NU o ia, pentru că vederea arată AMBELE cadențe deodată — asta e tot
+ * rostul ei. Comparația e fixată la perioada precedentă din același motiv.
+ */
+export function useVariatii(): TabloulVariatii {
+  const { state, ctx, sel } = useTower();
+  return useMemo(() => tablouVariatii(state, ctx, {
+    ancora: sel.ancora, nivel: nivelDin(sel), canal: sel.canal,
+  }), [state, ctx, sel.ancora, sel.scop, sel.locatie, sel.canal]);
 }
 
 /** Simularea rulează pe o COPIE — motorul nu atinge niciodată datele reale. */
