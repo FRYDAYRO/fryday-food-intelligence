@@ -25,6 +25,14 @@ export interface SalesMix {
   perioadaDe: string | null;
   perioadaLa: string | null;
   magazine: string[];
+  /**
+   * Raportul e rulat la nivel de companie („Corporate" în antet), fără listă de magazine.
+   * Nu e un restaurant și nu se atribuie niciunuia — dar nici nu e „scop nedeclarat":
+   * știm exact ce acoperă.
+   */
+  corporativ: boolean;
+  /** Eticheta EXACTĂ prin care raportul și-a declarat scopul de rețea („Corporate", „All Stores"…). */
+  etichetaScop: string | null;
   totalQty: number | null;
   totalExt: number | null;
 }
@@ -78,9 +86,33 @@ const GUNOI = [
 ];
 
 /** Extrage liniile de vânzare dintr-o matrice brută (Excel sau text tabelat). */
+/** Etichetele prin care rapoartele NCR declară că acoperă toată rețeaua, nu un restaurant. */
+const SCOP_RETEA = /^(corporate|all\s+stores|multiple\s+selection)\b/i;
+
 export function parseSalesMix(matrice: unknown[][]): SalesMix {
   const linii: LinieSalesMix[] = [];
   const magazine: string[] = [];
+  // Lista de restaurante se rupe pe mai multe rânduri, iar ruptura cade uneori ÎN MIJLOCUL
+  // unui nume („…, FRYDAY" / „PLOIESTI DT, …"). Tăiat pe rânduri, „PLOIESTI DT" nu conține
+  // „FRYDAY" și ar fi aruncat tăcut, iar orfanul „FRYDAY" ar trece drept restaurant. De aceea
+  // zona se adună întâi ca text continuu și abia apoi se desparte pe virgule.
+  let tamponMagazine = '';
+  /**
+   * A doua formă de antet: raportul rulat pe UN SINGUR restaurant nu are secțiunea
+   * „Groups/Stores" — pune numele în colțul din stânga sus, pe două coloane:
+   *
+   *   FRYDAY TIMISOARA      Fiscal Year: 2026
+   *   4.7 Sales Mix
+   *   IULIUS TOWN           Period: 8 Week: 4
+   *
+   * Numele se rupe între rânduri, cu titlul raportului la mijloc. Se adună partea din
+   * stânga a rândurilor de antet și se lipește la final — altfel raportul unui restaurant
+   * ar rămâne fără restaurant, iar cifrele lui n-ar avea unde să meargă.
+   */
+  const fragmenteAntet: string[] = [];
+  let inAntet = true;
+  let corporativ = false;
+  let etichetaScop: string | null = null;
   let categorie = '';
   let perioadaDe: string | null = null, perioadaLa: string | null = null;
   let totalQty: number | null = null, totalExt: number | null = null;
@@ -97,6 +129,48 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     const text = celule.filter(Boolean).join(' ').trim();
     if (!text) continue;
 
+    // Datele se citesc ÎNAINTEA antetului: „Corporate Start Date: 08/01/2026" e un singur
+    // rând care poartă și scopul, și data. Dacă scanarea antetului l-ar consuma prima,
+    // data s-ar pierde.
+    const sd = /start\s*date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i.exec(text);
+    if (sd) perioadaDe = dataUS(sd[1]);
+    const ed = /end\s*date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i.exec(text);
+    if (ed) perioadaLa = dataUS(ed[1]);
+
+    // antetul pe coloane al raportului pe un singur restaurant: se citește doar la început,
+    // înainte de capul de tabel sau de prima categorie
+    if (inAntet) {
+      // Antetul se termină la intervalul de date — în toate rapoartele NCR observate el vine
+      // imediat după nume. Fără capătul ăsta, un raport care nu are „Menu Item Name" (4.1
+      // Sales Journal, de pildă) ar fi citit ca antet până la ultimul rând, iar numele
+      // restaurantului ar înghiți jumătate de raport.
+      if (/^menu item name/i.test(text) || /^category\b/i.test(text) || /^groups?\/stores/i.test(text)
+        || /\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)
+        || /^raw material/i.test(text) || /usage in (units|dollars)/i.test(text)) {
+        inAntet = false;
+      } else {
+        const stanga = text.replace(/\s*(fiscal\s+year|period|week)\b.*$/i, '').trim();
+        // titlul raportului („4.7 Sales Mix", „4.1 Sales Journal", „2.9 Food Cost…") stă
+        // între fragmentele numelui și nu face parte din el — se sare după formă, nu după
+        // numărul raportului, ca să meargă și pentru rapoartele viitoare
+        // Rapoartele la nivel de rețea își declară scopul printr-o etichetă, nu printr-un
+        // nume de restaurant. NCR folosește mai multe, în funcție de raport:
+        //   „Corporate"          — 2.9 Food Cost
+        //   „All Stores"         — 4.1 Sales Journal
+        //   „Multiple Selection" — 4.7 Sales Mix (care are și lista explicită de magazine)
+        // Lista e explicită, nu ghicită: o etichetă necunoscută rămâne scop nedeclarat,
+        // fiindcă „nu știu ce acoperă" e un răspuns mai bun decât o presupunere.
+        const mScop = SCOP_RETEA.exec(stanga);
+        if (mScop) { corporativ = true; etichetaScop ??= mScop[1]; continue; }
+        if (sd || ed) continue;   // rând de dată, nu de nume
+        const eTitlu = /^\d+\.\d+\b/.test(stanga);
+        if (stanga && !eTitlu && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga)
+          && !/^v \d+\./i.test(stanga) && !/copyright/i.test(stanga)) {
+          fragmenteAntet.push(stanga);
+        }
+      }
+    }
+
     // perioada raportului
     if (/\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)) {
       const p = text.split('-');
@@ -104,10 +178,10 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
       continue;
     }
     // lista de restaurante
-    if (/^groups?\/stores/i.test(text)) { inMagazine = true; continue; }
+    if (/^groups?\/stores/i.test(text)) { inMagazine = true; tamponMagazine = ''; continue; }
     if (inMagazine) {
       if (/^v \d+\./i.test(text) || /copyright/i.test(text)) { inMagazine = false; continue; }
-      magazine.push(...text.split(',').map(x => x.trim()).filter(x => /fryday|chicken/i.test(x)));
+      tamponMagazine += (tamponMagazine ? ' ' : '') + text;
       continue;
     }
     // categoria
@@ -133,7 +207,22 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     linii.push({ nume, numeBaza, categorie, canal, meniuComponenta, qty: q.v, pret: p.v, ext: e.v });
   }
 
-  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], totalQty, totalExt };
+  // raportul pe un singur restaurant: numele adunat din antet, dacă nu exista deja o listă
+  if (!tamponMagazine.trim() && fragmenteAntet.length) {
+    const nume = fragmenteAntet.join(' ').replace(/\s+/g, ' ').trim();
+    // plasă de siguranță: un nume de restaurant nu conține sume și nu are zeci de cuvinte.
+    // Dacă antetul a prins altceva decât un nume, e mai bine să nu declarăm niciun magazin
+    // decât să declarăm unul inventat din resturi de raport.
+    const pareNume = /fryday|chicken/i.test(nume) && !/[$%]/.test(nume) && nume.length <= 60;
+    if (pareNume) magazine.push(nume);
+  }
+
+  // subsolul raportului se poate lipi de ultima intrare — se taie, dar numele rămâne întreg
+  magazine.push(...tamponMagazine.split(',')
+    .map(x => x.replace(/\s+\d+ of \d+\b.*$/i, '').trim())
+    .filter(x => /fryday|chicken/i.test(x)));
+
+  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], corporativ, etichetaScop, totalQty, totalExt };
 }
 
 /**
@@ -175,6 +264,13 @@ export function matriceDinText(text: string): unknown[][] {
       rez.push([l]);
       continue;
     }
+    // Antetul pe coloane al raportului pe un singur restaurant: numele restaurantului stă
+    // în stânga, iar în dreapta „Fiscal Year / Period / Week". Rândurile astea nu sunt
+    // vânzări — dacă ajung în tamponul de denumiri se pierd la prima resetare, iar raportul
+    // rămâne fără restaurant. Trec ca rânduri proprii, ca parserul să le poată citi.
+    if (/\b(fiscal\s+year|period\s*:|week\s*:|start\s*date\s*:|end\s*date\s*:)/i.test(l)
+      || /^(corporate|all\s+stores|multiple\s+selection)\b/i.test(l)) { tampon = []; rez.push([l]); continue; }
+
     const m = FINAL.exec(l);
     if (!m) {
       const ultim = rez[rez.length - 1];
