@@ -960,7 +960,7 @@ export function randImport(r: RezultatCentral): RandImportTower {
 export type CodSemnal =
   | 'NECLASIFICAT' | 'CANAL_NECUNOSCUT' | 'RETETA_LIPSA' | 'PRET_LIPSA' | 'PMIX_LIPSA'
   | 'RESTAURANT_LIPSA' | 'RECONCILIERE_INCOMPLETA' | 'PERIOADA_INCOMPLETA' | 'DATE_DEMO'
-  | 'INGREDIENT_LIPSA' | 'ISTORIC_PRET';
+  | 'INGREDIENT_LIPSA' | 'ISTORIC_PRET' | 'COST_INCOMPLET';
 
 export interface SemnalCalitate {
   cod: CodSemnal;
@@ -1008,6 +1008,15 @@ export function semnaleCalitate(
       cod: 'RETETA_LIPSA', nivel: 'ATENTIE', titlu: 'Produse vândute fără rețetă',
       detaliu: 'Costul lor nu se poate calcula, deci nu intră în FC-ul teoretic — nu au fost costate cu zero.',
       nrElemente: c.produseFaraReteta.length, exemple: c.produseFaraReteta.slice(0, 8), sectiune: 'PMIX47',
+    });
+  }
+  if (c.netCostIncomplet > 0) {
+    s.push({
+      cod: 'COST_INCOMPLET', nivel: 'ATENTIE', titlu: 'Food Cost calculat pe rețete incomplete',
+      detaliu: `${c.netCostIncomplet.toFixed(2)} lei din vânzări vin din produse cu rețetă, dar cu cel puțin `
+        + 'o componentă fără preț. Componenta lipsă intră cu 0 lei, deci FC-ul afișat e o LIMITĂ DE JOS, '
+        + 'nu cifra exactă. Până la completarea prețurilor, cifra se citește ca „cel puțin atât".',
+      nrElemente: c.produseCostIncomplet.length, exemple: c.produseCostIncomplet.slice(0, 8), sectiune: 'PMIX47',
     });
   }
   if (c.preturiLipsa.length) {

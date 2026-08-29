@@ -55,7 +55,7 @@ export default function Nbo29() {
       <Sectiune titlu="Materialele raportate" sub={`primele ${randuri.length} din ${bridge.randuri.length}, după cost actual`}>
         <div className="overflow-x-auto rounded-md border bg-card" data-zona="materiale29">
           <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Material</th>
                 <th className="px-3 py-2">Categorie în raport</th>

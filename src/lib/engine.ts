@@ -119,9 +119,13 @@ function costLinie(l: LinieReteta, ctx: CtxCost, data: string, memo: Map<string,
   if (!ing) return ZERO;
   const f = convFactor(l.um, ing.um);
   if (f == null) return ZERO;
-  const c = cb * f * pretLa(ing, data);
+  const pret = pretLa(ing, data);
+  const c = cb * f * pret;
   const ePaper = l.tipComp === 'AMBALAJ' || ing.tip === 'PACKAGING';
-  return { food: ePaper ? 0 : c, paper: ePaper ? c : 0, total: c, incomplet: false };
+  // un preț absent sau zero NU înseamnă „ingredient gratuit", ci „cost necunoscut": linia
+  // rămâne 0 lei (nu inventăm o valoare), dar se declară incompletă ca să nu treacă drept
+  // cost calculat. Altfel o vânzare cu ingredient neprețuit ar coborî tăcut Food Cost-ul.
+  return { food: ePaper ? 0 : c, paper: ePaper ? c : 0, total: c, incomplet: !(pret > 0) };
 }
 
 // §3.4 — cost produs pe canal (recursiv, combo inclus)

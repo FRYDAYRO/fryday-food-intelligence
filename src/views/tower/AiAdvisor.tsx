@@ -65,7 +65,7 @@ function Explicatie({ d }: { d: DosarAdvisor }) {
     <div className="space-y-2" data-zona="explicatie">
       <div className="overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-3 py-2">Cauză</th>
               <th className="px-3 py-2 text-right">Lei</th>
