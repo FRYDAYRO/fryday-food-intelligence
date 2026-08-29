@@ -1211,7 +1211,7 @@ export function optiuniRestaurant(state: AppState, acces: AccesTower, cautare = 
 
   const q = cautare.trim();
   const potrivit = (o: OptiuneRestaurant) =>
-    !q || cautaRestaurante(q, [{ displayName: o.eticheta, storeId: null, source: 'legacy-4.7', verified: false }]).length > 0;
+    !q || cautaRestaurante(q, [{ displayName: o.eticheta, storeId: null, aliases: [], source: 'legacy-4.7', verified: false }]).length > 0;
 
   return {
     toate: acces.poateVedeaCompania

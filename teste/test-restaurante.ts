@@ -89,9 +89,11 @@ t('niciun cod de tip L01/L02 nu s-a lipit de un restaurant real',
   !RESTAURANTE_FRYDAY.some(r => /^L\d+$/.test(String(r.storeId))));
 t('modelul are exact câmpurile cerute, fără altele inventate',
   RESTAURANTE_FRYDAY.every(r => JSON.stringify(Object.keys(r).sort())
-    === JSON.stringify(['displayName', 'source', 'storeId', 'verified'])));
+    === JSON.stringify(['aliases', 'displayName', 'source', 'storeId', 'verified'])));
+t('niciun alias inventat — toate pornesc goale',
+  RESTAURANTE_FRYDAY.every(r => Array.isArray(r.aliases) && r.aliases.length === 0));
 t('un storeId adăugat dar neverificat NU face restaurantul mapat',
-  !esteMapat({ displayName: 'X', storeId: '1234', source: 'legacy-4.7', verified: false }));
+  !esteMapat({ displayName: 'X', storeId: '1234', aliases: [], source: 'legacy-4.7', verified: false }));
 
 console.log('\n\u2014 C. Căutarea \u2014');
 t('căutarea goală întoarce toate cele 30', cautaRestaurante('').length === 30);

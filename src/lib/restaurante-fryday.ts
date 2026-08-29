@@ -25,6 +25,11 @@ export interface RestaurantFryday {
   displayName: NumeRestaurant;
   /** Identificatorul din sistemul-sursă. `null` până când un export NCR îl confirmă. */
   storeId: string | null;
+  /**
+   * Denumiri alternative observate în rapoarte reale. Pornesc GOALE: un alias se adaugă
+   * doar când a fost văzut într-un fișier, niciodată ghicit dintr-o abreviere plauzibilă.
+   */
+  aliases: string[];
   source: 'legacy-4.7';
   verified: boolean;
 }
@@ -72,7 +77,7 @@ const NUME: NumeRestaurant[] = [
  * observat în sursă, deci niciunul nu se inventează.
  */
 export const RESTAURANTE_FRYDAY: RestaurantFryday[] = NUME.map(displayName => ({
-  displayName, storeId: null, source: 'legacy-4.7', verified: false,
+  displayName, storeId: null, aliases: [], source: 'legacy-4.7', verified: false,
 }));
 
 /** Un restaurant are date doar dacă are un `storeId` VERIFICAT. Numele nu e o cheie. */
