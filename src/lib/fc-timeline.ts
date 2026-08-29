@@ -55,6 +55,10 @@ export interface MetriciFC {
   paperCostRON: number;
   /** Cât din vânzări au rețetă calculabilă. */
   acoperirePct: number | null;
+  /** Partea de vânzări cu cost COMPLET calculabil (fără componente neprețuite). */
+  acoperireCompletaPct: number | null;
+  /** Vânzări acoperite de rețetă, dar al căror cost e o limită de jos. */
+  netCostIncomplet: number;
 
   nboDisponibil: boolean;
   motivNbo?: string;
@@ -100,6 +104,8 @@ export function metriciFC(state: AppState, ctx: CtxFC, cerere: CerereFC): Metric
     recipeFcPct: pct(recipe.cost),
     recipeCostRON: recipe.cost, foodCostRON: recipe.costFood, paperCostRON: recipe.costPaper,
     acoperirePct: recipe.acoperirePct,
+    acoperireCompletaPct: recipe.acoperireCompletaPct,
+    netCostIncomplet: recipe.netCostIncomplet,
 
     nboDisponibil: b.nboDisponibil,
     ...(b.motivNbo !== undefined ? { motivNbo: b.motivNbo } : {}),
@@ -426,6 +432,9 @@ export interface CalitateTimeline {
   produseFaraReteta: string[];
   /** Ingrediente/materiale fără preț valid. */
   preturiLipsa: string[];
+  /** Produse cu rețetă al căror cost e incomplet (un component fără preț) și leii afectați. */
+  produseCostIncomplet: string[];
+  netCostIncomplet: number;
   /** Partea de 2.9 vine fără canal declarat. */
   canalNecunoscut: boolean;
   /** Lei pe categorii 2.9 nerecunoscute. */
@@ -467,6 +476,7 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
   const calitateGoala: CalitateTimeline = {
     perioadaIncompleta: cerere.perioada.partiala || cerere.perioada.la >= AZI_ISO(),
     restauranteLipsa29: [], pmixLipsa: false, produseFaraReteta: [], preturiLipsa: [],
+    produseCostIncomplet: [], netCostIncomplet: 0,
     canalNecunoscut: false, neclasificatRON: null, reconciliereIncompleta: false, motiveReconciliere: [],
   };
   if (!inScop.length) {
@@ -511,6 +521,8 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
     ...calitateGoala,
     restauranteLipsa29: bridge.diagnostice.find(d => d.cod === 'RESTAURANT_FARA_29')?.exemple ?? [],
     produseFaraReteta: recipe.produseFaraReteta.map(p => p.cod).sort(),
+    produseCostIncomplet: recipe.produseCostIncomplet.map(p => p.cod).sort(),
+    netCostIncomplet: recipe.netCostIncomplet,
     preturiLipsa: [...new Set([
       ...preturiLipsa,
       ...(bridge.diagnostice.find(d => d.cod === 'MATERIAL_FARA_PRET')?.exemple ?? []),
@@ -528,6 +540,10 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
   if (!metrici.nboDisponibil && metrici.motivNbo) motiveIncomplet.push(metrici.motivNbo);
   if (calitate.produseFaraReteta.length) {
     motiveIncomplet.push(`${calitate.produseFaraReteta.length} produse vândute nu au rețetă — costul lor NU e presupus zero.`);
+  }
+  if (calitate.netCostIncomplet > 0) {
+    motiveIncomplet.push(`${Math.round(calitate.netCostIncomplet)} lei din vânzări au cost incomplet `
+      + `(${calitate.produseCostIncomplet.length} produse cu componente fără preț) — Food Cost-ul e o limită de jos, nu cifra exactă.`);
   }
   if (calitate.preturiLipsa.length) {
     motiveIncomplet.push(`${calitate.preturiLipsa.length} ingrediente/materiale fără preț valid — costul lor e necunoscut, nu zero.`);

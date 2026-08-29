@@ -52,7 +52,12 @@ export interface RecipeFC {
   /** Partea de vânzări pentru care costul e calculabil (produsul are rețetă). */
   netAcoperit: number;
   netFaraReteta: number;
+  /** Vânzări cu rețetă, dar al căror cost e INCOMPLET (un component fără preț valid). */
+  netCostIncomplet: number;
+  produseCostIncomplet: ProdusFaraReteta[];
   acoperirePct: number | null;
+  /** Partea de vânzări cu cost COMPLET calculabil — `acoperirePct` minus felia incompletă. */
+  acoperireCompletaPct: number | null;
   cost: number;                 // Food + Paper teoretic
   costFood: number;
   costPaper: number;
@@ -70,7 +75,9 @@ export function recipeFC(state: AppState, ctx: CtxFC, cerere: CerereFC): RecipeF
   const memo = new Map<string, unknown>();
 
   let buc = 0, netVandut = 0, netAcoperit = 0, cost = 0, costFood = 0, costPaper = 0, randuri = 0;
+  let netCostIncomplet = 0;
   const fara = new Map<string, ProdusFaraReteta>();
+  const incomplete = new Map<string, ProdusFaraReteta>();
 
   for (const v of state.vanzari) {
     if (!contineData(cerere.perioada, v.data)) continue;
@@ -82,6 +89,14 @@ export function recipeFC(state: AppState, ctx: CtxFC, cerere: CerereFC): RecipeF
     if (c) {
       netAcoperit += v.net;
       cost += c.total * v.cant; costFood += c.food * v.cant; costPaper += c.paper * v.cant;
+      if (c.incomplet) {
+        // are rețetă, deci intră în acoperire — dar costul e o LIMITĂ DE JOS, nu o cifră
+        netCostIncomplet += v.net;
+        const e = incomplete.get(v.produs)
+          ?? { cod: v.produs, denumire: ctx.produse.get(v.produs)?.denumire ?? v.produs, buc: 0, net: 0 };
+        e.buc += v.cant; e.net += v.net;
+        incomplete.set(v.produs, e);
+      }
     } else {
       const e = fara.get(v.produs)
         ?? { cod: v.produs, denumire: ctx.produse.get(v.produs)?.denumire ?? v.produs, buc: 0, net: 0 };
@@ -94,7 +109,10 @@ export function recipeFC(state: AppState, ctx: CtxFC, cerere: CerereFC): RecipeF
   return {
     cerere, buc, netVandut, netAcoperit,
     netFaraReteta: netVandut - netAcoperit,
+    netCostIncomplet,
+    produseCostIncomplet: [...incomplete.values()].sort((a, b) => b.net - a.net || a.cod.localeCompare(b.cod)),
     acoperirePct: netVandut > 0 ? (netAcoperit / netVandut) * 100 : null,
+    acoperireCompletaPct: netVandut > 0 ? ((netAcoperit - netCostIncomplet) / netVandut) * 100 : null,
     cost, costFood, costPaper,
     fcPct: netAcoperit > 0 ? (cost / netAcoperit) * 100 : null,
     fcPeTotalVandut: netVandut > 0 ? (cost / netVandut) * 100 : null,
