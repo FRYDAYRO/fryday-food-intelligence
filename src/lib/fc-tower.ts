@@ -58,7 +58,7 @@ export const SECTIUNI: Sectiune[] = [
   { id: 'INGREDIENTE', nume: 'Ingredient Intelligence', descriere: 'Cine a mișcat FC-ul: preț, consum, rețetă, mix', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'SIMULARI', nume: 'Simulări', descriere: 'What-if pe prețuri, rețete și mix — fără să atingă datele reale', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'IMPORTURI', nume: 'Importuri', descriere: 'Import Center: validare înainte de activare, versiuni și audit', doarCompanie: false, scrie: true, placeholder: false },
-  { id: 'AI_ADVISOR', nume: 'AI Advisor', descriere: 'Rezervat — motorul de raționament nu e încă implementat', doarCompanie: false, scrie: false, placeholder: true },
+  { id: 'AI_ADVISOR', nume: 'AI Advisor', descriere: 'Dosarul de dovezi: stare, cauze, riscuri, acțiuni — cu proveniență pe fiecare cifră', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'SETARI', nume: 'Setări', descriere: 'Ținte, praguri și contextul de lucru', doarCompanie: false, scrie: true, placeholder: false },
 ];
 
