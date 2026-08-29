@@ -1372,6 +1372,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         arr.push(r); grupe.set(cod, arr);
       }
       const retete = state.retete.map(x => ({ ...x, versiuni: [...x.versiuni] }));
+      let neschimbate = 0;
       // versiunea se datează la data cerută de import, nu la ceasul mașinii: altfel o
       // versiune „din iunie" nu s-ar aplica în iunie, iar recalculul istoric ar folosi
       // rețeta greșită (invariantul costului istoric)
@@ -1410,13 +1411,28 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           retete.push(ret);
           if (!eSPReteta && !state.produse.some(x => x.cod === cod)) avert.push(`Rețeta ${cod} nu are produs în nomenclator — se importă, dar nu apare în vânzări`);
         }
-        const nr = (ret.versiuni[ret.versiuni.length - 1]?.nr ?? 0) + 1;
+        // O versiune nouă se scrie DOAR când conținutul chiar diferă. La un import
+        // săptămânal, altfel s-ar aduna ~52 de versiuni pe an per rețetă, aproape toate
+        // identice: cifrele ar rămâne corecte (versiuneLa alege oricum bine), dar istoricul
+        // — singurul loc unde scrie când s-a schimbat gramajul și cu cât — ar deveni ilizibil.
+        const semnatura = (l: LinieReteta[]) => JSON.stringify(
+          [...l].map(x => [x.comp, x.tipComp, x.cant, x.um, x.canal, x.pierdere ?? 0])
+            .sort((a, b) => String(a).localeCompare(String(b))));
+        const ultima = ret.versiuni[ret.versiuni.length - 1];
+        if (ultima && semnatura(ultima.linii) === semnatura(linii)) {
+          neschimbate++;
+          continue;
+        }
+        const nr = (ultima?.nr ?? 0) + 1;
         ret.versiuni = [...ret.versiuni, {
           nr, data: azi, nota: `Import ${numeFisier}`, linii,
           randament: eSPReteta ? { cant: randCant ?? 1, um: randUm } : undefined,
         }];
         ret.activa = activaDupaData(ret);
         importate++;
+      }
+      if (neschimbate) {
+        avert.push(`${neschimbate} rețete neschimbate față de versiunea în vigoare — nu s-a creat o versiune nouă pentru ele.`);
       }
       stateNou = { ...state, retete };
     }
