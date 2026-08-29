@@ -7,13 +7,17 @@ import { genereazaSeedNBO } from './seed-nbo';
 import bazaFryday from '../date/baza-fryday.json';
 
 /**
- * Build public: cu VITE_FARA_BAZA=1, aplicația NU include rețetele și costurile FRYDAY.
- * Pornește goală, iar datele se încarcă din instantaneu (Setări). Așa adresa publică nu
- * expune nimic, chiar dacă e deschisă de oricine.
+ * Aplicația pornește GOALĂ. Nu există date „de bază": rețetarul, nomenclatorul, prețurile
+ * și rapoartele intră exclusiv prin import, iar fiecare cifră are astfel o proveniență.
+ * O bază încorporată ar fi arătat cifre pe care nimeni nu le-a încărcat — și, la prima
+ * încărcare reală, importurile s-ar fi adăugat peste ele, amestecând analizele.
+ *
+ * Setul FRYDAY încorporat rămâne disponibil, dar numai cerut explicit: cu VITE_CU_BAZA=1
+ * la build, sau încărcat din Setări. Implicit, adresa publică nu expune nimic.
  */
-const FARA_BAZA = import.meta.env?.VITE_FARA_BAZA === '1';
-const bazaInitiala = (): AppState =>
-  FARA_BAZA ? stareGoala() : migreaza(structuredClone(bazaFryday) as unknown as AppState);
+const CU_BAZA = import.meta.env?.VITE_CU_BAZA === '1';
+export const bazaInitiala = (): AppState =>
+  CU_BAZA ? migreaza(structuredClone(bazaFryday) as unknown as AppState) : stareGoala();
 import { buildCtx, type Ctx } from './engine';
 
 const KEY = 'fryday:ffi:v1';
