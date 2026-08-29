@@ -5,12 +5,13 @@
  */
 import { Sel, cx } from '../../lib/ui';
 import {
-  comparatiiDisponibile, normalizeazaSelectie, perioadeDisponibile,
+  alegeRestaurant, comparatiiDisponibile, normalizeazaSelectie, perioadeDisponibile,
   type GranularitateTower, type SelectieFC,
 } from '../../lib/fc-tower';
 import type { FCChannel } from '../../lib/fc-domeniu';
-import { restauranteVizibile } from '../../lib/fc-acces';
+import { TOATE_RESTAURANTELE } from '../../lib/restaurante-fryday';
 import { useTower } from './context';
+import SelectorRestaurant from './SelectorRestaurant';
 
 const CANALE: { v: FCChannel; l: string }[] = [
   { v: 'TOTAL', l: 'Total' },
@@ -19,7 +20,7 @@ const CANALE: { v: FCChannel; l: string }[] = [
 ];
 
 export default function Bara() {
-  const { state, sel, setSel, acces } = useTower();
+  const { state, sel, setSel, acces, nemapat, setNemapat } = useTower();
   const perioade = perioadeDisponibile(state, sel.granularitate, acces);
   const comparatii = comparatiiDisponibile(state, sel);
   const aplica = (patch: Partial<SelectieFC>) => setSel(normalizeazaSelectie(state, { ...sel, ...patch }, acces));
@@ -79,12 +80,18 @@ export default function Bara() {
         ))}
       </div>
 
-      <Sel aria-label="Restaurantul" data-camp="locatie" value={sel.locatie ?? ''}
-        disabled={sel.scop !== 'RESTAURANT' || !!acces.locatieImpusa}
-        onChange={e => aplica({ locatie: e.target.value })}>
-        {sel.scop !== 'RESTAURANT' && <option value="">toată rețeaua</option>}
-        {restauranteVizibile(state, acces.context).map(l => <option key={l} value={l}>{l}</option>)}
-      </Sel>
+      <SelectorRestaurant
+        valoare={nemapat ?? (sel.scop === 'COMPANIE' ? TOATE_RESTAURANTELE : sel.locatie ?? '')}
+        eticheta={nemapat ?? (sel.scop === 'COMPANIE' ? 'Toate restaurantele' : sel.locatie ?? 'Alege restaurantul')}
+        onAlege={v => {
+          const r = alegeRestaurant(state, sel, acces, v);
+          // un restaurant fără identificator verificat NU mută scopul: altfel ar rămâne
+          // pe ecran cifrele restaurantului dinainte, sub numele celui nou
+          if (r.fel === 'NEMAPAT') { setNemapat?.(r.restaurant); return; }
+          if (r.fel === 'REFUZAT') return;
+          setNemapat?.(null);
+          setSel(r.sel);
+        }} />
 
       <div className="inline-flex overflow-hidden rounded-md border" role="group" aria-label="Canal">
         {CANALE.filter(c => acces.context.channelAccess.includes(c.v)).map(c => (

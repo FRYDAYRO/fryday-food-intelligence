@@ -15,6 +15,13 @@ export interface TowerCtx {
   acces: AccesTower;
   /** Singura poartă de scriere: o folosește doar Import Center, după validare. */
   update: (fn: (s: AppState) => AppState) => void;
+  /**
+   * Restaurantul real ales din selector care NU are încă un identificator verificat.
+   * Cât timp e setat, turnul nu arată cifre: nu există date pentru el, iar ale altuia
+   * nu se împrumută. Opțional, ca ecranele testate izolat să nu fie obligate să-l dea.
+   */
+  nemapat?: string | null;
+  setNemapat?: (nume: string | null) => void;
 }
 
 const Gol = createContext<TowerCtx | null>(null);

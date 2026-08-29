@@ -34,6 +34,10 @@ import {
   ENFORCEMENT_LOCAL, ENFORCEMENT_NEFILTRAT, contextAutorizare, verificaCerere,
   type ContextAutorizare, type UtilizatorAutorizat,
 } from './fc-acces';
+import {
+  MESAJ_NEMAPAT, TOATE_RESTAURANTELE, cautaRestaurante, esteMapat,
+  restaurantDupaNume, type RestaurantFryday,
+} from './restaurante-fryday';
 
 // ————————————————————————————————————————————————————————— navigarea
 
@@ -1147,3 +1151,107 @@ export const cerereBaza = (sel: SelectieFC): CerereFC => ({
 });
 
 export const locatiaCererii = (sel: SelectieFC): string | undefined => locatieDin(nivelDin(sel));
+
+// ————————————————————————————————————————————————————————— selectorul de restaurante
+//
+// Lista reală de restaurante FRYDAY e un master de AFIȘARE: numele vin din raportul 4.7,
+// care nu conține identificatori de magazin. Selectorul le arată, dar nu le poate lega de
+// date — iar aici stă regula care ține totul: un restaurant nemapat nu primește niciodată
+// cifrele altuia. Selectorul NU e un mecanism de autorizare; drepturile rămân în `fc-acces`.
+
+export interface OptiuneRestaurant {
+  /** Ce scrie în listă. Pentru restaurantele reale, numele exact din raportul sursă. */
+  eticheta: string;
+  /** Valoarea selectabilă: `TOATE`, un cod de locație din date, sau un nume real nemapat. */
+  valoare: string;
+  /** `true` doar când selecția duce la date reale. Un nume nemapat rămâne `false`. */
+  areDate: boolean;
+  /** De ce nu are date, când nu are. */
+  motiv?: string;
+}
+
+export interface OptiuniRestaurant {
+  /** Scopul de companie — doar pentru cine are dreptul să vadă toată rețeaua. */
+  toate: OptiuneRestaurant | null;
+  /** Locațiile care CHIAR au date în starea curentă (din importuri), filtrate pe drepturi. */
+  dinDate: OptiuneRestaurant[];
+  /** Master-ul real FRYDAY: 30 de nume, toate nemapate până la un export NCR cu identificator. */
+  reale: OptiuneRestaurant[];
+  /** Un manager de restaurant nu iese din scopul lui nici prin selector. */
+  blocatLa: string | null;
+}
+
+const optiuneReala = (r: RestaurantFryday): OptiuneRestaurant => ({
+  eticheta: r.displayName,
+  valoare: r.displayName,
+  areDate: esteMapat(r),
+  ...(esteMapat(r) ? {} : { motiv: MESAJ_NEMAPAT }),
+});
+
+/**
+ * Ce poate alege utilizatorul curent, filtrat de căutare. Managerul de restaurant primește
+ * exact o opțiune — a lui: numele celorlalte nu i-ar da acces la nimic, dar selectorul nu
+ * are voie să sugereze că ar putea ieși din scop.
+ */
+export function optiuniRestaurant(state: AppState, acces: AccesTower, cautare = ''): OptiuniRestaurant {
+  const a = acces.context;
+  if (a.storeId) {
+    const l = state.locatii.find(x => x.cod === a.storeId);
+    return {
+      toate: null, reale: [], blocatLa: a.storeId,
+      dinDate: [{ eticheta: l?.nume ?? a.storeId, valoare: a.storeId, areDate: true }],
+    };
+  }
+
+  const permise = new Set(a.allowedStoreIds);
+  const dinDate: OptiuneRestaurant[] = state.locatii
+    .filter(l => permise.has(l.cod))
+    .map(l => ({ eticheta: l.nume, valoare: l.cod, areDate: true }))
+    .sort((x, y) => x.eticheta.localeCompare(y.eticheta, 'ro'));
+
+  const q = cautare.trim();
+  const potrivit = (o: OptiuneRestaurant) =>
+    !q || cautaRestaurante(q, [{ displayName: o.eticheta, storeId: null, source: 'legacy-4.7', verified: false }]).length > 0;
+
+  return {
+    toate: acces.poateVedeaCompania
+      ? { eticheta: 'Toate restaurantele', valoare: TOATE_RESTAURANTELE, areDate: true }
+      : null,
+    dinDate: dinDate.filter(potrivit),
+    reale: cautaRestaurante(q).map(optiuneReala),
+    blocatLa: null,
+  };
+}
+
+/**
+ * Ce se întâmplă când cineva alege ceva din selector. Separat de componentă ca să poată fi
+ * testat fără browser — și ca regula „nemapat ⇒ fără date" să aibă un singur loc.
+ */
+export type RezultatSelectie =
+  | { fel: 'COMPANIE'; sel: SelectieFC }
+  | { fel: 'RESTAURANT'; sel: SelectieFC }
+  | { fel: 'NEMAPAT'; restaurant: string; mesaj: string }
+  | { fel: 'REFUZAT'; motiv: string };
+
+export function alegeRestaurant(
+  state: AppState, sel: SelectieFC, acces: AccesTower, valoare: string,
+): RezultatSelectie {
+  if (valoare === TOATE_RESTAURANTELE) {
+    return acces.poateVedeaCompania
+      ? { fel: 'COMPANIE', sel: normalizeazaSelectie(state, { ...sel, scop: 'COMPANIE', locatie: null }, acces) }
+      : { fel: 'REFUZAT', motiv: 'Rolul tău vede doar restaurantul propriu.' };
+  }
+
+  // un nume din master-ul real: nemapat ⇒ NU se caută o locație „asemănătoare"
+  const real = restaurantDupaNume(valoare);
+  if (real && !esteMapat(real)) {
+    return { fel: 'NEMAPAT', restaurant: real.displayName, mesaj: MESAJ_NEMAPAT };
+  }
+
+  const v = verificaCerere(acces.context, { locatie: valoare });
+  if (!v.permis) return { fel: 'REFUZAT', motiv: v.motiv ?? 'Restaurant neautorizat.' };
+  if (!state.locatii.some(l => l.cod === valoare)) {
+    return { fel: 'NEMAPAT', restaurant: valoare, mesaj: MESAJ_NEMAPAT };
+  }
+  return { fel: 'RESTAURANT', sel: normalizeazaSelectie(state, { ...sel, scop: 'RESTAURANT', locatie: valoare }, acces) };
+}
