@@ -18,10 +18,21 @@ export const luna = (data: string) => data.slice(0, 7);
 
 // ---------------------------------------------------------------- Context de calcul
 
-export interface Ctx {
+/**
+ * Contractul minim de costare: nomenclator, rețete, produse — atât.
+ *
+ * Tot ce înseamnă Food Cost se calculează DOAR din aceste trei surse. Nimic din afara
+ * scopului (comision de agregator, labor, costuri de operare) nu are voie să intre aici,
+ * iar funcțiile care primesc `CtxCost` nu pot, prin construcție, să-l citească.
+ */
+export interface CtxCost {
   ingrediente: Map<string, Ingredient>;
   retete: Map<string, Reteta>;
   produse: Map<string, Produs>;
+}
+
+export interface Ctx extends CtxCost {
+  /** ÎN AFARA SCOPULUI Food Cost — rămas pentru rapoartele de profit care încă îl folosesc. */
   comisionDeliveryPct: number;    // comisionul agregatorului, aplicat vânzărilor nete Delivery
 }
 
@@ -77,7 +88,7 @@ export interface CostProdus { food: number; paper: number; total: number; incomp
 const ZERO: CostProdus = { food: 0, paper: 0, total: 0, incomplet: true };
 
 // §3.3 — cost semipreparat per UM de bază a randamentului
-function costSemipreparat(r: Reteta, ctx: Ctx, data: string, memo: Map<string, unknown>, stack: Set<string>): number {
+function costSemipreparat(r: Reteta, ctx: CtxCost, data: string, memo: Map<string, unknown>, stack: Set<string>): number {
   const key = `SP|${r.cod}|${data}`;
   const m = memo.get(key); if (typeof m === 'number') return m;
   if (stack.has(r.cod)) return 0; // protecție la cicluri
@@ -92,7 +103,7 @@ function costSemipreparat(r: Reteta, ctx: Ctx, data: string, memo: Map<string, u
 }
 
 // §3.2 + §3.4 — costul unei linii de rețetă
-function costLinie(l: LinieReteta, ctx: Ctx, data: string, memo: Map<string, unknown>, stack: Set<string>): CostProdus {
+function costLinie(l: LinieReteta, ctx: CtxCost, data: string, memo: Map<string, unknown>, stack: Set<string>): CostProdus {
   const cb = cantBruta(l);
   if (l.tipComp === 'SEMIPREPARAT') {
     const sp = ctx.retete.get(l.comp);
@@ -115,7 +126,7 @@ function costLinie(l: LinieReteta, ctx: Ctx, data: string, memo: Map<string, unk
 
 // §3.4 — cost produs pe canal (recursiv, combo inclus)
 export function costProdus(
-  cod: string, canal: Canal, ctx: Ctx, data: string,
+  cod: string, canal: Canal, ctx: CtxCost, data: string,
   memo: Map<string, unknown> = new Map(),
 ): CostProdus | null {
   const key = `P|${cod}|${canal}|${data}`;
@@ -150,7 +161,7 @@ export function costProdus(
 }
 
 // cost pe o singură linie de rețetă, la o dată (pentru afișarea rețetarului complet)
-export function costLinieLa(l: LinieReteta, ctx: Ctx, data = '9999-12-31'): CostProdus {
+export function costLinieLa(l: LinieReteta, ctx: CtxCost, data = '9999-12-31'): CostProdus {
   return costLinie(l, ctx, data, new Map(), new Set());
 }
 
@@ -162,7 +173,7 @@ export function pretNet(p: Produs, canal: Canal): number | null {
 }
 
 // §3.5–3.6 — FC%, profit, marjă la nivel de produs
-export function kpiProdus(cod: string, canal: Canal, ctx: Ctx, data = '9999-12-31') {
+export function kpiProdus(cod: string, canal: Canal, ctx: CtxCost, data = '9999-12-31') {
   const p = ctx.produse.get(cod);
   if (!p) return null;
   const cost = costProdus(cod, canal, ctx, data);
@@ -187,7 +198,7 @@ export interface Agregat {
   acoperire: number | null; netFaraReteta: number; netDelivery: number;
 }
 
-export function agregatePerioada(vanzari: VanzareFapt[], ctx: Ctx, f: FiltruPerioada,
+export function agregatePerioada(vanzari: VanzareFapt[], ctx: CtxCost, f: FiltruPerioada,
   memo: Map<string, unknown> = new Map()): Agregat {
   let buc = 0, net = 0, cost = 0, costFood = 0, costPaper = 0, netCuReteta = 0, netDelivery = 0;
   for (const v of vanzari) {
@@ -504,7 +515,38 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
 
 export interface SimProdusNou { produs: Produs; bucInstore: number; bucDelivery: number; }
 
-export function aplicaScenariu(state: AppState, schimbari: Schimbare[]): { ctx: Ctx; produseNoi: SimProdusNou[]; preturiVanzare: Map<string, { canal: Canal; pret: number }[]> } {
+/** Data sentinelă de la care o versiune simulată se consideră în vigoare (§Simulator). */
+const DATA_ORIGINE = '2000-01-01';
+
+export interface OpteScenariu {
+  /**
+   * Scenariul se evaluează pe vânzări din trecut (o lună închisă), nu pe „azi".
+   *
+   * Schimbările de rețetă se aplică pe versiunea ACTIVĂ — indecșii de linie din interfață
+   * se referă la ea. Dar costarea unei luni închise se face la o dată din trecut, unde
+   * `versiuneLa` rezolvă versiunea în vigoare ATUNCI. Dacă rețetarul a fost reîncărcat
+   * între timp (fiecare import FC_BAZA / RETETAR_NBO adaugă o versiune datată azi),
+   * cele două nu mai coincid și modificarea rămâne invizibilă: simularea raportează zero.
+   *
+   * Cu opțiunea activă, rețetele atinse de schimbări structurale sunt reduse la versiunea
+   * activă, datată la origine, deci în vigoare pentru orice zi din perioada analizată —
+   * aceeași convenție folosită de `alerte` pentru impactul unei versiuni noi pe mixul lunii.
+   * `ctxBaza` primește exact același tratament, fără schimbări, ca diferența dintre cele
+   * două contexte să reflecte DOAR editarea, nu și saltul de versiune dintre timp.
+   */
+  peIstoric?: boolean;
+}
+
+export interface RezultatScenariu {
+  /** Contextul cu schimbările aplicate. */
+  ctx: Ctx;
+  /** Baza de comparație, aliniată pe aceleași versiuni de rețetă, dar fără schimbări. */
+  ctxBaza: Ctx;
+  produseNoi: SimProdusNou[];
+  preturiVanzare: Map<string, { canal: Canal; pret: number }[]>;
+}
+
+export function aplicaScenariu(state: AppState, schimbari: Schimbare[], opte?: OpteScenariu): RezultatScenariu {
   const ingrediente = state.ingrediente.map(i => ({ ...i, preturi: [...i.preturi] }));
   const retete = state.retete.map(r => ({
     ...r,
@@ -525,8 +567,10 @@ export function aplicaScenariu(state: AppState, schimbari: Schimbare[]): { ctx: 
       arr.push(s); opsReteta.set(s.reteta, arr);
     }
   }
+  const retusate = new Set<string>();      // rețetele atinse de schimbări structurale
   for (const [cod, ops] of opsReteta) {
     const r = gasesteReteta(cod); if (!r) continue;
+    retusate.add(cod);
     const v = r.versiuni.find(x => x.nr === r.activa) ?? r.versiuni[r.versiuni.length - 1];
     const sterse = new Set<number>();
     for (const op of ops) {
@@ -541,7 +585,7 @@ export function aplicaScenariu(state: AppState, schimbari: Schimbare[]): { ctx: 
   for (const s of schimbari) {
     if (s.tip === 'PRET_INGREDIENT' || s.tip === 'FURNIZOR') {
       const ing = ingrediente.find(i => i.cod === s.ingredient);
-      if (ing) ing.preturi = [{ validDeLa: '2000-01-01', pret: s.pretNou }];
+      if (ing) ing.preturi = [{ validDeLa: DATA_ORIGINE, pret: s.pretNou }];
     } else if (s.tip === 'PRET_VANZARE') {
       const p = produse.find(x => x.cod === s.produs); if (!p) continue;
       if (s.canal === 'INSTORE') p.pretInstore = s.pretNou; else p.pretDelivery = s.pretNou;
@@ -572,8 +616,33 @@ export function aplicaScenariu(state: AppState, schimbari: Schimbare[]): { ctx: 
       produseNoi.push({ produs: p, bucInstore: s.bucInstore, bucDelivery: s.bucDelivery });
     }
   }
+  // §BUG-1 — o rețetă retușată trebuie să fie în vigoare pentru toată perioada simulată,
+  // altfel costarea unei luni închise ar rezolva o versiune veche și modificarea ar fi
+  // invizibilă. Se reduce la versiunea activă, datată la origine. Rețetele neatinse își
+  // păstrează istoricul, ca celelalte produse să fie costate în continuare corect.
+  const inVigoareOricand = (r: Reteta): Reteta => {
+    const v = versiuneActiva(r);
+    return { ...r, activa: v.nr, versiuni: [{ ...v, data: DATA_ORIGINE }] };
+  };
+  const aliniaza = (lista: Reteta[]) => (opte?.peIstoric
+    ? lista.map(r => (retusate.has(r.cod) ? inVigoareOricand(r) : r))
+    : lista);
+
+  const comision = state.setari.comisionDeliveryPct ?? 0;
   return {
-    ctx: { comisionDeliveryPct: state.setari.comisionDeliveryPct ?? 0, ingrediente: new Map(ingrediente.map(i => [i.cod, i])), retete: new Map(retete.map(r => [r.cod, r])), produse: new Map(produse.map(p => [p.cod, p])) },
+    ctx: {
+      comisionDeliveryPct: comision,
+      ingrediente: new Map(ingrediente.map(i => [i.cod, i])),
+      retete: new Map(aliniaza(retete).map(r => [r.cod, r])),
+      produse: new Map(produse.map(p => [p.cod, p])),
+    },
+    // baza: starea reală, aliniată pe aceleași versiuni ca scenariul, dar fără schimbări
+    ctxBaza: {
+      comisionDeliveryPct: comision,
+      ingrediente: new Map(state.ingrediente.map(i => [i.cod, i])),
+      retete: new Map(aliniaza(state.retete).map(r => [r.cod, r])),
+      produse: new Map(state.produse.map(p => [p.cod, p])),
+    },
     produseNoi, preturiVanzare,
   };
 }
@@ -742,7 +811,7 @@ export function aplicaInDate(state: AppState, sc: { nume: string; schimbari: Sch
 // ---------------------------------------------------------------- Ingredient Intelligence
 
 // consumul (brut, în UM de bază a ingredientului) al unui ingredient per unitate de rețetă/produs
-function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: Ctx, memoSP: Map<string, number>): number {
+function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: CtxCost, memoSP: Map<string, number>): number {
   const v = versiuneActiva(r);
   let tot = 0;
   for (const l of v.linii) {
@@ -759,7 +828,7 @@ function consumInReteta(codIng: string, r: Reteta, canal: Canal, ctx: Ctx, memoS
   return tot;
 }
 
-function consumPerUnitSP(codIng: string, sp: Reteta, ctx: Ctx, memoSP: Map<string, number>): number {
+function consumPerUnitSP(codIng: string, sp: Reteta, ctx: CtxCost, memoSP: Map<string, number>): number {
   const key = `${codIng}|${sp.cod}`;
   const m = memoSP.get(key);
   if (m !== undefined) return m;
@@ -771,7 +840,7 @@ function consumPerUnitSP(codIng: string, sp: Reteta, ctx: Ctx, memoSP: Map<strin
   return rez;
 }
 
-export function consumPerPortie(codIng: string, codProdus: string, canal: Canal, ctx: Ctx,
+export function consumPerPortie(codIng: string, codProdus: string, canal: Canal, ctx: CtxCost,
   memoSP: Map<string, number> = new Map()): number {
   const p = ctx.produse.get(codProdus);
   if (p?.tip === 'COMBO' && p.combo?.length) {
@@ -791,7 +860,7 @@ export interface UtilizareIngredient {
   sharePct: number | null;                    // % din costul porției InStore
 }
 
-export function utilizariIngredient(codIng: string, ctx: Ctx): UtilizareIngredient[] {
+export function utilizariIngredient(codIng: string, ctx: CtxCost): UtilizareIngredient[] {
   const ing = ctx.ingrediente.get(codIng);
   if (!ing) return [];
   const pret = pretCurent(ing);
@@ -816,7 +885,7 @@ export interface ConsumLunarIngredient {
   perProdus: Map<string, { cant: number; buc: number }>;
 }
 
-export function consumLunarIngredient(codIng: string, state: AppState, ctx: Ctx, lunaRef: string): ConsumLunarIngredient {
+export function consumLunarIngredient(codIng: string, state: AppState, ctx: CtxCost, lunaRef: string): ConsumLunarIngredient {
   const ing = ctx.ingrediente.get(codIng);
   const memoSP = new Map<string, number>();
   const cache = new Map<string, number>();
@@ -837,7 +906,7 @@ export function consumLunarIngredient(codIng: string, state: AppState, ctx: Ctx,
 }
 
 // cheltuiala lunară pe fiecare ingredient (consum brut × preț curent), pentru Achiziții
-export function consumuriLuna(state: AppState, ctx: Ctx, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
+export function consumuriLuna(state: AppState, ctx: CtxCost, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
   const vol = new Map<string, number>();
   for (const v of state.vanzari) {
     if (luna(v.data) !== lunaRef) continue;
@@ -1066,8 +1135,10 @@ export function recomandari(state: AppState, ctx: Ctx, lunaSel: string, max = 10
   const tinta = state.tinte.find(t => t.locatie === 'RETEA')?.fcCurat ?? null;
   const rez: Recomandare[] = [];
   const sim = (sch: Schimbare) => {
-    const { ctx: c1, produseNoi, preturiVanzare } = aplicaScenariu(state, [sch]);
-    const r = impactRetea(state, ctx, c1, produseNoi, preturiVanzare, lunaSel);
+    // impactul se măsoară pe vânzările lunii (date din trecut) → evaluare pe istoric,
+    // altfel recomandările de gramaj ar raporta impact zero (§BUG-1)
+    const { ctx: c1, ctxBaza, produseNoi, preturiVanzare } = aplicaScenariu(state, [sch], { peIstoric: true });
+    const r = impactRetea(state, ctxBaza, c1, produseNoi, preturiVanzare, lunaSel);
     return {
       dFc: r.dupa.fc != null && r.inainte.fc != null ? r.dupa.fc - r.inainte.fc : null,
       dP: r.dupa.profit - r.inainte.profit,
