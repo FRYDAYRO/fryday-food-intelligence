@@ -81,6 +81,11 @@ const GUNOI = [
 export function parseSalesMix(matrice: unknown[][]): SalesMix {
   const linii: LinieSalesMix[] = [];
   const magazine: string[] = [];
+  // Lista de restaurante se rupe pe mai multe rânduri, iar ruptura cade uneori ÎN MIJLOCUL
+  // unui nume („…, FRYDAY" / „PLOIESTI DT, …"). Tăiat pe rânduri, „PLOIESTI DT" nu conține
+  // „FRYDAY" și ar fi aruncat tăcut, iar orfanul „FRYDAY" ar trece drept restaurant. De aceea
+  // zona se adună întâi ca text continuu și abia apoi se desparte pe virgule.
+  let tamponMagazine = '';
   let categorie = '';
   let perioadaDe: string | null = null, perioadaLa: string | null = null;
   let totalQty: number | null = null, totalExt: number | null = null;
@@ -104,10 +109,10 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
       continue;
     }
     // lista de restaurante
-    if (/^groups?\/stores/i.test(text)) { inMagazine = true; continue; }
+    if (/^groups?\/stores/i.test(text)) { inMagazine = true; tamponMagazine = ''; continue; }
     if (inMagazine) {
       if (/^v \d+\./i.test(text) || /copyright/i.test(text)) { inMagazine = false; continue; }
-      magazine.push(...text.split(',').map(x => x.trim()).filter(x => /fryday|chicken/i.test(x)));
+      tamponMagazine += (tamponMagazine ? ' ' : '') + text;
       continue;
     }
     // categoria
@@ -132,6 +137,11 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     const { numeBaza, canal, meniuComponenta } = despartaCanal(nume);
     linii.push({ nume, numeBaza, categorie, canal, meniuComponenta, qty: q.v, pret: p.v, ext: e.v });
   }
+
+  // subsolul raportului se poate lipi de ultima intrare — se taie, dar numele rămâne întreg
+  magazine.push(...tamponMagazine.split(',')
+    .map(x => x.replace(/\s+\d+ of \d+\b.*$/i, '').trim())
+    .filter(x => /fryday|chicken/i.test(x)));
 
   return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], totalQty, totalExt };
 }
