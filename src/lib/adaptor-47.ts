@@ -127,7 +127,7 @@ export function analizeaza47(
     motiv = MESAJ_SCOP_NEDECLARAT;
   } else if (scop === 'RETEA_AGREGAT') {
     motiv = sm.corporativ && !sm.magazine.length
-      ? `${MESAJ_AGREGAT} (raport „Corporate", pe toată compania)`
+      ? `${MESAJ_AGREGAT} (raport „${sm.etichetaScop ?? 'de rețea'}", pe toată compania)`
       : `${MESAJ_AGREGAT} (${sm.magazine.length} restaurante declarate)`;
   } else {
     const r = restaurante[0];

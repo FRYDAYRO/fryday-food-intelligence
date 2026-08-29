@@ -31,6 +31,8 @@ export interface SalesMix {
    * știm exact ce acoperă.
    */
   corporativ: boolean;
+  /** Eticheta EXACTĂ prin care raportul și-a declarat scopul de rețea („Corporate", „All Stores"…). */
+  etichetaScop: string | null;
   totalQty: number | null;
   totalExt: number | null;
 }
@@ -84,6 +86,9 @@ const GUNOI = [
 ];
 
 /** Extrage liniile de vânzare dintr-o matrice brută (Excel sau text tabelat). */
+/** Etichetele prin care rapoartele NCR declară că acoperă toată rețeaua, nu un restaurant. */
+const SCOP_RETEA = /^(corporate|all\s+stores|multiple\s+selection)\b/i;
+
 export function parseSalesMix(matrice: unknown[][]): SalesMix {
   const linii: LinieSalesMix[] = [];
   const magazine: string[] = [];
@@ -107,6 +112,7 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
   const fragmenteAntet: string[] = [];
   let inAntet = true;
   let corporativ = false;
+  let etichetaScop: string | null = null;
   let categorie = '';
   let perioadaDe: string | null = null, perioadaLa: string | null = null;
   let totalQty: number | null = null, totalExt: number | null = null;
@@ -147,9 +153,15 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
         // titlul raportului („4.7 Sales Mix", „4.1 Sales Journal", „2.9 Food Cost…") stă
         // între fragmentele numelui și nu face parte din el — se sare după formă, nu după
         // numărul raportului, ca să meargă și pentru rapoartele viitoare
-        // 2.9 la nivel de companie declară scopul cu un singur cuvânt: „Corporate".
-        // Nu e nume de restaurant, dar nici scop necunoscut — e toată rețeaua.
-        if (/^corporate\b/i.test(stanga)) { corporativ = true; continue; }
+        // Rapoartele la nivel de rețea își declară scopul printr-o etichetă, nu printr-un
+        // nume de restaurant. NCR folosește mai multe, în funcție de raport:
+        //   „Corporate"          — 2.9 Food Cost
+        //   „All Stores"         — 4.1 Sales Journal
+        //   „Multiple Selection" — 4.7 Sales Mix (care are și lista explicită de magazine)
+        // Lista e explicită, nu ghicită: o etichetă necunoscută rămâne scop nedeclarat,
+        // fiindcă „nu știu ce acoperă" e un răspuns mai bun decât o presupunere.
+        const mScop = SCOP_RETEA.exec(stanga);
+        if (mScop) { corporativ = true; etichetaScop ??= mScop[1]; continue; }
         if (sd || ed) continue;   // rând de dată, nu de nume
         const eTitlu = /^\d+\.\d+\b/.test(stanga);
         if (stanga && !eTitlu && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga)
@@ -210,7 +222,7 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     .map(x => x.replace(/\s+\d+ of \d+\b.*$/i, '').trim())
     .filter(x => /fryday|chicken/i.test(x)));
 
-  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], corporativ, totalQty, totalExt };
+  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], corporativ, etichetaScop, totalQty, totalExt };
 }
 
 /**
@@ -257,7 +269,7 @@ export function matriceDinText(text: string): unknown[][] {
     // vânzări — dacă ajung în tamponul de denumiri se pierd la prima resetare, iar raportul
     // rămâne fără restaurant. Trec ca rânduri proprii, ca parserul să le poată citi.
     if (/\b(fiscal\s+year|period\s*:|week\s*:|start\s*date\s*:|end\s*date\s*:)/i.test(l)
-      || /^corporate\b/i.test(l)) { tampon = []; rez.push([l]); continue; }
+      || /^(corporate|all\s+stores|multiple\s+selection)\b/i.test(l)) { tampon = []; rez.push([l]); continue; }
 
     const m = FINAL.exec(l);
     if (!m) {

@@ -228,6 +228,44 @@ t('… iar motivul spune că e „Corporate"', (a29.motiv ?? '').includes('Corpo
 t('un raport de companie fără magazine nu inventează niciunul', a29.rezumat.totalDeclarate === 0);
 t('perioada ajunge în cheia folosită de aplicație', a29.perioada === '2026-08');
 
+console.log('\n— A5. Cele trei etichete de scop de rețea —');
+const corp = (eticheta: string, titlu = '4.1 Sales Journal') => parseSalesMix(matriceDinText(
+  `${eticheta} Start Date: 06/15/2026
+${titlu}
+End Date: 06/21/2026
+Sales Cash Reconciliation
+Net Sales $4,541,475.65 Net Sales $4,541,475.65`));
+for (const et of ['Corporate', 'All Stores', 'Multiple Selection']) {
+  const x = corp(et);
+  t(`„${et}" e recunoscut ca scop de rețea`, x.corporativ === true);
+  t(`… cu eticheta EXACTĂ păstrată`, x.etichetaScop === et, x.etichetaScop ?? '(null)');
+  t(`… și NU e citit ca nume de restaurant`, x.magazine.length === 0);
+  t(`… iar adaptorul îl declară RETEA_AGREGAT`,
+    analizeaza47(x, 'c.pdf').scop === 'RETEA_AGREGAT');
+  t(`… neatribuibil unui restaurant`, analizeaza47(x, 'c.pdf').atribuibilPeRestaurant === false);
+}
+t('motivul citează eticheta reală, nu una fixă',
+  (analizeaza47(corp('All Stores'), 'c.pdf').motiv ?? '').includes('All Stores'));
+t('… și pentru „Corporate" la fel',
+  (analizeaza47(corp('Corporate'), 'c.pdf').motiv ?? '').includes('Corporate'));
+t('o etichetă NECUNOSCUTĂ nu e presupusă scop de rețea',
+  corp('Regiunea Nord').corporativ === false,
+  'necunoscut rămâne necunoscut, nu se ghicește');
+t('… iar raportul rămâne cu scop nedeclarat, nu atribuit greșit',
+  analizeaza47(corp('Regiunea Nord'), 'c.pdf').atribuibilPeRestaurant === false);
+t('un raport de rețea cu listă de magazine citează numărul, nu eticheta',
+  (() => {
+    const x = parseSalesMix(matriceDinText(`Multiple Selection Fiscal Year: 2026
+4.7 Sales Mix
+Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Menu Item Name Qty Price Extension
+Groups/Stores Selected for this Report
+FRYDAY ORADEA, FRYDAY GALATI
+Copyright © NCR Corporation 2022`));
+    return (analizeaza47(x, 'c.pdf').motiv ?? '').includes('2 restaurante');
+  })());
+
 console.log('\n— B. Scopul fișierului se stabilește din antet —');
 t('mai multe restaurante ⇒ raport de REȚEA',
   din('FRYDAY ORADEA, FRYDAY GALATI').scop === 'RETEA_AGREGAT');
