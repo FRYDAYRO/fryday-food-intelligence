@@ -5,12 +5,15 @@
  * orice raport în vrac de mâine. Niciun alt modul nu are voie să-și facă propria potrivire
  * după nume — de aceea logica stă într-un singur fișier, pură și determinist testabilă.
  *
- * Regula care ține tot:
+ * Regula care ține tot — și distincția pe care se sprijină totul:
  *
- *   Se potrivește DOAR pe intrări VERIFICATE. O intrare nesigură nu atribuie niciodată un
- *   rând, oricât de bine ar arăta numele. Raportul 4.7 ne-a dat 30 de nume fără niciun
- *   identificator, deci toate 30 sunt neverificate — și niciun rând nu li se atribuie
- *   până când un export NCR aduce identificatorul.
+ *   IDENTITATEA (ce restaurant e) se poate stabili din nume, determinist și unic.
+ *   IDENTIFICATORUL (`storeId`) NU se poate inventa niciodată din nume.
+ *
+ *   Raportul 4.7 ne-a dat 30 de nume fără niciun identificator. Un raport care spune
+ *   „FRYDAY CLUJ MEMO" se poate deci importa și afișa pe restaurantul lui — dar `storeId`
+ *   rămâne `null` și `verificat` rămâne `false` până când o sursă autoritară aduce ID-ul.
+ *   Aplicația nu se blochează așteptând un export NCR; doar nu se preface că are un ID.
  *
  * Și corolarul, la fel de important:
  *
@@ -62,7 +65,12 @@ export interface ProvenientaRand {
   metoda: string;
   /** `displayName`-ul din master, când s-a rezolvat o identitate. Altfel `null`. */
   identitate: string | null;
+  /** Identificatorul autoritar. `null` când identitatea s-a stabilit doar din nume. */
   storeId: string | null;
+  /**
+   * `true` DOAR când identitatea e susținută de un identificator autoritar. O potrivire
+   * pe nume, oricât de sigură, lasă `false`: știm ce restaurant e, nu avem ID-ul lui.
+   */
   verificat: boolean;
   /** Intrările care ar fi putut prinde textul — populat la AMBIGUOUS și la UNMATCHED. */
   candidati: string[];
@@ -78,15 +86,28 @@ export const normalizeazaNume = (s: string): string =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
 
-const verificate = (master: IntrareStoreMaster[]) =>
+/** Intrările care au un identificator autoritar. Doar ele pot fi potrivite pe identificator. */
+const cuIdentificator = (master: IntrareStoreMaster[]) =>
   master.filter(m => m.verified && m.storeId !== null);
 
 /**
- * Potrivește un text-sursă cu master-ul, în ordinea de precădere cerută:
- * 1. identificator verificat · 2. nume verificat exact · 3. nume verificat normalizat
- * 4. alias verificat · 5. altfel UNMATCHED.
+ * Potrivește un text-sursă cu master-ul, pe scara cerută:
  *
- * La ORICE nivel, două sau mai multe intrări care prind același text ⇒ AMBIGUOUS.
+ *   1. identificator autoritar (când există)
+ *   2. nume de afișare EXACT, unic în master
+ *   3. alias EXACT, unic în master
+ *   4. potrivire normalizată — DOAR dacă dă exact un rezultat
+ *   5. altfel UNMATCHED
+ *
+ * La orice nivel, două sau mai multe intrări care prind textul ⇒ AMBIGUOUS și atribuirea
+ * se oprește. Nivelurile se evaluează în ordine: o potrivire exactă e neambiguă prin
+ * definiție și are precădere — dar normalizarea, care e cea care poate topi două
+ * restaurante într-unul, nu atribuie nimic dacă prinde mai mult de unul.
+ *
+ * IMPORTANT: o potrivire pe nume stabilește IDENTITATEA (ce restaurant e), nu
+ * identificatorul. `storeId` rămâne `null` și `verificat` rămâne `false` până când o sursă
+ * autoritară aduce un identificator. Raportul se poate importa și afișa pe restaurantul lui;
+ * doar nu ne prefacem că avem un ID pe care nu-l avem.
  */
 export function potrivesteRestaurant(
   valoareSursa: string,
@@ -97,56 +118,59 @@ export function potrivesteRestaurant(
   const baza = { ...context, valoareSursa: brut };
   const nimic = (status: StatusPotrivire, metoda: string, candidati: string[], motiv?: string): ProvenientaRand =>
     ({ ...baza, status, metoda, identitate: null, storeId: null, verificat: false, candidati, ...(motiv ? { motiv } : {}) });
+  const ambiguu = (ce: string, lovite: IntrareStoreMaster[]): ProvenientaRand =>
+    nimic('AMBIGUOUS', `${ce} „${brut.trim()}" e revendicat de mai multe intrări: ${lovite.map(m => m.displayName).join(', ')}.`,
+      lovite.map(m => m.displayName),
+      'Atribuirea s-a oprit: nu se alege între restaurante. Dezambiguizează master-ul sau folosește identificatorul.');
+  /** Identitatea rezolvată. `storeId` intră DOAR când chiar a venit dintr-o sursă autoritară. */
+  const gasit = (m: IntrareStoreMaster, status: StatusPotrivire, metoda: string): ProvenientaRand => ({
+    ...baza, status, metoda,
+    identitate: m.displayName,
+    storeId: m.verified ? m.storeId : null,
+    verificat: m.verified && m.storeId !== null,
+    candidati: [m.displayName],
+  });
 
   const v = brut.trim();
   if (!v) return nimic('UNMATCHED', 'Rândul nu declară niciun restaurant.', [], MESAJ_IDENTITATE_NEREZOLVATA);
-
   const n = normalizeazaNume(v);
-  const vf = verificate(master);
 
-  // Nivelul la care fiecare intrare verificată ar putea prinde textul. Se calculează pentru
-  // TOATE, nu se iese la prima potrivire: altfel o potrivire exactă ar ascunde faptul că o a
-  // doua intrare prinde același text după normalizare, iar cele două s-ar topi în tăcere.
-  const nivel = (m: IntrareStoreMaster): { rang: number; status: StatusPotrivire; cum: string } | null => {
-    if (m.storeId === v) return { rang: 1, status: 'MATCHED_ID', cum: `Identificator verificat „${v}".` };
-    if (m.displayName === v) return { rang: 2, status: 'MATCHED_NAME', cum: 'Nume verificat, potrivire exactă.' };
-    if (normalizeazaNume(m.displayName) === n) return { rang: 3, status: 'MATCHED_NAME', cum: 'Nume verificat, potrivire după normalizare.' };
-    if (m.aliases.some(a => a === v || normalizeazaNume(a) === n)) return { rang: 4, status: 'MATCHED_ALIAS', cum: `Alias verificat „${v}".` };
-    return null;
-  };
+  // 1 — identificatorul autoritar
+  const dupaId = cuIdentificator(master).filter(m => m.storeId === v);
+  if (dupaId.length > 1) return ambiguu('Identificatorul', dupaId);
+  if (dupaId.length === 1) return gasit(dupaId[0], 'MATCHED_ID', `Identificator autoritar „${v}".`);
 
-  const candidati = vf.map(m => ({ m, n: nivel(m) })).filter((x): x is { m: IntrareStoreMaster; n: NonNullable<ReturnType<typeof nivel>> } => x.n !== null);
-
-  // Două intrări diferite care ar putea prinde același text ⇒ se oprește. Nu contează că una
-  // prinde „mai exact": un master în care două restaurante revendică același text e corupt,
-  // iar alegerea tăcută a unuia e exact greșeala pe care stratul ăsta există s-o prevină.
-  if (candidati.length > 1) {
-    const nume = candidati.map(c => c.m.displayName);
-    const prin = candidati.map(c => `${c.m.displayName} (${c.n.status})`).join(', ');
-    return nimic('AMBIGUOUS', `Textul „${v}" e revendicat de mai multe intrări: ${prin}.`, nume,
-      'Atribuirea s-a oprit: nu se alege între restaurante. Curăță master-ul sau folosește identificatorul.');
+  // 2 — numele de afișare, exact. O potrivire exactă unică e neambiguă prin definiție.
+  const dupaNume = master.filter(m => m.displayName === v);
+  if (dupaNume.length > 1) return ambiguu('Numele', dupaNume);
+  if (dupaNume.length === 1) {
+    return gasit(dupaNume[0], 'MATCHED_NAME', 'Nume din Store Master, potrivire exactă.');
   }
 
-  if (candidati.length === 1) {
-    const { m, n: niv } = candidati[0];
-    return { ...baza, status: niv.status, metoda: niv.cum, identitate: m.displayName, storeId: m.storeId, verificat: true, candidati: [m.displayName] };
+  // 3 — aliasul, exact
+  const dupaAlias = master.filter(m => m.aliases.includes(v));
+  if (dupaAlias.length > 1) return ambiguu('Aliasul', dupaAlias);
+  if (dupaAlias.length === 1) return gasit(dupaAlias[0], 'MATCHED_ALIAS', `Alias „${v}", potrivire exactă.`);
+
+  // 4 — normalizat. Aici se poate topi ceva, deci aici e cea mai strictă condiție:
+  //     atribuie DOAR dacă rezultatul e unul singur.
+  const dupaNorm = master.filter(m =>
+    normalizeazaNume(m.displayName) === n || m.aliases.some(a => normalizeazaNume(a) === n));
+  if (dupaNorm.length > 1) {
+    return nimic('AMBIGUOUS',
+      `Normalizat, „${v}" prinde mai multe restaurante: ${dupaNorm.map(m => m.displayName).join(', ')}.`,
+      dupaNorm.map(m => m.displayName),
+      'Normalizarea NU are voie să topească două restaurante într-unul. Atribuirea s-a oprit.');
+  }
+  if (dupaNorm.length === 1) {
+    const m = dupaNorm[0];
+    const prinAlias = normalizeazaNume(m.displayName) !== n;
+    return gasit(m, prinAlias ? 'MATCHED_ALIAS' : 'MATCHED_NAME',
+      prinAlias ? 'Alias, potrivire după normalizare.' : 'Nume din Store Master, potrivire după normalizare.');
   }
 
-  // Nimic verificat. Spunem totuși ce ar fi putut fi, ca omul să știe exact ce lipsește.
-  const neverificati = master
-    .filter(m => !m.verified || m.storeId === null)
-    .filter(m => m.displayName === v || normalizeazaNume(m.displayName) === n
-      || m.aliases.some(a => normalizeazaNume(a) === n))
-    .map(m => m.displayName);
-  const motiv = neverificati.length
-    ? `Numele corespunde cu ${neverificati.join(', ')}, dar intrarea nu are un identificator verificat. `
-      + MESAJ_IDENTITATE_NEREZOLVATA
-    : MESAJ_IDENTITATE_NEREZOLVATA;
-  return nimic('UNMATCHED',
-    neverificati.length
-      ? 'Candidat găsit după nume, dar neverificat — nu se atribuie.'
-      : 'Niciun restaurant din master nu corespunde.',
-    neverificati, motiv);
+  // 5 — nimic. Nu se caută „ceva asemănător": numele apropiate NU se unesc automat.
+  return nimic('UNMATCHED', 'Niciun restaurant din Store Master nu corespunde.', [], MESAJ_IDENTITATE_NEREZOLVATA);
 }
 
 // ————————————————————————————————————————————————————————— datasetul validat

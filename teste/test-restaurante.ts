@@ -136,7 +136,7 @@ t('un restaurant real nemapat NU mută scopul — se declară nemapat',
 t('… și poartă exact mesajul cerut',
   (() => { const r = alegeRestaurant(S, SEL, ADMIN, 'FRYDAY CLUJ MEMO');
     return r.fel === 'NEMAPAT' && r.mesaj === MESAJ_NEMAPAT; })());
-t('toate cele 30 se comportă la fel: nemapate, fără excepții',
+t('toate cele 30 se comportă la fel pe o stare fără importuri: nemapate',
   RESTAURANTE_FRYDAY.every(r => alegeRestaurant(S, SEL, ADMIN, r.displayName).fel === 'NEMAPAT'));
 t('un nume inexistent nu devine locație',
   ['NEMAPAT', 'REFUZAT'].includes(alegeRestaurant(S, SEL, ADMIN, 'FRYDAY INVENTAT').fel));
@@ -148,15 +148,24 @@ t('cele trei restaurante din Cluj sunt intrări DISTINCTE',
 t('niciunul dintre ele nu se leagă de vreo locație din date',
   ['FRYDAY CLUJ IULIUS', 'FRYDAY CLUJ MEMO', 'FRYDAY CLUJ VIVO']
     .every(n => alegeRestaurant(S, SEL, ADMIN, n).fel === 'NEMAPAT'));
-t('o locație numită la fel ca un restaurant real NU îi împrumută datele',
+t('un restaurant real cu date importate pe identitatea lui devine selectabil',
   (() => {
-    // capcana: cineva importă un fișier care creează locația „FRYDAY CLUJ MEMO"
-    const capcana: AppState = { ...S, locatii: [...S.locatii, { cod: 'FRYDAY CLUJ MEMO', nume: 'FRYDAY CLUJ MEMO' }] };
-    const acc = accesTower(capcana, { rol: 'ADMIN' }, false);
-    // master-ul are prioritate: numele rămâne nemapat, nu preia locația omonimă
-    return alegeRestaurant(capcana, SEL, acc, 'FRYDAY CLUJ MEMO').fel === 'NEMAPAT';
+    // un raport importat a creat locația pe numele din Store Master
+    const cuDate: AppState = { ...S, locatii: [...S.locatii, { cod: 'FRYDAY CLUJ MEMO', nume: 'FRYDAY CLUJ MEMO' }] };
+    const acc = accesTower(cuDate, { rol: 'ADMIN' }, false);
+    const r = alegeRestaurant(cuDate, SEL, acc, 'FRYDAY CLUJ MEMO');
+    return r.fel === 'RESTAURANT' && r.sel.locatie === 'FRYDAY CLUJ MEMO';
   })(),
-  'potrivirea după nume rămâne interzisă chiar și la potrivire exactă');
+  'identitatea pe nume e deterministă, deci scopul se poate muta pe ea');
+t('… dar un restaurant real FĂRĂ date importate rămâne nemapat',
+  alegeRestaurant(S, SEL, ADMIN, 'FRYDAY CLUJ MEMO').fel === 'NEMAPAT',
+  'identitatea e clară, datele lipsesc — nu se împrumută ale altuia');
+t('… iar un manager tot nu ajunge la el dacă nu e al lui',
+  (() => {
+    const cuDate: AppState = { ...S, locatii: [...S.locatii, { cod: 'FRYDAY CLUJ MEMO', nume: 'FRYDAY CLUJ MEMO' }] };
+    const accM = accesTower(cuDate, { rol: 'MANAGER', locatie: 'L02' }, true);
+    return alegeRestaurant(cuDate, SEL, accM, 'FRYDAY CLUJ MEMO').fel === 'REFUZAT';
+  })());
 t('două restaurante din același oraș nu se confundă la căutare',
   cautaRestaurante('cluj memo').length === 1);
 
@@ -265,11 +274,10 @@ t('un rol regional cu companie, dar limitat, nu primește restaurantele străine
     const o = optiuniRestaurant(stareAutorizata(S, ctxReg), acc);
     return !JSON.stringify(o.dinDate).includes('L01');
   })());
-t('numele real nu poate fi folosit ca storeId nici prin ocolire',
-  RESTAURANTE_FRYDAY.every(r => {
-    const rez = alegeRestaurant(S, SEL, ADMIN, r.displayName);
-    return rez.fel !== 'RESTAURANT';
-  }));
+t('fără date importate, niciun nume real nu deschide un scop cu cifre',
+  RESTAURANTE_FRYDAY.every(r => alegeRestaurant(S, SEL, ADMIN, r.displayName).fel === 'NEMAPAT'));
+t('niciun nume real nu produce vreodată un storeId',
+  RESTAURANTE_FRYDAY.every(r => r.storeId === null));
 t('starea reală rămâne neatinsă de orice alegere din selector',
   (() => {
     const inainte = JSON.stringify(S);

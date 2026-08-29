@@ -1242,10 +1242,16 @@ export function alegeRestaurant(
       : { fel: 'REFUZAT', motiv: 'Rolul tău vede doar restaurantul propriu.' };
   }
 
-  // un nume din master-ul real: nemapat ⇒ NU se caută o locație „asemănătoare"
+  // Un nume din Store Master identifică restaurantul determinist. Dacă un raport a fost
+  // importat pe identitatea asta, locația există în stare și scopul se poate muta pe ea.
+  // Dacă nu, rămâne nemapat: identitatea e clară, datele lipsesc — și nu se împrumută.
   const real = restaurantDupaNume(valoare);
-  if (real && !esteMapat(real)) {
-    return { fel: 'NEMAPAT', restaurant: real.displayName, mesaj: MESAJ_NEMAPAT };
+  if (real) {
+    const loc = state.locatii.find(l => l.cod === real.displayName || l.nume === real.displayName);
+    if (!loc) return { fel: 'NEMAPAT', restaurant: real.displayName, mesaj: MESAJ_NEMAPAT };
+    const vr = verificaCerere(acces.context, { locatie: loc.cod });
+    if (!vr.permis) return { fel: 'REFUZAT', motiv: vr.motiv ?? 'Restaurant neautorizat.' };
+    return { fel: 'RESTAURANT', sel: normalizeazaSelectie(state, { ...sel, scop: 'RESTAURANT', locatie: loc.cod }, acces) };
   }
 
   const v = verificaCerere(acces.context, { locatie: valoare });
