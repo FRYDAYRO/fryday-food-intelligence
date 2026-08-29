@@ -106,8 +106,11 @@ export function analizeaza47(
     peStatus,
   };
 
-  const scop: ScopFisier47 = sm.magazine.length === 0 ? 'SCOP_NEDECLARAT'
-    : sm.magazine.length === 1 ? 'RESTAURANT_UNIC' : 'RETEA_AGREGAT';
+  // „Corporate" în antet e o declarație de scop la fel de bună ca o listă de magazine:
+  // raportul acoperă toată rețeaua. Nu se atribuie unui restaurant, dar nici nu e necunoscut.
+  const scop: ScopFisier47 = sm.corporativ ? 'RETEA_AGREGAT'
+    : sm.magazine.length === 0 ? 'SCOP_NEDECLARAT'
+      : sm.magazine.length === 1 ? 'RESTAURANT_UNIC' : 'RETEA_AGREGAT';
 
   const avertismente: string[] = [];
   for (const r of restaurante) {
@@ -123,7 +126,9 @@ export function analizeaza47(
   if (scop === 'SCOP_NEDECLARAT') {
     motiv = MESAJ_SCOP_NEDECLARAT;
   } else if (scop === 'RETEA_AGREGAT') {
-    motiv = `${MESAJ_AGREGAT} (${sm.magazine.length} restaurante declarate)`;
+    motiv = sm.corporativ && !sm.magazine.length
+      ? `${MESAJ_AGREGAT} (raport „Corporate", pe toată compania)`
+      : `${MESAJ_AGREGAT} (${sm.magazine.length} restaurante declarate)`;
   } else {
     const r = restaurante[0];
     if (esteUtilizabila(r.status)) {

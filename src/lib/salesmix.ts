@@ -25,6 +25,12 @@ export interface SalesMix {
   perioadaDe: string | null;
   perioadaLa: string | null;
   magazine: string[];
+  /**
+   * Raportul e rulat la nivel de companie („Corporate" în antet), fără listă de magazine.
+   * Nu e un restaurant și nu se atribuie niciunuia — dar nici nu e „scop nedeclarat":
+   * știm exact ce acoperă.
+   */
+  corporativ: boolean;
   totalQty: number | null;
   totalExt: number | null;
 }
@@ -100,6 +106,7 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
    */
   const fragmenteAntet: string[] = [];
   let inAntet = true;
+  let corporativ = false;
   let categorie = '';
   let perioadaDe: string | null = null, perioadaLa: string | null = null;
   let totalQty: number | null = null, totalExt: number | null = null;
@@ -116,6 +123,14 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     const text = celule.filter(Boolean).join(' ').trim();
     if (!text) continue;
 
+    // Datele se citesc ÎNAINTEA antetului: „Corporate Start Date: 08/01/2026" e un singur
+    // rând care poartă și scopul, și data. Dacă scanarea antetului l-ar consuma prima,
+    // data s-ar pierde.
+    const sd = /start\s*date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i.exec(text);
+    if (sd) perioadaDe = dataUS(sd[1]);
+    const ed = /end\s*date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i.exec(text);
+    if (ed) perioadaLa = dataUS(ed[1]);
+
     // antetul pe coloane al raportului pe un singur restaurant: se citește doar la început,
     // înainte de capul de tabel sau de prima categorie
     if (inAntet) {
@@ -124,13 +139,18 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
       // Sales Journal, de pildă) ar fi citit ca antet până la ultimul rând, iar numele
       // restaurantului ar înghiți jumătate de raport.
       if (/^menu item name/i.test(text) || /^category\b/i.test(text) || /^groups?\/stores/i.test(text)
-        || /\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)) {
+        || /\d{1,2}\/\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{4}/.test(text)
+        || /^raw material/i.test(text) || /usage in (units|dollars)/i.test(text)) {
         inAntet = false;
       } else {
         const stanga = text.replace(/\s*(fiscal\s+year|period|week)\b.*$/i, '').trim();
         // titlul raportului („4.7 Sales Mix", „4.1 Sales Journal", „2.9 Food Cost…") stă
         // între fragmentele numelui și nu face parte din el — se sare după formă, nu după
         // numărul raportului, ca să meargă și pentru rapoartele viitoare
+        // 2.9 la nivel de companie declară scopul cu un singur cuvânt: „Corporate".
+        // Nu e nume de restaurant, dar nici scop necunoscut — e toată rețeaua.
+        if (/^corporate\b/i.test(stanga)) { corporativ = true; continue; }
+        if (sd || ed) continue;   // rând de dată, nu de nume
         const eTitlu = /^\d+\.\d+\b/.test(stanga);
         if (stanga && !eTitlu && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga)
           && !/^v \d+\./i.test(stanga) && !/copyright/i.test(stanga)) {
@@ -190,7 +210,7 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
     .map(x => x.replace(/\s+\d+ of \d+\b.*$/i, '').trim())
     .filter(x => /fryday|chicken/i.test(x)));
 
-  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], totalQty, totalExt };
+  return { linii, perioadaDe, perioadaLa, magazine: [...new Set(magazine)], corporativ, totalQty, totalExt };
 }
 
 /**
@@ -236,7 +256,8 @@ export function matriceDinText(text: string): unknown[][] {
     // în stânga, iar în dreapta „Fiscal Year / Period / Week". Rândurile astea nu sunt
     // vânzări — dacă ajung în tamponul de denumiri se pierd la prima resetare, iar raportul
     // rămâne fără restaurant. Trec ca rânduri proprii, ca parserul să le poată citi.
-    if (/\b(fiscal\s+year|period\s*:|week\s*:)/i.test(l)) { tampon = []; rez.push([l]); continue; }
+    if (/\b(fiscal\s+year|period\s*:|week\s*:|start\s*date\s*:|end\s*date\s*:)/i.test(l)
+      || /^corporate\b/i.test(l)) { tampon = []; rez.push([l]); continue; }
 
     const m = FINAL.exec(l);
     if (!m) {

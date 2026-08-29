@@ -189,6 +189,45 @@ Net Sales $1.00`));
     return x.magazine.length === 0;
   })());
 
+console.log('\n— A4. 2.9: pe restaurant și pe companie („Corporate") —');
+const NOU_29_VALCEA = `FRYDAY RM VALCEA DT Fiscal Year: 2026
+2.9 Food Cost - Inventory With Adjustments Summary - FIFO
+Period: 8 Week: 4
+8/17/2026 - 8/23/2026
+Usage in Units Usage in Dollars Usage in Percent
+Raw Material Item Inv Beg Pur Inv Inv End Cost End Days On
+Alcool
+APEROL SPRITZ 9% 0.2L 7000247 EA 19.0 0.0 0.0 0.0 16.0 $15.19 $243.07`;
+const v29 = parseSalesMix(matriceDinText(NOU_29_VALCEA));
+t('2.9 pe restaurant: numele se citește din antet',
+  v29.magazine[0] === 'FRYDAY RM VALCEA DT', JSON.stringify(v29.magazine));
+t('titlul lung al lui 2.9 nu intră în nume',
+  !/food cost|fifo|inventory/i.test(v29.magazine[0] ?? ''));
+t('… iar adaptorul îl atribuie restaurantului',
+  analizeaza47(v29, '2.9.pdf').restaurantUnic === 'FRYDAY RM VALCEA DT');
+t('… identificat în Store Master', analizeaza47(v29, '2.9.pdf').rezumat.matched === 1);
+t('capul de tabel 2.9 oprește antetul', !v29.corporativ);
+
+// 2.9 la nivel de companie: alt marcaj de scop („Corporate") și date pe rânduri separate
+const NOU_29_CORP = `Corporate Start Date: 08/01/2026
+2.9 Food Cost - Inventory With Adjustments Summary - FIFO
+End Date: 08/09/2026
+Usage in Units Usage in Dollars Usage in Percent
+Raw Material Item Inv Beg Pur Inv Inv End Cost End Days On
+Alcool
+APEROL SPRITZ 9% 0.2L 7000247 EA 794.0 24.0 0.0 0.0 1,030.0 $15.19 $15,647.76`;
+const c29 = parseSalesMix(matriceDinText(NOU_29_CORP));
+t('„Corporate" e recunoscut ca scop de companie', c29.corporativ === true);
+t('… și NU e citit ca nume de restaurant', c29.magazine.length === 0);
+t('datele pe rânduri separate se citesc: Start Date', c29.perioadaDe === '2026-08-01');
+t('… și End Date', c29.perioadaLa === '2026-08-09');
+const a29 = analizeaza47(c29, '2.9-corp.pdf');
+t('adaptorul îl declară raport de REȚEA, nu scop nedeclarat', a29.scop === 'RETEA_AGREGAT');
+t('… deci NU e atribuibil unui restaurant', a29.atribuibilPeRestaurant === false);
+t('… iar motivul spune că e „Corporate"', (a29.motiv ?? '').includes('Corporate'));
+t('un raport de companie fără magazine nu inventează niciunul', a29.rezumat.totalDeclarate === 0);
+t('perioada ajunge în cheia folosită de aplicație', a29.perioada === '2026-08');
+
 console.log('\n— B. Scopul fișierului se stabilește din antet —');
 t('mai multe restaurante ⇒ raport de REȚEA',
   din('FRYDAY ORADEA, FRYDAY GALATI').scop === 'RETEA_AGREGAT');
