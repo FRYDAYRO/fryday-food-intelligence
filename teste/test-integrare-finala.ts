@@ -688,4 +688,35 @@ t('o cerere pe un singur restaurant nu costă cât toată rețeaua',
     return unul <= Math.max(40, tot);
   })());
 
+// ————————————————————————————————————————————————————————— O. identitatea vizuală
+//
+// Funcționalitatea nouă trebuie să arate NATIV în aplicația existentă. Testele de aici
+// pinează contractul vizual față de `src/lib/ui.tsx` — sursa de adevăr a limbajului de
+// design — ca o schimbare viitoare să nu strecoare un al doilea stil în aplicație.
+
+console.log('\n— O. Ecranele noi vorbesc limbajul vizual al aplicației existente —');
+const htmlToate = SECTIUNI_TOATE.map(x => randeaza(STRES, x)).join('\n');
+
+t('cardurile folosesc exact cardul aplicației (rounded-md border bg-card)',
+  randeaza(STRES, 'OVERVIEW').includes('class="rounded-md border bg-card px-4 py-3"'));
+t('titlurile păstrează greutatea din Titlu (font-display, extrabold)',
+  htmlToate.includes('font-display text-lg font-extrabold tracking-tight'));
+t('capetele de tabel folosesc tipografia din Th, nu una proprie',
+  htmlToate.includes('text-[11px] font-semibold uppercase tracking-wider text-muted-foreground')
+  && !htmlToate.includes('text-xs uppercase tracking-wide text-muted-foreground'));
+t('cifrele stau pe fontul tabular al aplicației', htmlToate.includes('num'));
+t('nu se introduce un al doilea sistem de culori — doar nuanțele din Insigna',
+  (() => {
+    // vocabularul stabilit de `Insigna` în src/lib/ui.tsx
+    const permise = new Set(['amber', 'stone', 'red', 'emerald', 'orange', 'sky']);
+    const straine = new Set<string>();
+    for (const m of htmlToate.matchAll(/(?:bg|text|border|ring|from|to)-([a-z]+)-\d{2,3}/g)) {
+      if (!permise.has(m[1])) straine.add(m[1]);
+    }
+    return straine.size === 0;
+  })(),
+  'aceleași nuanțe ca badge-urile existente');
+t('scopul curent e vizibil fără bara globală de deasupra',
+  randeaza(STRES, 'OVERVIEW').includes('data-zona="scop-banda"'));
+
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);

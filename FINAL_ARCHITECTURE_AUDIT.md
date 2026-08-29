@@ -1,6 +1,6 @@
 # Audit final de arhitectură — FC Control Tower
 
-Data: 2026-08-29 · Bază: `1b58b7e` (head-ul PR #14) · Suită: 43 fișiere de test, 2510 teste
+Data: 2026-08-29 · Bază: `1b58b7e` (head-ul PR #14) · Suită: 43 fișiere de test, 2516 teste
 
 Documentul acesta este rezultatul unei treceri adversariale prin tot fluxul, de la fișierul
 importat până la ce vede pe ecran un manager de restaurant. Nu descrie ce *ar trebui* să facă
@@ -60,8 +60,8 @@ Până atunci, divergența tăcută e imposibilă: orice abatere pică testul.
 
 ## 3. Constatări
 
-Șaisprezece mutații deliberate au fost injectate în motoare pentru a verifica dacă suita chiar
-mușcă. **Toate 16 au fost prinse.** Cinci dintre ele au scăpat la prima rulare — acelea au fost
+Optsprezece mutații deliberate au fost injectate în cod pentru a verifica dacă suita chiar
+mușcă. **Toate 18 au fost prinse.** Cinci dintre ele au scăpat la prima rulare — acelea au fost
 goluri în suită, închise mai jos.
 
 ### A-1 · Un ingredient fără preț cobora tăcut Food Cost-ul — **REMEDIAT**
@@ -198,6 +198,54 @@ efecte inventate.
 
 **L. Performanța** — vezi A-5.
 
+## 4b. Identitatea vizuală — ecranele noi față de aplicația live
+
+Directivă: aplicația live rămâne referința; funcționalitatea nouă trebuie să arate **nativ**,
+fără redesign. Auditul a comparat ecranele turnului cu `src/lib/ui.tsx` — sursa de adevăr a
+limbajului de design — și cu cele 27 de ecrane existente.
+
+**Ce era deja nativ, verificat:**
+
+* Turnul e **modulul 1 din bara laterală existentă**, nu o aplicație separată: aceeași navigare,
+  același `bg-sidebar`, aceeași stare activă `bg-primary text-primary-foreground`.
+* `CardKpi` folosește **exact aceleași clase** ca `Kpi` din `ui.tsx`
+  (`rounded-md border bg-card px-4 py-3`, etichetă `text-[11px] uppercase tracking-[0.12em]`,
+  valoare `num text-2xl font-semibold`). Adaugă doar semantica „indisponibil + motiv".
+* Componente reutilizate: `Insigna` ×15, `Sel` ×12, `Camp` ×11, `In` ×33, `Btn` ×3.
+* Vocabular de clase existent: `num` ×107, `text-muted-foreground` ×148, `bg-card` ×63.
+* Culorile de status sunt **cele stabilite de `Insigna`** (amber, stone, red, emerald, orange,
+  sky). Nu s-a introdus niciun al doilea sistem de culori, niciun font nou, nicio animație.
+
+**Trei abateri reale, remediate în acest PR (aliniere, nu redesign):**
+
+| # | Ce era | Ce s-a schimbat |
+|---|---|---|
+| U-1 | Pe ecranul turnului se vedeau **două bare de filtre suprapuse**: „Context global" (Perioada/Locația/Canal) și „Scop" (granularitate/perioadă/comparație/companie-restaurant/canal). Turnul nu citește deloc selecția globală — niciun fișier din `views/tower/` nu importă `useSel` — deci bara de sus era **inertă**: utilizatorul schimba perioada și nu se mișca nicio cifră. | `App.tsx` nu mai randează cele trei selectoare pentru modulele cu scop propriu. Rândul rămâne, cu aceleași clase, și păstrează `IndicatorServer` (rol + „date filtrate") — context de securitate care trebuie să rămână vizibil — plus o notă că scopul se alege din bara de dedesubt. |
+| U-2 | Capetele de tabel din turn: `text-xs uppercase tracking-wide`, fără `font-semibold` — mai mari și mai slabe decât în restul aplicației, în **14 tabele**. | Aliniate la definiția `Th`: `text-[11px] font-semibold uppercase tracking-wider`. |
+| U-3 | Titlurile de secțiune din turn: `font-bold`, cu o treaptă mai ușor decât `Titlu` din `ui.tsx`. | Aliniat la `font-extrabold`. |
+
+Toate trei mută ecranele noi **spre** limbajul existent. Zero schimbări de layout, culori,
+spațiere, terminologie sau comportament responsive.
+
+**Pinat de 6 teste noi** (secțiunea O): cardul e cardul aplicației; titlurile păstrează greutatea;
+capetele de tabel folosesc tipografia din `Th`; cifrele stau pe fontul tabular; **nicio nuanță în
+afara vocabularului `Insigna`**; scopul rămâne vizibil fără bara globală. Verificate prin mutație:
+un `thead` divergent și o culoare străină (`indigo-600`) pică fiecare suita.
+
+**Îmbunătățiri posibile, NEIMPLEMENTATE aici (opționale, pentru un PR viitor):**
+
+1. `ok`, `danger` și `warn` sunt clase CSS scrise de mână în `index.css`, nu culori Tailwind.
+   Variantele cu opacitate (`bg-ok/10`, `border-ok/50`) **nu se rezolvă** — inclusiv în
+   `App.tsx`, cod pre-existent. Mutarea lor în `tailwind.config.js` ar face `Insigna` și
+   indicatorii de status să folosească tokenii de brand în locul paletei generice.
+2. Turnul își reimplementează tabelele în loc să folosească `T`/`Th`/`Td`, iar stările goale în
+   loc de `Gol`. Vizual e acum identic, dar extragerea în componentele comune ar preveni o
+   viitoare divergență prin construcție, nu prin test.
+3. Pe ecranul turnului rămân patru rânduri înaintea conținutului (bară laterală → identitate →
+   taburi de secțiune → scop → bandă de context). Comasarea taburilor cu bara de scop ar
+   recâștiga spațiu vertical pe laptop — dar e o schimbare de layout, deci în afara acestui PR.
+
+
 ## 5. Postura de securitate — ce garantează infrastructura și ce nu
 
 Formulat exact, fără să promitem ce nu putem ține.
@@ -258,6 +306,6 @@ Cu următoarele precizări, care fac parte din verdict:
   garanția rămâne **pe server**, iar aplicația spune asta explicit acolo unde contează. Cine
   rulează varianta locală trebuie să știe că rolul e o preferință de afișare.
 * Limitarea de scalare (A-5) e măsurată și declarată, nu ascunsă. Nu blochează rețeaua curentă.
-* Toate cele 16 mutații deliberate injectate în motoare au fost prinse de suită.
+* Toate cele 18 mutații deliberate (16 în motoare, 2 în stratul vizual) au fost prinse de suită.
 
-Porți: `pnpm test` 2510/2510 · `pnpm typecheck` fără erori · `pnpm build` reușit.
+Porți: `pnpm test` 2516/2516 · `pnpm typecheck` fără erori · `pnpm build` reușit.

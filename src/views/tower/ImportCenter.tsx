@@ -152,7 +152,7 @@ export default function ImportCenter() {
             {rand.diagnostice.length > 0 && (
               <div className="overflow-x-auto rounded-md border bg-card" data-zona="diagnostice">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <tr><th className="px-3 py-2">Diagnostic</th><th className="px-3 py-2">Nivel</th><th className="px-3 py-2">Detaliu</th></tr>
                   </thead>
                   <tbody>
@@ -188,7 +188,7 @@ export default function ImportCenter() {
       <Sectiune titlu="Versiuni activate" sub="istoricul nu se rescrie: fiecare import adaugă o versiune">
         <div className="overflow-x-auto rounded-md border bg-card" data-zona="versiuni">
           <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Versiune</th><th className="px-3 py-2">Sursă</th>
                 <th className="px-3 py-2">Fișier</th><th className="px-3 py-2">Valabil de la</th>

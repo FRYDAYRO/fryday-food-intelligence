@@ -20,7 +20,7 @@ export default function Pmix47() {
       <Sectiune titlu="Mixul pe categorii">
         <div className="overflow-x-auto rounded-md border bg-card" data-zona="categorii">
           <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Categorie</th>
                 <th className="px-3 py-2 text-right">Bucăți</th>
@@ -53,7 +53,7 @@ export default function Pmix47() {
       <Sectiune titlu="Produsele vândute" sub={`${produse.length} produse în perioada selectată`}>
         <div className="overflow-x-auto rounded-md border bg-card" data-zona="produse">
           <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Produs</th>
                 <th className="px-3 py-2">Categorie</th>

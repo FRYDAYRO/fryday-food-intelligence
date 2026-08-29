@@ -146,7 +146,7 @@ export function MaterialeGrup({ g }: { g: RandGrupBridge }) {
   return (
     <div className="overflow-x-auto rounded-md border bg-card" data-zona="materiale">
       <table className="w-full text-sm">
-        <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+        <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           <tr>
             <th className="px-3 py-2">Material</th><th className="px-3 py-2">Categorie sursă</th>
             <th className="px-3 py-2">Restaurant</th><th className="px-3 py-2 text-right">Lei</th>
@@ -187,7 +187,7 @@ export function TabelMagazine({ randuri, excluse, baza, onAlege }: {
     <div data-zona="magazine">
       <div className="overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-3 py-2">Restaurant</th>
               <th className="px-3 py-2 text-right">FC rețetar</th>
@@ -261,7 +261,7 @@ export function TabelDrill({ nivel, onCoboara }: { nivel: NivelDrill; onCoboara:
     <div data-zona="drill" data-treapta={nivel.treapta}>
       <div className="overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-3 py-2">{nivel.urmatoarea ?? 'Element'}</th>
               <th className="px-3 py-2 text-right">Lei</th>
@@ -345,7 +345,7 @@ export function Sectiune({ titlu, sub, actiuni, children }: {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-2">
-        <h2 className="font-display text-lg font-bold tracking-tight">{titlu}</h2>
+        <h2 className="font-display text-lg font-extrabold tracking-tight">{titlu}</h2>
         {sub && <span className="text-sm text-muted-foreground">{sub}</span>}
         {actiuni && <div className="ml-auto flex items-center gap-2">{actiuni}</div>}
       </div>

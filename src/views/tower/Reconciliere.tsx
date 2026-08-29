@@ -63,7 +63,7 @@ export default function Reconciliere() {
         <Sectiune titlu="Din ce se compune încrederea" sub={bridge.confidence.formula}>
           <div className="overflow-x-auto rounded-md border bg-card" data-zona="confidenta">
             <table className="w-full text-sm">
-              <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">Factor</th><th className="px-3 py-2 text-right">Pondere</th>
                   <th className="px-3 py-2 text-right">Scor</th><th className="px-3 py-2">Detaliu</th>
