@@ -9,6 +9,7 @@ import {
   activeazaImport, pregatesteImport, ETICHETA_SURSA,
   type CerereImport, type PregatireImport, type TipSursaFC,
 } from '../../lib/import-center';
+import { fmtInterval } from '../../lib/engine';
 import { Btn, Camp, In, Insigna, Sel, cx } from '../../lib/ui';
 import { randImport, type RandImportTower } from '../../lib/fc-tower';
 import { verificaImport, verificaScriere } from '../../lib/fc-acces';
@@ -126,6 +127,7 @@ export default function ImportCenter() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 text-sm">
               {([
                 ['Perioadă', rand.perioada ?? '—'],
+                ['Interval acoperit', fmtInterval(rand.intervalDe, rand.intervalLa)],
                 ['Granularitate', rand.granularitate],
                 ['Scop', `${rand.scop}${rand.restaurante.length ? ` (${rand.restaurante.join(', ')})` : ''}`],
                 ['Rânduri', `${rand.importate} importate din ${rand.randuri}`],

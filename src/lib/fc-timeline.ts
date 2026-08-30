@@ -47,6 +47,12 @@ export interface CerereTimeline extends CerereFC {
 export interface MetriciFC {
   salesRON: number;
   sursaVanzari: 'Sales Report' | 'PMIX';
+  /**
+   * De ce 4.1 NU e numitorul, deși există rânduri pe perioadă: fereastra lui nu coincide
+   * cu a vânzărilor pe produs. Absent = nicio incompatibilitate. Fără el, substituirea
+   * numitorului ar fi tăcută.
+   */
+  motivNumitorIncompatibil?: string;
 
   /** FC teoretic din rețete: cost ÷ vânzări nete. */
   recipeFcPct: number | null;
@@ -101,6 +107,7 @@ export function metriciFC(state: AppState, ctx: CtxFC, cerere: CerereFC): Metric
 
   return {
     salesRON: net, sursaVanzari: numitor.sursa,
+    ...(numitor.motivIncompatibil !== undefined ? { motivNumitorIncompatibil: numitor.motivIncompatibil } : {}),
     recipeFcPct: pct(recipe.cost),
     recipeCostRON: recipe.cost, foodCostRON: recipe.costFood, paperCostRON: recipe.costPaper,
     acoperirePct: recipe.acoperirePct,

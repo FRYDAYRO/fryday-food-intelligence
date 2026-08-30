@@ -905,6 +905,9 @@ export interface RandImportTower {
   stareDetectie: string;
   incredereDetectie: number;
   perioada: string | null;
+  /** Fereastra REALĂ a raportului, cu precizie de zi. `null` = sursa nu o declară. */
+  intervalDe: string | null;
+  intervalLa: string | null;
   granularitate: string;
   scop: string;
   restaurante: string[];
@@ -940,6 +943,8 @@ export function randImport(r: RezultatCentral): RandImportTower {
     stareDetectie: r.detectie.stare,
     incredereDetectie: r.detectie.incredere,
     perioada: r.perioada,
+    intervalDe: r.intervalDe,
+    intervalLa: r.intervalLa,
     granularitate: r.granularitate,
     scop: r.scop,
     restaurante: r.restaurante,

@@ -11,14 +11,20 @@
 //
 // Cazul real care a cerut tot acest strat: 4.7 pe 17–23 august și 2.9 pe 1–9 august.
 // Amândouă cad în „2026-08". La granularitate de lună par identice. Nu au nicio zi comună.
-import { buildCtx } from '../src/lib/engine';
+import { createElement as h } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { buildCtx, fmtInterval } from '../src/lib/engine';
 import { genereazaSeed, stareGoala } from '../src/lib/seed';
 import { COMPANIE, perioadaDin } from '../src/lib/fc-domeniu';
 import { compatibilitate } from '../src/lib/compatibilitate';
 import {
-  COMBINATIE_FC, descrieInterval, descrieVerdict, intervaleSurse, verdictCombinare,
+  COMBINATIE_FC, bandaPerioade, descrieInterval, descrieVerdict, intervaleSurse, verdictCombinare,
   type SursaCombinabila,
 } from '../src/lib/perioade-surse';
+import { BandaPerioade } from '../src/views/tower/parti';
+import { ContinutTower } from '../src/views/tower/ControlTower';
+import { TowerProvider, type TowerCtx } from '../src/views/tower/context';
+import { accesTower, type SelectieFC } from '../src/lib/fc-tower';
 import { nboFC, numitorFC, recipeFC, reconciliationFC } from '../src/lib/fc-core';
 import { bridgeFC } from '../src/lib/fc-bridge';
 import { metriciFC } from '../src/lib/fc-timeline';
@@ -379,6 +385,164 @@ t('… și pe cazul real', compatibilitate([
 t('intervaleSurse întoarce sursele în ordine stabilă',
   intervaleSurse(sCazReal).map(i => i.tip).join() === 'NBO_29,PMIX_47');
 t('… și doar pe cele cerute', intervaleSurse(sCazReal, ['NBO_41']).length === 0);
+
+console.log('\n— Formatarea intervalului —');
+t('aceeași lună: „17–23 Aug 2026"', fmtInterval('2026-08-17', '2026-08-23') === '17–23 Aug 2026', fmtInterval('2026-08-17', '2026-08-23'));
+t('luni diferite, același an: „28 Iul – 3 Aug 2026"', fmtInterval('2026-07-28', '2026-08-03') === '28 Iul – 3 Aug 2026', fmtInterval('2026-07-28', '2026-08-03'));
+t('ani diferiți: anul apare de două ori', fmtInterval('2025-12-28', '2026-01-03') === '28 Dec 2025 – 3 Ian 2026', fmtInterval('2025-12-28', '2026-01-03'));
+t('o singură zi nu se scrie ca interval', fmtInterval('2026-08-17', '2026-08-17') === '17 Aug 2026');
+t('fără interval ⇒ „—", nu o dată inventată',
+  fmtInterval(null, '2026-08-17') === '—' && fmtInterval('2026-08-17', null) === '—' && fmtInterval(null, null) === '—');
+t('zilele nu se scriu cu zero în față', fmtInterval('2026-08-01', '2026-08-09') === '1–9 Aug 2026', fmtInterval('2026-08-01', '2026-08-09'));
+
+console.log('\n— Banda de perioade: selectorul —');
+const bandaReal = bandaPerioade(cu([
+  ver('PMIX_47', '4.7 corporate.xlsx', REAL_47),
+  ver('NBO_29', '2.9 corporate.xlsx', REAL_29),
+  ver('NBO_41', '4.1 corporate.xlsx', ['2026-06-15', '2026-06-21']),
+]));
+t('statusul e BLOCK', bandaReal.status === 'BLOCK', bandaReal.status);
+t('toate cele TREI surse apar', bandaReal.intervale.length === 3);
+t('sunt DOUĂ combinații, nu una „globală"', bandaReal.combinatii.length === 2);
+t('combinația de Food Cost e 2.9 × 4.7', bandaReal.combinatii[0].cheie === 'FOOD_COST');
+t('combinația de numitor e 4.1 × 4.7', bandaReal.combinatii[1].cheie === 'NUMITOR');
+t('ambele blochează pe cazul real', bandaReal.combinatii.every(c => c.verdict.blocheaza));
+t('IDENTITATE: verdictul benzii = verdictul punții, prin ACEEAȘI funcție',
+  JSON.stringify(bandaReal.combinatii[0].verdict) === JSON.stringify(punte(sCazReal).verdictPerioade));
+t('fără 4.1 importat, combinația de numitor nici nu apare',
+  bandaPerioade(sCazReal).combinatii.length === 1);
+t('stare fără nicio sursă ⇒ GOL', bandaPerioade(cu([])).status === 'GOL');
+t('… iar banda nu se randează deloc', renderToStaticMarkup(h(BandaPerioade, { date: bandaPerioade(cu([])) })) === '');
+t('perioade identice ⇒ ACCEPT', bandaPerioade(sAccept).status === 'ACCEPT');
+t('o sursă nedeclarată ⇒ INSUFFICIENT_DATA', bandaPerioade(sFaraInterval).status === 'INSUFFICIENT_DATA');
+t('un BLOCK bate un INSUFFICIENT: statusul arată cel mai grav',
+  bandaPerioade(cu([ver('PMIX_47', 'a', REAL_47), ver('NBO_29', 'b', REAL_29), ver('NBO_41', 'c', null)])).status === 'BLOCK');
+
+console.log('\n— Banda de perioade: randarea celor cinci stări —');
+const randB = (d: ReturnType<typeof bandaPerioade>) => renderToStaticMarkup(h(BandaPerioade, { date: d }));
+const htmlBlock = randB(bandaReal);
+t('BLOCK · insigna spune BLOCAT', htmlBlock.includes('data-status="BLOCK"') && htmlBlock.includes('BLOCAT'));
+t('… arată intervalul fiecărei surse, formatat', htmlBlock.includes('17–23 Aug 2026')
+  && htmlBlock.includes('1–9 Aug 2026') && htmlBlock.includes('15–21 Iun 2026'));
+t('… cu numele scurt al raportului', htmlBlock.includes('>4.7<') && htmlBlock.includes('>2.9<') && htmlBlock.includes('>4.1<'));
+// ancorat pe rândul sursei: „7 zile" apare și în motivul verdictului, deci un `includes`
+// pe tot documentul ar trece chiar dacă rândul n-ar mai număra nimic
+// tăiat la începutul rândului URMĂTOR: un `</div>` lazy ar sări peste rândul propriu și
+// ar înghiți zilele vecinului, iar testul ar trece degeaba
+const randSursa = (html: string, tip: string) => {
+  const de = html.indexOf(`data-sursa="${tip}"`);
+  if (de < 0) return '';
+  const urm = html.indexOf('data-sursa="', de + 12);
+  return html.slice(de, urm < 0 ? html.length : urm);
+};
+t('… și cu zilele fiecăruia, pe rândul lui',
+  randSursa(htmlBlock, 'PMIX_47').includes('7 zile') && randSursa(htmlBlock, 'NBO_29').includes('9 zile'),
+  randSursa(htmlBlock, 'PMIX_47').slice(0, 160));
+t('… și cu fișierul din care vine', randSursa(htmlBlock, 'NBO_29').includes('2.9 corporate.xlsx'));
+t('rândul unei surse nedeclarate NU numără zile',
+  !randSursa(randB(bandaPerioade(sFaraInterval)), 'NBO_29').includes('zile'));
+t('… numește felul incompatibilității', htmlBlock.includes('DISJUNCT'));
+t('… spune ce calcul se pierde', htmlBlock.includes('Se pierde:'));
+t('… și că rapoartele individuale rămân vizibile',
+  htmlBlock.includes('data-zona="individuale"') && htmlBlock.includes('rămâne complet vizibil'));
+t('… fiecare sursă are ancora ei', ['PMIX_47', 'NBO_29', 'NBO_41'].every(x => htmlBlock.includes(`data-sursa="${x}"`)));
+t('… și fiecare combinație pe a ei',
+  htmlBlock.includes('data-combinatie="FOOD_COST"') && htmlBlock.includes('data-combinatie="NUMITOR"'));
+
+const htmlPartial = randB(bandaPerioade(sPartial));
+t('SUPRAPUNERE_PARTIALA · blochează la fel', htmlPartial.includes('data-status="BLOCK"'));
+t('… dar își spune felul propriu', htmlPartial.includes('SUPRAPUNERE_PARTIALA'));
+t('… și numărul de zile comune', htmlPartial.includes('6 zile comune'));
+
+const htmlAccept = randB(bandaPerioade(sAccept));
+t('ACCEPT · insigna spune COMPATIBIL', htmlAccept.includes('data-status="ACCEPT"') && htmlAccept.includes('COMPATIBIL'));
+t('… fără mesajul de rapoarte individuale, că n-a blocat nimic', !htmlAccept.includes('data-zona="individuale"'));
+t('… și tot arată perioada, nu doar starea', htmlAccept.includes('1–31 Aug 2026'));
+
+const htmlLipsa = randB(bandaPerioade(sFaraInterval));
+t('INSUFFICIENT_DATA · insigna spune NEDECLARAT',
+  htmlLipsa.includes('data-status="INSUFFICIENT_DATA"') && htmlLipsa.includes('NEDECLARAT'));
+t('… iar titlul NU repetă insigna, ci adaugă ceva',
+  bandaPerioade(sFaraInterval).titlu === 'Compatibilitate incertă');
+t('… numește sursa fără interval', htmlLipsa.includes('interval nedeclarat'));
+t('… și NU pretinde că blochează', !htmlLipsa.includes('data-zona="individuale"'));
+t('… iar sursa care ARE interval îl arată', htmlLipsa.includes('1–31 Aug 2026'));
+
+// MIXT: originea datelor stă pe banda de context; banda de perioade nu o repetă, dar
+// nici nu slăbește regula când datele sunt mixte
+t('MIXT · originea rămâne pe banda de context, nu se dublează',
+  !htmlBlock.includes('Demo') && !htmlBlock.includes('MIXT'));
+t('… iar pe date demo+reale regula e aceeași', areDateDemo(sCazReal).demo && bandaPerioade(sCazReal).status === 'BLOCK');
+t('… identică cu cea de pe date curat reale', bandaPerioade(sReal).status === bandaPerioade(sCazReal).status);
+
+console.log('\n— Banda: compactă pe telefon —');
+const sumar = htmlBlock.match(/<summary[\s\S]*?<\/summary>/)?.[0] ?? '';
+t('forma compactă e un <summary>, deci detaliile sunt pliate implicit', sumar.length > 0);
+t('… fără atributul `open`, ca să nu împingă conținutul', !htmlBlock.includes('<details open'));
+t('… rezumatul ține toate sursele într-o singură linie',
+  sumar.includes('data-camp="rezumat"') && (sumar.match(/·/g) ?? []).length === 2);
+t('… iar linia se rupe controlat, nu se taie', sumar.includes('flex-wrap'));
+t('pe telefon rezumatul surselor e ascuns — insigna și titlul rămân',
+  sumar.includes('hidden text-muted-foreground sm:inline') || sumar.includes('hidden') && sumar.includes('sm:inline'));
+t('titlul e scurt, ca banda să nu treacă de 2–3 rânduri pe 390 px',
+  bandaReal.titlu.length <= 24, `${bandaReal.titlu.length}: ${bandaReal.titlu}`);
+t('… toate cele patru titluri sunt scurte',
+  (['GOL', 'ACCEPT', 'INSUFFICIENT_DATA', 'BLOCK'] as const).every(st =>
+    (bandaPerioade(st === 'GOL' ? cu([])
+      : st === 'ACCEPT' ? sAccept
+        : st === 'INSUFFICIENT_DATA' ? sFaraInterval : sCazReal).titlu.length <= 24)));
+
+console.log('\n— Selectorul benzii: pur și dependent DOAR de versiunile de import —');
+// cheia de memoizare din turn e `state.versiuniImport`; asta e valid doar dacă nimic
+// altceva din stare nu schimbă rezultatul
+t('două apeluri pe aceeași stare dau exact același rezultat',
+  JSON.stringify(bandaPerioade(sCazReal)) === JSON.stringify(bandaPerioade(sCazReal)));
+t('schimbarea vânzărilor NU schimbă banda',
+  JSON.stringify(bandaPerioade({ ...sCazReal, vanzari: [] }))
+  === JSON.stringify(bandaPerioade(sCazReal)));
+t('schimbarea liniilor 2.9 NU schimbă banda',
+  JSON.stringify(bandaPerioade({ ...sCazReal, materiale29: [] }))
+  === JSON.stringify(bandaPerioade(sCazReal)));
+t('schimbarea rețetelor și a produselor NU schimbă banda',
+  JSON.stringify(bandaPerioade({ ...sCazReal, retete: [], produse: [] }))
+  === JSON.stringify(bandaPerioade(sCazReal)));
+t('DOAR versiunile de import o schimbă — deci cheia de memoizare e corectă',
+  JSON.stringify(bandaPerioade({ ...sCazReal, versiuniImport: [] }))
+  !== JSON.stringify(bandaPerioade(sCazReal)));
+t('conținutul greu stă DOAR în partea desfășurată',
+  !sumar.includes('Se pierde:') && htmlBlock.includes('Se pierde:'));
+
+console.log('\n— Banda e randată în turn, pe toate secțiunile —');
+const SEL_T: SelectieFC = {
+  ancora: '2026-08-15', granularitate: 'LUNA', comparatie: 'PERIOADA_PRECEDENTA',
+  scop: 'COMPANIE', locatie: null, canal: 'TOTAL',
+};
+const ctxT = (state: AppState): TowerCtx => ({
+  state, ctx: buildCtx(state), sel: SEL_T, setSel: () => undefined,
+  acces: accesTower(state, { rol: 'ADMIN' }, false), update: () => undefined,
+});
+const turn = (state: AppState, initial: Parameters<typeof ContinutTower>[0]['initial'] = 'OVERVIEW') =>
+  renderToStaticMarkup(h(TowerProvider, { value: ctxT(state) }, h(ContinutTower, { initial })));
+const turnBlock = turn(sCazReal);
+t('banda apare în turn', turnBlock.includes('data-zona="banda-perioade"'));
+t('… cu statusul corect', turnBlock.includes('data-status="BLOCK"'));
+t('… sub banda de context, nu în locul ei',
+  turnBlock.indexOf('data-zona="banda"') < turnBlock.indexOf('data-zona="banda-perioade"')
+  && turnBlock.includes('data-zona="banda"'));
+t('… deasupra conținutului', turnBlock.indexOf('data-zona="banda-perioade"') < turnBlock.indexOf('data-zona="continut"'));
+for (const sect of ['OVERVIEW', 'ANALIZA_FC', 'VARIATII', 'NBO29', 'RECONCILIERE'] as const) {
+  t(`… pe secțiunea ${sect}`, turn(sCazReal, sect).includes('data-zona="banda-perioade"'));
+}
+t('pe o stare fără surse, turnul nu arată banda deloc',
+  !turn(cu([])).includes('data-zona="banda-perioade"'));
+t('… dar restul turnului se randează normal', turn(cu([])).includes('data-zona="continut"'));
+
+console.log('\n— Motivul substituirii numitorului ajunge la ecran —');
+const mNum = metriciFC(s41Rau, buildCtx(s41Rau), cerere);
+t('MetriciFC poartă motivul, nu doar sursa',
+  mNum.sursaVanzari === 'PMIX' && !!mNum.motivNumitorIncompatibil);
+t('… iar când nu e nicio incompatibilitate, câmpul lipsește',
+  metriciFC(s41Bun, buildCtx(s41Bun), cerere).motivNumitorIncompatibil === undefined);
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

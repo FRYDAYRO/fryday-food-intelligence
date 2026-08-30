@@ -122,6 +122,84 @@ export function verdictCombinare(
     : { verdict: 'BLOCK', blocheaza: true, compat, intervale, nedeclarate: [], motiv: compat.motiv };
 }
 
+// ————————————————————————————————————————————————————————— banda de perioade
+
+/**
+ * Combinațiile pe care motoarele le calculează efectiv. Nu sunt o alegere de interfață:
+ * `bridgeFC` compară 2.9 cu 4.7, iar `numitorFC` compară 4.1 cu 4.7. Sunt DOUĂ verdicte
+ * distincte și rămân distincte — un al treilea, „global", ar fi o judecată pe care niciun
+ * motor nu o face.
+ */
+export interface CombinatieVerdict {
+  cheie: 'FOOD_COST' | 'NUMITOR';
+  eticheta: string;
+  /** Ce calcul se pierde când verdictul blochează. */
+  consecinta: string;
+  tipuri: SursaCombinabila[];
+  verdict: VerdictSurse;
+}
+
+/** Statusul de titlu al benzii — reducerea celor două verdicte, nu o evaluare nouă. */
+export type StatusBanda = 'GOL' | 'ACCEPT' | 'INSUFFICIENT_DATA' | 'BLOCK';
+
+export interface BandaPerioade {
+  status: StatusBanda;
+  /** Toate sursele combinabile prezente, cu intervalul lor. Un fapt, nu o judecată. */
+  intervale: IntervalSursa[];
+  combinatii: CombinatieVerdict[];
+  /** Rezumatul de o linie, pentru forma compactă a benzii. */
+  titlu: string;
+}
+
+/**
+ * Titluri SCURTE, deliberat. Banda stă pe fiecare ecran, inclusiv pe telefon, unde o frază
+ * întreagă plus rezumatul surselor ar umple cinci rânduri înainte de orice conținut.
+ * Explicația completă trăiește în partea desfășurată, unde are loc.
+ */
+const TITLU: Record<StatusBanda, string> = {
+  GOL: 'Nicio sursă importată',
+  ACCEPT: 'Aceeași perioadă',
+  INSUFFICIENT_DATA: 'Compatibilitate incertă',
+  BLOCK: 'Perioadele nu coincid',
+};
+
+/**
+ * Tot ce trebuie ca să se poată desena banda de perioade. Citește doar versiunile de
+ * import — nu rulează `bridgeFC` și nicio agregare grea — și întoarce EXACT verdictele pe
+ * care le folosesc motoarele, prin aceeași funcție. Nu pot diverge, pentru că nu sunt două.
+ */
+export function bandaPerioade(state: AppState): BandaPerioade {
+  const intervale = intervaleSurse(state, ['PMIX_47', 'NBO_29', 'NBO_41']);
+  const are = (t: SursaCombinabila) => intervale.some(i => i.tip === t);
+
+  const combinatii: CombinatieVerdict[] = [];
+  if (are('NBO_29') || are('PMIX_47')) {
+    combinatii.push({
+      cheie: 'FOOD_COST',
+      eticheta: 'Food Cost (2.9 × 4.7)',
+      consecinta: 'consumul real, variance-ul și FC-ul actual',
+      tipuri: COMBINATIE_FC,
+      verdict: verdictCombinare(state, COMBINATIE_FC),
+    });
+  }
+  if (are('NBO_41')) {
+    combinatii.push({
+      cheie: 'NUMITOR',
+      eticheta: 'Numitor (4.1 × 4.7)',
+      consecinta: 'vânzările nete ca numitor — rămâne PMIX-ul, din aceeași fereastră cu costul',
+      tipuri: ['NBO_41', 'PMIX_47'],
+      verdict: verdictCombinare(state, ['NBO_41', 'PMIX_47']),
+    });
+  }
+
+  const status: StatusBanda = !intervale.length ? 'GOL'
+    : combinatii.some(c => c.verdict.blocheaza) ? 'BLOCK'
+      : combinatii.some(c => c.verdict.verdict === 'INSUFFICIENT_DATA') ? 'INSUFFICIENT_DATA'
+        : combinatii.length ? 'ACCEPT' : 'INSUFFICIENT_DATA';
+
+  return { status, intervale, combinatii, titlu: TITLU[status] };
+}
+
 /** Rândul de afișat pentru fiecare sursă: „4.7 (vânzări pe produs) 2026-08-17 → 2026-08-23". */
 export const descrieInterval = (i: IntervalSursa) =>
   i.declarat ? `${i.raport}: ${i.de} → ${i.la}` : `${i.raport}: interval nedeclarat`;

@@ -3,8 +3,9 @@
  * de motoare (prin `lib/fc-tower`) și doar le desenează. Nicio formulă de business aici.
  */
 import type { ReactNode } from 'react';
-import { fmtLei, fmtPP, fmtPct } from '../../lib/engine';
-import { cx } from '../../lib/ui';
+import { fmtInterval, fmtLei, fmtPP, fmtPct } from '../../lib/engine';
+import { Insigna, cx } from '../../lib/ui';
+import type { BandaPerioade as DateBanda, CombinatieVerdict, IntervalSursa, StatusBanda } from '../../lib/perioade-surse';
 import type {
   KpiTower, PunteTower, RandGrupBridge, RandTabelMagazin, SemnalCalitate, NivelDrill, NodDrill,
 } from '../../lib/fc-tower';
@@ -360,5 +361,95 @@ export function Indisponibil({ titlu, motiv }: { titlu: string; motiv?: string }
       <div className="font-semibold">{titlu}</div>
       {motiv && <div className="mt-1 text-sm text-muted-foreground">{motiv}</div>}
     </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————— banda de perioade
+
+const INSIGNA_BANDA: Record<StatusBanda, { fel: 'ok' | 'warn' | 'EXCLUS' | 'info'; text: string }> = {
+  GOL: { fel: 'info', text: 'FĂRĂ SURSE' },
+  ACCEPT: { fel: 'ok', text: 'COMPATIBIL' },
+  INSUFFICIENT_DATA: { fel: 'warn', text: 'NEDECLARAT' },
+  BLOCK: { fel: 'EXCLUS', text: 'BLOCAT' },
+};
+
+/** Numele scurt al raportului: „4.7", „2.9", „4.1" — restul etichetei stă pe rândul lui. */
+const SCURT: Record<IntervalSursa['tip'], string> = { PMIX_47: '4.7', NBO_29: '2.9', NBO_41: '4.1' };
+
+const zileInterval = (i: IntervalSursa): number | null =>
+  (i.declarat ? Math.round((Date.parse(`${i.la}T00:00:00Z`) - Date.parse(`${i.de}T00:00:00Z`)) / 86400000) + 1 : null);
+
+function RandSursa({ i }: { i: IntervalSursa }) {
+  const zile = zileInterval(i);
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5" data-sursa={i.tip}>
+      <span className="w-8 shrink-0 font-bold">{SCURT[i.tip]}</span>
+      <span className="num font-semibold">
+        {i.declarat ? fmtInterval(i.de, i.la) : <span className="text-orange-700">interval nedeclarat</span>}
+      </span>
+      {zile !== null && <span className="text-muted-foreground">{zile} zile</span>}
+      <span className="truncate text-muted-foreground">{i.fisier}</span>
+    </div>
+  );
+}
+
+function RandCombinatie({ c }: { c: CombinatieVerdict }) {
+  const v = c.verdict;
+  const semn = v.blocheaza ? '✗' : v.verdict === 'ACCEPT' ? '✓' : '·';
+  const ton = v.blocheaza ? 'text-red-700' : v.verdict === 'ACCEPT' ? 'text-emerald-700' : 'text-orange-700';
+  return (
+    <div data-combinatie={c.cheie} className="space-y-0.5">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className={cx('font-bold', ton)}>{semn}</span>
+        <span className="font-semibold">{c.eticheta}</span>
+        <span className={cx('font-semibold uppercase', ton)}>{v.compat.fel}</span>
+        {v.blocheaza && <span className="text-muted-foreground">{v.compat.zileComune} zile comune</span>}
+      </div>
+      <p className="pl-4 leading-snug text-muted-foreground">{v.motiv}</p>
+      {v.blocheaza && <p className="pl-4 leading-snug text-muted-foreground">Se pierde: {c.consecinta}.</p>}
+    </div>
+  );
+}
+
+/**
+ * Banda de perioade: ce fereastră acoperă fiecare raport și dacă pot fi combinate.
+ *
+ * Nu decide nimic. Primește verdictele produse de `perioade-surse` — aceleași pe care le
+ * folosesc `bridgeFC` și `numitorFC` — și le desenează. Compactă implicit (2–3 rânduri și
+ * pe ecran de telefon), desfășurabilă când omul vrea detaliile.
+ *
+ * Blocajul priveşte DOAR cifra combinată: rapoartele individuale rămân întregi în ecranele
+ * lor, iar banda o spune, ca refuzul să nu pară o pierdere de date.
+ */
+export function BandaPerioade({ date }: { date: DateBanda }) {
+  if (date.status === 'GOL') return null;
+  const ins = INSIGNA_BANDA[date.status];
+  const rezumat = date.intervale
+    .map(i => `${SCURT[i.tip]} ${i.declarat ? fmtInterval(i.de, i.la) : 'nedeclarat'}`)
+    .join(' · ');
+  return (
+    <details className="border-b bg-muted/40 px-4 py-1.5 text-xs" data-zona="banda-perioade" data-status={date.status}>
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 [&::-webkit-details-marker]:hidden">
+        <Insigna fel={ins.fel}>{ins.text}</Insigna>
+        <span className="font-semibold" data-camp="titlu">{date.titlu}</span>
+        {/* pe telefon rămân insigna și titlul: rezumatul celor trei surse ar dubla înălțimea */}
+        <span className="num hidden text-muted-foreground sm:inline" data-camp="rezumat">{rezumat}</span>
+        <span className="ml-auto shrink-0 font-semibold text-muted-foreground">detalii</span>
+      </summary>
+      <div className="mt-2 space-y-2 pb-1">
+        <div className="space-y-0.5" data-zona="surse">
+          {date.intervale.map(i => <RandSursa key={i.tip} i={i} />)}
+        </div>
+        <div className="space-y-1.5" data-zona="combinatii">
+          {date.combinatii.map(c => <RandCombinatie key={c.cheie} c={c} />)}
+        </div>
+        {date.status === 'BLOCK' && (
+          <p className="leading-snug text-muted-foreground" data-zona="individuale">
+            Se blochează doar cifra combinată. Fiecare raport rămâne complet vizibil în ecranul lui:
+            PMIX 4.7, NBO 2.9, Reconciliere.
+          </p>
+        )}
+      </div>
+    </details>
   );
 }

@@ -1298,3 +1298,24 @@ export const fmtPP = (n: number | null | undefined) =>
   n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toLocaleString('ro-RO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`;
 export const fmtInt = (n: number | null | undefined) =>
   n == null ? '—' : Math.round(n).toLocaleString('ro-RO');
+
+/**
+ * Intervalul unui raport, scris scurt și fără repetiții: „17–23 Aug 2026",
+ * „28 Iul – 3 Aug 2026", „28 Dec 2025 – 3 Ian 2026", „17 Aug 2026" pentru o zi.
+ * Lunile sunt scrise explicit, nu prin `toLocaleDateString`: forma prescurtată diferă
+ * între versiunile de ICU, iar o etichetă de perioadă nu are voie să se schimbe sub picioare.
+ */
+const LUNI_SCURT = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+
+export function fmtInterval(de: string | null | undefined, la: string | null | undefined): string {
+  if (!de || !la) return '—';
+  const [aD, lD, zD] = de.split('-');
+  const [aL, lL, zL] = la.split('-');
+  if (!aD || !lD || !zD || !aL || !lL || !zL) return '—';
+  const luna = (l: string) => LUNI_SCURT[Number(l) - 1] ?? l;
+  const zi = (z: string) => String(Number(z));
+  if (de === la) return `${zi(zD)} ${luna(lD)} ${aD}`;
+  if (aD !== aL) return `${zi(zD)} ${luna(lD)} ${aD} – ${zi(zL)} ${luna(lL)} ${aL}`;
+  if (lD !== lL) return `${zi(zD)} ${luna(lD)} – ${zi(zL)} ${luna(lL)} ${aD}`;
+  return `${zi(zD)}–${zi(zL)} ${luna(lD)} ${aD}`;
+}
