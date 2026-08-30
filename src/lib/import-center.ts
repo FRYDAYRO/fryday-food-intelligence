@@ -29,6 +29,7 @@ import {
   detecteazaCanal, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
+import { parseSalesMix } from './salesmix';
 
 // ————————————————————————————————————————————————————————— tipurile canonice de sursă
 
@@ -410,6 +411,9 @@ export interface RezultatCentral {
   detectie: Detectie;
   perioada: string | null;
   perioade: string[];
+  /** Fereastra reală a raportului, cu precizie de zi. `null` = nedeclarată de sursă. */
+  intervalDe: string | null;
+  intervalLa: string | null;
   /** Data de la care se aplică versiunea acestui import. */
   dataEfectiva: string;
   granularitate: Granularitate;
@@ -567,11 +571,20 @@ interface Perioade {
   perioade: string[]; granularitate: Granularitate; dateInvalide: string[];
   /** Cea mai veche dată de valabilitate din fișier — data efectivă a unei liste de prețuri. */
   dataMin: string | null;
+  /**
+   * Fereastra REALĂ acoperită de raport, cu precizie de zi. Lunile de mai sus nu o pot
+   * exprima: 17–23 august și 1–9 august dau amândouă „2026-08", deși nu au nicio zi comună.
+   * `null` = raportul nu declară intervalul; atunci nu se presupune nimic despre el.
+   */
+  intervalDe: string | null;
+  intervalLa: string | null;
 }
 
 function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, string>, dataValabil?: string): Perioade {
   const dateInvalide: string[] = [];
   const luni = new Set<string>();
+  // zilele efective, ca fereastra raportului să nu se piardă în rotunjirea la lună
+  const zile: string[] = [];
   let granularitate: Granularitate = 'FARA';
   if (map.data !== undefined) {
     granularitate = 'ZI';
@@ -580,7 +593,7 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
       if (String(brut ?? '').trim() === '') return;
       const d = parseData(brut);
       if (!d) dateInvalide.push(`rândul ${i + 2}: „${String(brut)}"`);
-      else luni.add(d.slice(0, 7));
+      else { luni.add(d.slice(0, 7)); zile.push(d); }
     });
   } else if (map.perioada !== undefined) {
     granularitate = 'LUNA';
@@ -605,7 +618,25 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   }
   const perioade = [...luni].sort();
   if (perioade.length > 1 && granularitate !== 'FARA') granularitate = 'INTERVAL';
-  return { perioade, granularitate, dateInvalide, dataMin: valabilitati.sort()[0] ?? null };
+
+  // Intervalul: din datele rândurilor când raportul are o coloană de dată; altfel din
+  // antetul NCR al grilei („Start Date / End Date", sau „MM/DD/AAAA - MM/DD/AAAA"), pe care
+  // parserul îl citea deja și îl arunca. Nu se inventează nimic: fără declarație → null.
+  const sortate = zile.sort();
+  let intervalDe: string | null = sortate[0] ?? null;
+  let intervalLa: string | null = sortate[sortate.length - 1] ?? null;
+  if ((!intervalDe || !intervalLa) && p.matrice?.length) {
+    const sm = parseSalesMix(p.matrice);
+    intervalDe = sm.perioadaDe;
+    intervalLa = sm.perioadaLa;
+  }
+  // un capăt fără celălalt nu e un interval: se declară nedeclarat, nu pe jumătate
+  const complet = intervalDe !== null && intervalLa !== null;
+  return {
+    perioade, granularitate, dateInvalide, dataMin: valabilitati.sort()[0] ?? null,
+    intervalDe: complet ? intervalDe : null,
+    intervalLa: complet ? intervalLa : null,
+  };
 }
 
 /** Cheia de duplicat pe rând, pe variantă internă. */
@@ -637,7 +668,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   ): PregatireImport => {
     const rezultat: RezultatCentral = {
       fisier: cerere.fisier, tip: tipRez, tipIntern: null, detectie,
-      perioada: null, perioade: [], dataEfectiva: acum.slice(0, 10),
+      perioada: null, perioade: [], intervalDe: null, intervalLa: null, dataEfectiva: acum.slice(0, 10),
       granularitate: 'FARA', scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE',
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
       avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta,
@@ -896,7 +927,9 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const nr = randuriSursa;
   const rezultat: RezultatCentral = {
     fisier: cerere.fisier, tip, tipIntern: intern, detectie,
-    perioada: per.perioade[0] ?? null, perioade: per.perioade, dataEfectiva, granularitate: per.granularitate,
+    perioada: per.perioade[0] ?? null, perioade: per.perioade,
+    intervalDe: per.intervalDe, intervalLa: per.intervalLa,
+    dataEfectiva, granularitate: per.granularitate,
     scop: scop.scop, restaurante: scop.restaurante,
     randuri: nr, importate,
     sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
@@ -997,7 +1030,9 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     fisier: r.fisier, amprenta: r.amprenta,
     dataEfectiva, importatLa: r.importatLa,
     activa: devineActiva, scop: r.scop, restaurante: r.restaurante,
-    perioada: r.perioada, randuri: r.randuri,
+    perioada: r.perioada,
+    ...(r.intervalDe && r.intervalLa ? { intervalDe: r.intervalDe, intervalLa: r.intervalLa } : {}),
+    randuri: r.randuri,
   };
   const versiuniNoi = versiuni.map(v => (v.tip === r.tip && devineActiva ? { ...v, activa: false } : v));
   versiuniNoi.push(versiune);

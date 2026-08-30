@@ -30,6 +30,7 @@ import {
   categorieMaterial,
   type FCCategory, type RegulaCategorie29, type SursaClasificare,
 } from './fc-clasificare';
+import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
 import { numitorFC, recipeFC, type NumitorFC, type RecipeFC } from './fc-core';
 import {
   diagnosticeMaterial, randuriMaterialFC, sorteazaDiagnostice, teoreticDinRetete, teoreticPeRand, trebuieMapat,
@@ -167,6 +168,12 @@ export interface FCBridge {
   nboDisponibil: boolean;
   motivNbo?: string;
   perioadeSursa: string[];
+  /**
+   * Compatibilitatea ferestrelor celor două rapoarte care compun cifra. Se raportează
+   * ÎNTOTDEAUNA, și când e ACCEPT: ecranul trebuie să poată arăta perioada fiecărei surse,
+   * nu doar să afle că ceva e blocat.
+   */
+  verdictPerioade: VerdictSurse;
   /** Canalul din care provin efectiv rândurile 2.9 incluse. */
   canalSursa: FCChannelSursa;
   randuri: RandMaterialFC[];
@@ -291,6 +298,8 @@ export function bridgeFC(
 
   // — scopul 2.9: luni întregi, locația cerută, canalul DOAR dacă sursa îl declară
   const toate = state.materiale29 ?? [];
+  // verdictul de compatibilitate a perioadelor, o singură dată pe punte
+  const verdictSurse = verdictCombinare(state, COMBINATIE_FC);
   const peLuniSiLoc = toate.filter(m => luni.includes(m.perioada) && (!loc || m.locatie === loc));
 
   let motivNbo: string | undefined;
@@ -301,6 +310,11 @@ export function bridgeFC(
     motivNbo = `Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} (${interval}) nu acoperă luni întregi, `
       + 'deci consumul pe material nu i se poate atribui fără a inventa o repartiție pe zile. '
       + 'Partea de rețete rămâne calculată pe perioada cerută.';
+  } else if (verdictSurse.blocheaza) {
+    // Perioadele DEMONSTRAT diferite: consumul unei ferestre împărțit la vânzările alteia
+    // ar da un procent plauzibil și fals. Puntea se declară indisponibilă — partea de rețete
+    // rămâne calculată, iar fiecare raport rămâne vizibil în ecranul lui.
+    motivNbo = verdictSurse.motiv;
   } else if (!peLuniSiLoc.length) {
     // lipsa datelor se spune ÎNAINTEA lipsei canalului: fără niciun rând, cauza e absența
     // raportului, nu coloana de canal
@@ -556,6 +570,7 @@ export function bridgeFC(
     cerere, numitor, recipe, recipePeCanal,
     nboDisponibil, ...(motivNbo !== undefined ? { motivNbo } : {}),
     perioadeSursa: [...new Set(inScop.map(m => m.perioada))].sort(),
+    verdictPerioade: verdictSurse,
     canalSursa, randuri,
     nboActual, nboFoodCost, nboTheoreticalFC,
     difference: nboDisponibil ? nboFoodCost - recipe.cost : null,

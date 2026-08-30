@@ -195,6 +195,14 @@ export interface VersiuneSursa {
   scop: string;               // COMUN | COMPANIE | RESTAURANT
   restaurante: string[];
   perioada: string | null;
+  /**
+   * Intervalul REAL acoperit de raport, cu precizie de zi. `perioada` de mai sus e luna,
+   * și două rapoarte din aceeași lună pot acoperi ferestre disjuncte (17–23 aug vs 1–9 aug):
+   * la granularitate de lună ar părea compatibile. De aceea intervalul se păstrează separat.
+   * Absent = sursa nu l-a declarat — nu se presupune nimic.
+   */
+  intervalDe?: string;
+  intervalLa?: string;
   randuri: number;
 }
 
