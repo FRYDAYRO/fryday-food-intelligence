@@ -152,6 +152,21 @@ export const restaurant = (locatie: string): FCLevel => ({ tip: 'STORE', locatie
 /** Filtrul de locație: `undefined` înseamnă toată rețeaua. */
 export const locatieDin = (n: FCLevel): string | undefined => (n.tip === 'STORE' ? n.locatie : undefined);
 
+/**
+ * Codul rezervat pentru datele care aparțin REȚELEI, nu unui restaurant: un raport 4.7
+ * rulat pe toată compania acoperă vânzări reale, dar ale nimănui în particular.
+ * Convenția există deja în aplicație (`Tinta.locatie: string | 'RETEA'`) și se reia aici,
+ * ca vânzările de rețea să nu mai fie găzduite de un restaurant inventat.
+ *
+ * Un cod rezervat NU e o locație: nu intră în nomenclatorul de restaurante, nu apare în
+ * selector și nu se numără între restaurante în clasamente. Cifrele lui rămân în totalul
+ * companiei, unde le e locul.
+ */
+export const LOCATIE_RETEA = 'RETEA';
+
+/** `false` pentru codurile rezervate — singura poartă prin care se decide ce e restaurant. */
+export const eLocatieReala = (cod: string): boolean => cod !== LOCATIE_RETEA;
+
 export const etichetaNivel = (n: FCLevel) => (n.tip === 'COMPANY' ? 'Companie (toată rețeaua)' : n.locatie);
 
 // ————————————————————————————————————————————————————————— componenta de cost

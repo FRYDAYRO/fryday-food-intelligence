@@ -21,7 +21,7 @@
 import { AZI_ISO, costProdus, pretCurent, pretLa } from './engine';
 import type { AppState, Canal } from './types';
 import {
-  canalePentru, contineData, locatieDin, perioadaAnterioara, perioadaDin, perioadeIntre, restaurant,
+  canalePentru, contineData, eLocatieReala, locatieDin, perioadaAnterioara, perioadaDin, perioadeIntre, restaurant,
   type CerereFC, type CtxFC, type FCChannel, type FCChannelSursa, type FCLevel, type FCPeriod,
   type FCPeriodType, type SursaFC,
 } from './fc-domeniu';
@@ -464,6 +464,12 @@ export interface AnalizaTimeline {
   magazine: RandMagazinTL[] | null;
   /** Partea de 2.9 fără restaurant — face exactă identitatea companie = Σ restaurante + fără-locație. */
   nboFaraLocatieRON: number | null;
+  /**
+   * Vânzările de REȚEA — rândurile unui 4.7 agregat, care aparțin companiei, nu unui
+   * restaurant. Nu apar între magazine, dar rămân în totalul companiei: fără cifra asta,
+   * `companie = Σ restaurante` ar părea ruptă când, de fapt, e completă.
+   */
+  vanzariReteaRON: number;
   clasamente: Clasament[] | null;
   categorii: RandCategorieTL[];
   produse: RandProdusTL[];
@@ -491,7 +497,7 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
       + `${cerere.canal !== 'TOTAL' ? ` pe canalul ${cerere.canal}` : ''} — nu e nimic de analizat.`;
     return {
       cerere, disponibil: false, motivIndisponibil: motiv,
-      metrici: null, comparatie: null, magazine: null, nboFaraLocatieRON: null, clasamente: null,
+      metrici: null, comparatie: null, magazine: null, nboFaraLocatieRON: null, vanzariReteaRON: 0, clasamente: null,
       categorii: [], produse: [], materiale: [],
       calitate: { ...calitateGoala, pmixLipsa: true },
       complete: false, motiveIncomplet: [motiv], surse: [],
@@ -509,10 +515,11 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
   let magazine: RandMagazinTL[] | null = null;
   let nboFaraLocatieRON: number | null = null;
   if (!loc) {
+    // codurile rezervate NU sunt restaurante: un raport de rețea nu devine al 31-lea magazin
     const locatii = [...new Set([
       ...inScop.map(v => v.locatie),
       ...(state.materiale29 ?? []).filter(m => m.locatie && bridge.perioadeSursa.includes(m.perioada)).map(m => m.locatie!),
-    ])].sort();
+    ])].filter(eLocatieReala).sort();
     magazine = locatii.map(l => ({
       locatie: l,
       metrici: metriciFC(state, ctx, { ...cerere, nivel: restaurant(l) }),
@@ -573,6 +580,7 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
     cerere, disponibil: true,
     metrici, comparatie,
     magazine, nboFaraLocatieRON,
+    vanzariReteaRON: inScop.filter(v => !eLocatieReala(v.locatie)).reduce((s2, v) => s2 + v.net, 0),
     clasamente: magazine ? clasamente(magazine) : null,
     categorii, produse, materiale,
     calitate,

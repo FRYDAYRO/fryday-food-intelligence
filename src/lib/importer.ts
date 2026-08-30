@@ -4,6 +4,8 @@ import { clasificaCategorie29 } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
+import { analizeaza47 } from './adaptor-47';
+import { LOCATIE_RETEA } from './fc-domeniu';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
 export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
@@ -743,15 +745,37 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       const zile = sm.perioadaDe && sm.perioadaLa
         ? Math.round((new Date(sm.perioadaLa).getTime() - new Date(sm.perioadaDe).getTime()) / 86400000) + 1 : 1;
 
-      // locația: raportul e agregat pe mai multe restaurante
-      let locatie = opt?.locatieRaport ?? '';
+      /**
+       * Locația: se cere adaptorului canonic, nu se ghicește aici. `analizeaza47` trece
+       * numele din antet prin Store Master și spune dacă raportul e atribuibil unui
+       * restaurant anume. Un raport de rețea NU devine restaurant: rândurile lui primesc
+       * codul rezervat `RETEA`, care nu intră în nomenclatorul de locații.
+       *
+       * Înainte, un raport pe mai multe unități fabrica o locație „AGREGAT" care ajungea
+       * în `state.locatii` și apărea ca al 31-lea restaurant în clasamente.
+       */
+      const a47 = analizeaza47(sm, numeFisier);
       const locatii = [...state.locatii];
-      if (!locatie) {
-        if (sm.magazine.length === 1) locatie = sm.magazine[0];
-        else locatie = 'AGREGAT';
+      let locatie: string;
+      if (opt?.locatieRaport) {
+        // restaurantul declarat explicit de om la import — decizia lui bate deducția
+        locatie = opt.locatieRaport;
+      } else if (a47.atribuibilPeRestaurant && a47.restaurantUnic) {
+        locatie = a47.restaurantUnic;
+      } else {
+        locatie = LOCATIE_RETEA;
+        if (a47.motiv) avert.push(a47.motiv);
       }
-      if (!locatii.some(l => l.cod === locatie)) {
-        locatii.push({ cod: locatie, nume: locatie === 'AGREGAT' ? `Toate restaurantele (${sm.magazine.length || '?'} unități, agregat)` : locatie });
+      // proveniența identităților: ce s-a rezolvat și ce nu, cu numele exacte
+      const nerezolvate = a47.restaurante.filter(r => r.status === 'UNMATCHED' || r.status === 'AMBIGUOUS');
+      if (nerezolvate.length) {
+        avert.push(`${nerezolvate.length} din ${a47.rezumat.totalDeclarate} restaurante din antet nu s-au putut `
+          + `identifica sigur: ${nerezolvate.map(r => `„${r.valoareSursa}" (${r.status})`).slice(0, 8).join(', ')}. `
+          + 'Vânzările NU li se atribuie.');
+      }
+      // un cod rezervat nu e restaurant: nu intră în nomenclator și nu apare în selector
+      if (locatie !== LOCATIE_RETEA && !locatii.some(l => l.cod === locatie)) {
+        locatii.push({ cod: locatie, nume: locatie });
         avert.push(`Locație creată pentru raport: ${locatie}`);
       }
 
