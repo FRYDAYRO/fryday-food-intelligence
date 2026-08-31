@@ -156,6 +156,20 @@ export function aliasuriDin(decizii: DecizieAprobare[], coada: IntrareAprobare[]
   return rez;
 }
 
+/**
+ * Codul produsului către care trimite o sugestie. Sugestiile se calculează pe DENUMIRI
+ * (acolo au sens cuvintele comune), dar aliasul se scrie pe COD. Traducerea stă aici, nu în
+ * ecran, și refuză ambiguitatea: dacă două produse poartă aceeași denumire, nu se alege
+ * niciunul. O potrivire automată greșită e mai rea decât una lipsă.
+ */
+export function codProdusPentru(tinta: string, state: AppState): string | null {
+  const exacte = state.produse.filter(p => p.denumire === tinta);
+  if (exacte.length === 1) return exacte[0].cod;
+  if (exacte.length > 1) return null;          // omonime — omul alege din listă
+  const dupaCod = state.produse.filter(p => p.cod === tinta);
+  return dupaCod.length === 1 ? dupaCod[0].cod : null;
+}
+
 /** O decizie e validă doar dacă ținta chiar există. Un alias către nimic ar pierde rândul altfel. */
 export function valideazaDecizie(
   d: DecizieAprobare, state: AppState,

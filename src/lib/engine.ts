@@ -993,9 +993,17 @@ export function costLunar(state: AppState, ctx: Ctx, lunaRef: string): { net: nu
   return { net, cost };
 }
 
-export function alerte(state: AppState, ctx: Ctx, lunaSel: string): Alerta[] {
+/**
+ * Alertele lunii. `laData` e PARAMETRU, nu ceasul citit pe ascuns: fereastra de schimbări
+ * recente se măsoară față de el, deci aceleași date produc aceleași alerte oricând ar rula
+ * calculul. Implicit rămâne ceasul real, ca aplicația să se comporte identic.
+ *
+ * Fără parametru, o alertă dispărea singură pe măsură ce calendarul înainta, iar un test
+ * scris pe date fixe pica peste noapte fără ca nimic din cod să se fi schimbat.
+ */
+export function alerte(state: AppState, ctx: Ctx, lunaSel: string, laData?: string): Alerta[] {
   const rez: Alerta[] = [];
-  const azi = new Date();
+  const azi = laData ? new Date(`${laData}T00:00:00Z`) : new Date();
   const cutoff = new Date(azi.getTime() - FEREASTRA_ZILE * 86400000).toISOString().slice(0, 10);
   const tintaRetea = state.tinte.find(t => t.locatie === 'RETEA')?.fcCurat ?? null;
 
