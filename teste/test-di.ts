@@ -1,5 +1,5 @@
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, kpiProdus, consumLunarIngredient, volumeLuna } from '../src/lib/engine';
+import { buildCtx, fcPerioada, kpiProdus, consumLunarIngredient, volumeLuna } from '../src/lib/engine';
 import {
   componenteCost, driveriProfit, grafIngredient, impactIngredient, optimizariMeniu,
   scaraPret, optimizariReteta, cicluViata, oportunitati, narativExecutiv, cockpit,
@@ -111,9 +111,9 @@ t('cauza #1 = scumpirea pieptului (13,20 → 14,00)', n.cauze[0]?.eticheta.inclu
 t('cauza în pp = lei / vânzări nete', aprox(n.cauze[0].pp, (n.cauze[0].lei / 279) / 1, 999));
 t('efectul prețurilor e pozitiv (scumpire în iulie)', n.efectPreturiPP > 0, `${n.efectPreturiPP.toFixed(2)} pp`);
 t('efect preț + efect mix = Δ FC teoretic', (() => {
-  const { fcPerioada } = require('../src/lib/engine');
   const a = fcPerioada(s0, ctx, L, 'RETEA'), b = fcPerioada(s0, ctx, '2026-06', 'RETEA');
-  return aprox(n.efectPreturiPP + n.efectMixPP, (a.fcTeoretic ?? 0) - (b.fcTeoretic ?? 0), 0.01);
+  if (a.fcTeoretic === null || b.fcTeoretic === null || n.efectMixPP === null) return false;
+  return aprox(n.efectPreturiPP + n.efectMixPP, a.fcTeoretic - b.fcTeoretic, 0.01);
 })());
 t('textul menționează luna precedentă', n.paragrafe[0].includes('2026-06') || n.paragrafe[0].includes('Food Cost'));
 t('potențial de optimizare estimat', n.potentialLei > 0 && n.potentialPP > 0, `${n.potentialLei.toFixed(0)} lei = ${n.potentialPP.toFixed(2)} pp`);

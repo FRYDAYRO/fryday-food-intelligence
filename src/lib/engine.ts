@@ -193,6 +193,21 @@ export function kpiProdus(cod: string, canal: Canal, ctx: CtxCost, data = '9999-
 
 // ---------------------------------------------------------------- §3.7 agregate PMIX
 
+/**
+ * Food Cost există doar dacă măcar o vânzare din perioadă a avut cost calculabil.
+ *
+ * Cost 0 peste vânzări nenule NU înseamnă Food Cost 0% — înseamnă Food Cost NECUNOSCUT:
+ * produsele vândute n-au rețetă, sau numitorul vine din Sales Report fără PMIX-ul
+ * corespondent. Raportul e zero din aritmetică, nu din economie; prezentat ca procent
+ * devine o cifră falsă pe care se sprijină apoi comparații, variance și narativ
+ * („0,0% → 45,1%": o creștere inventată dintr-o lună fără rețetar).
+ *
+ * Aceeași regulă pe care motorul canonic o aplică deja în `recipeFC.fcPct` — scrisă aici,
+ * în amonte, ca toate straturile să o citească din același loc.
+ */
+export const areCostMasurabil = (netAcoperit: number, cost: number): boolean =>
+  netAcoperit > 0 || cost > 0;
+
 export interface FiltruPerioada { luna: string; locatie?: string; vedere: Vedere; }
 
 export interface Agregat {
@@ -476,13 +491,14 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
     if (cls !== 'EXCLUS') consumCurat += l.valoare;
     if (cls === 'PAPER') paper29 += l.valoare;
   }
-  const fcTeoretic = net > 0 ? (ag.cost / net) * 100 : null;
   // Când acoperirea rețetarului nu e completă, raportul cost/vânzări totale subestimează Food Cost-ul:
   // numitorul include produse fără cost calculabil. Cifra comparabilă se raportează la partea acoperită.
   // Se calculează strict pe PMIX (unde se măsoară și costul, și acoperirea), nu pe numitorul oficial:
   // altfel o divergență PMIX ↔ Sales Report ar deforma rezultatul. Divergența se raportează separat,
   // în ecranul de reconciliere.
   const netAcoperit = ag.net - ag.netFaraReteta;
+  const masurabil = areCostMasurabil(netAcoperit, ag.cost);
+  const fcTeoretic = net > 0 && masurabil ? (ag.cost / net) * 100 : null;
   const fcTeoreticAcoperit = netAcoperit > 0 ? (ag.cost / netAcoperit) * 100 : null;
   const comisionLei = ag.netDelivery * ((state.setari.comisionDeliveryPct ?? 0) / 100);
   const agD = agregatePerioada(state.vanzari, ctx, { luna: lunaSel, locatie: loc, vedere: 'DELIVERY' }, memo);
@@ -495,7 +511,7 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
   return {
     luna: lunaSel, locatie, net, numitor,
     paperTeoretic: ag.costPaper, paper29,
-    fcPaper: net > 0 ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
+    fcPaper: net > 0 && (are29 || masurabil) ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
     costTeoretic: ag.cost, fcTeoretic, fcTeoreticAcoperit,
     netAcoperit, netFaraReteta: ag.netFaraReteta,
     netDelivery: ag.netDelivery, comisionLei,

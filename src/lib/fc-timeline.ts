@@ -18,7 +18,7 @@
 //  · datele incomplete nu se ascund: perioade neîncheiate, restaurante lipsă, PMIX/rețete/
 //    prețuri lipsă, canale necunoscute, materiale neclasificate, reconciliere incompletă —
 //    toate apar numite în calitate, cu `complete: false`.
-import { AZI_ISO, costProdus, pretCurent, pretLa } from './engine';
+import { AZI_ISO, areCostMasurabil, costProdus, pretCurent, pretLa } from './engine';
 import type { AppState, Canal } from './types';
 import {
   canalePentru, contineData, eLocatieReala, locatieDin, perioadaAnterioara, perioadaDin, perioadeIntre, restaurant,
@@ -54,7 +54,7 @@ export interface MetriciFC {
    */
   motivNumitorIncompatibil?: string;
 
-  /** FC teoretic din rețete: cost ÷ vânzări nete. */
+  /** FC teoretic din rețete: cost ÷ vânzări nete. `null` când nicio vânzare n-a avut cost calculabil. */
   recipeFcPct: number | null;
   recipeCostRON: number;
   foodCostRON: number;
@@ -108,7 +108,9 @@ export function metriciFC(state: AppState, ctx: CtxFC, cerere: CerereFC): Metric
   return {
     salesRON: net, sursaVanzari: numitor.sursa,
     ...(numitor.motivIncompatibil !== undefined ? { motivNumitorIncompatibil: numitor.motivIncompatibil } : {}),
-    recipeFcPct: pct(recipe.cost),
+    // FC-ul din rețete e o cifră doar peste vânzări cu cost calculabil; altfel `pct` ar
+    // întoarce 0% pentru o perioadă fără rețetar — vezi `areCostMasurabil`.
+    recipeFcPct: areCostMasurabil(recipe.netAcoperit, recipe.cost) ? pct(recipe.cost) : null,
     recipeCostRON: recipe.cost, foodCostRON: recipe.costFood, paperCostRON: recipe.costPaper,
     acoperirePct: recipe.acoperirePct,
     acoperireCompletaPct: recipe.acoperireCompletaPct,

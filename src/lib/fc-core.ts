@@ -10,7 +10,7 @@
 //  · Total = InStore + Delivery ca SUME; procentele se recalculează din totaluri;
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
-import { UMS, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
+import { UMS, areCostMasurabil, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
 import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
 import type { AppState, Canal } from './types';
 import {
@@ -81,7 +81,10 @@ export interface RecipeFC {
   costPaper: number;
   /** cost / vânzările acoperite — cifra comparabilă. */
   fcPct: number | null;
-  /** cost / TOATE vânzările — subestimează când acoperirea nu e completă. */
+  /**
+   * cost / TOATE vânzările — subestimează când acoperirea nu e completă,
+   * și e `null` (nu 0) când nicio vânzare n-a avut cost calculabil.
+   */
   fcPeTotalVandut: number | null;
   produseFaraReteta: ProdusFaraReteta[];
   surse: SursaFC[];
@@ -133,7 +136,7 @@ export function recipeFC(state: AppState, ctx: CtxFC, cerere: CerereFC): RecipeF
     acoperireCompletaPct: netVandut > 0 ? ((netAcoperit - netCostIncomplet) / netVandut) * 100 : null,
     cost, costFood, costPaper,
     fcPct: netAcoperit > 0 ? (cost / netAcoperit) * 100 : null,
-    fcPeTotalVandut: netVandut > 0 ? (cost / netVandut) * 100 : null,
+    fcPeTotalVandut: netVandut > 0 && areCostMasurabil(netAcoperit, cost) ? (cost / netVandut) * 100 : null,
     produseFaraReteta: [...fara.values()].sort((a, b) => b.net - a.net),
     surse: [
       { raport: 'PMIX', randuri, interval, nota: `${cerere.canal === 'TOTAL' ? 'ambele canale' : cerere.canal}` },

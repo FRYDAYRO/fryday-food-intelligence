@@ -607,7 +607,14 @@ export interface CauzaFC { eticheta: string; pp: number; lei: number; }
 export interface Narativ {
   luna: string; lunaPrec: string;
   fcAcum: number | null; fcInainte: number | null; deltaPP: number | null;
-  efectPreturiPP: number; efectMixPP: number;
+  /** Efectul prețurilor de achiziție: se măsoară pe mixul lunii curente, deci există întotdeauna. */
+  efectPreturiPP: number;
+  /**
+   * Efectul mixului: REZIDUUL variației teoretice după scoaterea efectului de preț.
+   * `null` când luna precedentă n-are un FC teoretic măsurabil — un reziduu dintr-o
+   * diferență inexistentă ar fi o cifră inventată, nu o descompunere.
+   */
+  efectMixPP: number | null;
   cauze: CauzaFC[];
   paragrafe: string[];
   potentialPP: number; potentialLei: number;
@@ -639,8 +646,9 @@ export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string): Nar
   const costLaPreturiVechi = costLunar(stateVechi, buildCtx(stateVechi), lunaSel);
   const efectPreturiLei = costAcum.cost - costLaPreturiVechi.cost;
   const efectPreturiPP = costAcum.net > 0 ? (efectPreturiLei / costAcum.net) * 100 : 0;
-  const deltaTeoreticPP = acum.fcTeoretic != null && inainte.fcTeoretic != null ? acum.fcTeoretic - inainte.fcTeoretic : 0;
-  const efectMixPP = deltaTeoreticPP - efectPreturiPP;
+  const deltaTeoreticPP = acum.fcTeoretic != null && inainte.fcTeoretic != null
+    ? acum.fcTeoretic - inainte.fcTeoretic : null;
+  const efectMixPP = deltaTeoreticPP != null ? deltaTeoreticPP - efectPreturiPP : null;
 
   // cauzele pe ingrediente: Δpreț în luna analizată × consumul real
   const cons = consumuriLuna(state, ctx, lunaSel);
@@ -689,7 +697,14 @@ export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string): Nar
       + (acum.tinta != null ? `, față de o țintă de ${fmtPct(acum.tinta)} (${fcAcum != null && fcAcum <= acum.tinta ? 'în target' : `depășire de ${fmtPP((fcAcum ?? 0) - acum.tinta)}`})` : '') + '.'
     );
   } else {
-    paragrafe.push(`Food Cost în ${lunaSel}: ${fmtPct(fcAcum)}${acum.tinta != null ? `, țintă ${fmtPct(acum.tinta)}` : ''}. Fără lună de referință completă pentru comparație.`);
+    // Fără o lună de referință MĂSURABILĂ nu se anunță nicio variație. Motivul se spune:
+    // „lipsesc datele" și „lipsește rețetarul" sunt două probleme diferite, cu remedii diferite.
+    const motiv = inainte.netFaraReteta > 0
+      ? `Luna ${prec} are vânzări (${fmtInt(inainte.net)} lei), dar niciun produs vândut atunci n-are rețetă — Food Cost-ul lunii precedente este necunoscut, nu zero.`
+      : inainte.net > 0
+        ? `Luna ${prec} are vânzări (${fmtInt(inainte.net)} lei) doar din ${inainte.numitor}, fără PMIX-ul din care se calculează costul — Food Cost-ul lunii precedente este necunoscut, nu zero.`
+        : `Nu există date pentru ${prec}.`;
+    paragrafe.push(`Food Cost în ${lunaSel}: ${fmtPct(fcAcum)}${acum.tinta != null ? `, țintă ${fmtPct(acum.tinta)}` : ''}. ${motiv} Comparația lună/lună nu se poate face.`);
   }
 
   const bucati: string[] = [];
@@ -701,11 +716,16 @@ export function narativExecutiv(state: AppState, ctx: Ctx, lunaSel: string): Nar
   if (scadere) bucati.push(`la care se adaugă scăderea marjei produsului ${scadere.nume} (${fmtPP(scadere.dMarja)}, ${fmtInt(scadere.dProfit)} lei profit)`);
   if (bucati.length) paragrafe.push(bucati.join(', ') + '.');
 
+  // Efectul prețurilor se măsoară pe mixul lunii curente și rămâne valabil oricum. Efectul
+  // mixului e un REZIDUU: fără variație teoretică nu există din ce să fie scos, deci nici
+  // concluzia „presiunea vine din X" nu se enunță — ar fi un verdict pe o cifră inexistentă.
   paragrafe.push(
-    `Descompunerea variației teoretice: efectul prețurilor de achiziție ${fmtPP(efectPreturiPP)} (${efectPreturiLei >= 0 ? '+' : ''}${fmtInt(efectPreturiLei)} lei), efectul mixului de vânzări ${fmtPP(efectMixPP)}.`
-    + (Math.abs(efectPreturiPP) > Math.abs(efectMixPP)
-      ? ' Presiunea vine din achiziții, deci pârghia principală este renegocierea sau schimbarea sursei.'
-      : ' Presiunea vine din mixul vândut, deci pârghia principală este meniul: preț, vizibilitate și reformulare.')
+    efectMixPP != null
+      ? `Descompunerea variației teoretice: efectul prețurilor de achiziție ${fmtPP(efectPreturiPP)} (${efectPreturiLei >= 0 ? '+' : ''}${fmtInt(efectPreturiLei)} lei), efectul mixului de vânzări ${fmtPP(efectMixPP)}.`
+        + (Math.abs(efectPreturiPP) > Math.abs(efectMixPP)
+          ? ' Presiunea vine din achiziții, deci pârghia principală este renegocierea sau schimbarea sursei.'
+          : ' Presiunea vine din mixul vândut, deci pârghia principală este meniul: preț, vizibilitate și reformulare.')
+      : `Efectul prețurilor de achiziție pe mixul lunii ${lunaSel}: ${fmtPP(efectPreturiPP)} (${efectPreturiLei >= 0 ? '+' : ''}${fmtInt(efectPreturiLei)} lei). Efectul mixului nu se poate separa fără un Food Cost teoretic măsurabil în ${prec}.`
   );
 
   if (top2.length) {
