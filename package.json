@@ -1,7 +1,7 @@
 {
   "name": "fryday-food-intelligence",
   "private": true,
-  "version": "1.0.0-rc9",
+  "version": "1.0.0-rc15",
   "type": "module",
   "scripts": {
     "dev": "vite",

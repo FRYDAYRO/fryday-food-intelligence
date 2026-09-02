@@ -26,6 +26,7 @@ import ProductImpact from './views/ProductImpact';
 import Setari from './views/Setari';
 import ControlTower from './views/tower/ControlTower';
 import Bariera from './views/shared/Bariera';
+import { etichetaVersiune } from './lib/versiune';
 
 const MODULE = [
   { id: 'tower', nume: 'FC Control Tower', C: ControlTower },
@@ -216,9 +217,12 @@ function Continut() {
   );
 }
 
-// Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai nou.
-export const VERSIUNE = 'RC 12.3';
-export const DATA_BUILD = '08.08.2026';
+// Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai
+// nou. Ambele valori vin de la build: versiunea din `package.json`, data din ceasul
+// compilării. Nu se scriu aici — un număr copiat de mână rămâne în urmă exact când
+// contează, iar „ce versiune rulează?" e prima întrebare când ceva merge prost.
+export const VERSIUNE = etichetaVersiune(__VERSIUNE_PKG__);
+export const DATA_BUILD = __DATA_BUILD__;
 
 export default function App() {
   const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
