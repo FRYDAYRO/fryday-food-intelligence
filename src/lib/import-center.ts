@@ -23,7 +23,7 @@
 import { norm, pretLa } from './engine';
 import { clasificaCategorie29 } from './fc-clasificare';
 import type {
-  AppState, IntrareAudit, IntrarePretIstoric, Reteta, VersiuneSursa,
+  AppState, ImportBatch, IntrareAudit, IntrarePretIstoric, Reteta, VersiuneSursa,
 } from './types';
 import {
   detecteazaCanal, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
@@ -232,7 +232,8 @@ function fnv1a(s: string): string {
  * de ordinea coloanelor. Rândurile își păstrează ordinea (o reordonare e alt conținut).
  */
 export function amprentaSursa(
-  tip: TipSursaFC, p: Parsat, opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport },
+  tip: TipSursaFC, p: Parsat,
+  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string> },
 ): string {
   // antetele se ordonează canonic, dar se păstrează ORIGINALELE: două coloane care se
   // normalizează la fel („Pret" și „Preț") rămân distincte, altfel conținut diferit ar
@@ -245,7 +246,9 @@ export function amprentaSursa(
   const matrice = (p.matrice ?? []).map(rand => rand.map(val).join('\u0001'));
   const o = opt?.optiuni ?? {};
   const optiuni = JSON.stringify(o, Object.keys(o).sort());
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni,
+  const m = opt?.mapare ?? {};
+  const mapare = JSON.stringify(m, Object.keys(m).sort());
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare,
     ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
   return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
@@ -451,6 +454,19 @@ export interface CerereImport {
   /** Restaurantul declarat, când fișierul nu îl conține. */
   locatie?: string;
   optiuni?: OpteImport;
+  /**
+   * Maparea manuală de coloane, când omul a corectat-o în interfață. Fără ea, ecranul
+   * vechi de importuri nu putea trece prin stratul canonic: maparea automată e o
+   * presupunere bună, dar pe antete neobișnuite omul are ultimul cuvânt.
+   */
+  mapare?: Record<string, string>;
+  /**
+   * Varianta internă aleasă deja de ecran. Un tip canonic are mai multe structuri
+   * posibile (PMIX ↔ SALES_MIX, RETETAR ↔ RETETAR_NBO); când apelantul a stabilit-o,
+   * detecția nu are voie s-o suprascrie — mai ales după o mapare manuală, care schimbă
+   * exact câmpurile pe care detecția se uită.
+   */
+  internPreferat?: TipImport;
 }
 
 export interface PregatireImport {
@@ -693,12 +709,18 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   const amprenta = amprentaSursa(tip, p, {
     dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
+    mapare: cerere.mapare,
   });
-  const internBrut = variantaInterna(tip, p.antete);
+  // varianta fixată de ecran are prioritate, dar numai dacă aparține chiar tipului cerut:
+  // un `internPreferat` străin ar muta importul în alt raport, tăcut
+  const preferat = cerere.internPreferat
+    && REGULI_CONTINUT.some(r => r.tip === tip && r.intern === cerere.internPreferat)
+    ? cerere.internPreferat : null;
+  const internBrut = preferat ?? variantaInterna(tip, p.antete);
   // restaurantul declarat se injectează ÎNAINTE de mapare: altfel ar rămâne o etichetă în
   // metadate, iar rândurile ar ajunge, tăcut, pe primul restaurant din nomenclator
   const pEfectiv = cerere.locatie && internBrut ? cuRestaurantDeclarat(p, internBrut, cerere.locatie) : p;
-  const intern = internBrut ?? variantaInterna(tip, pEfectiv.antete);
+  const intern = internBrut ?? preferat ?? variantaInterna(tip, pEfectiv.antete);
   if (!intern) {
     // structura nu e cea a tipului — NU se îndeasă într-un format vecin.
     // Tipul CONFIRMAT de utilizator face din nepotrivire o eroare de validare (fișier greșit
@@ -720,7 +742,10 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       : gol('NECESITA_CONFIRMARE', [mesaj], tip, amprenta);
   }
 
-  const map = mapeazaAntete(pEfectiv.antete, intern);
+  const mapAuto = mapeazaAntete(pEfectiv.antete, intern);
+  // aceeași compunere ca în `importa`: manualul suprascrie automatul, iar valoarea goală ȘTERGE
+  const map: Record<string, string> = { ...mapAuto };
+  if (cerere.mapare) for (const [c, a] of Object.entries(cerere.mapare)) { if (a) map[c] = a; else delete map[c]; }
   const obligatorii = OBLIGATORII[intern] ?? [];
   const lipsa = obligatorii.filter(c => map[c] === undefined);
   adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Coloane obligatorii lipsă',
@@ -886,7 +911,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
   };
-  const rulat = importa(intern, pEfectiv, cerere.fisier, copie, undefined, optiuni);
+  const rulat = importa(intern, pEfectiv, cerere.fisier, copie, cerere.mapare, optiuni);
   const erori = [...rulat.batch.erori];
   const avertismente = [...rulat.batch.avertismente];
 
@@ -1060,6 +1085,109 @@ const auditGol = (r: RezultatCentral): IntrareAudit => ({
   validare: r.stare === 'NECESITA_CONFIRMARE' ? 'NECESITA_CONFIRMARE' : 'RESPINS',
   amprenta: r.amprenta, versiune: null, activat: false,
 });
+
+/**
+ * Sursa canonică FC căreia îi aparține o structură internă — sau `null` când nu are una.
+ *
+ * Nu toate importurile sunt surse de Food Cost. Waste, inventarul, meniurile, baza FC și
+ * listele de prețuri de vânzare nu se COMBINĂ cu alt raport într-o cifră, deci nu au
+ * interval de comparat și nici verdict de compatibilitate. Pentru ele proveniența
+ * înseamnă urma de audit, nu o versiune de sursă — a le inventa una ar pune în banda de
+ * perioade rapoarte care n-au ce căuta acolo.
+ *
+ * `COST_INGREDIENTE` aparține la două surse (nomenclator sau doar prețuri); se alege după
+ * câmpurile chiar prezente, în ordinea din `REGULI_CONTINUT`, nu după nume.
+ */
+export function sursaPentruIntern(intern: TipImport, antete: string[]): TipSursaFC | null {
+  const ale = REGULI_CONTINUT.filter(r => r.intern === intern);
+  if (!ale.length) return null;
+  if (ale.length === 1) return ale[0].tip;
+  const m = mapeazaAntete(antete, intern);
+  return (ale.find(r => r.cerute.every(c => m[c] !== undefined)) ?? ale[0]).tip;
+}
+
+export interface CerereUnificata {
+  fisier: string;
+  parsat: Parsat;
+  /** Structura deja stabilită de ecran: detecție proprie, alegere manuală sau analiză pe foi. */
+  intern: TipImport;
+  mapare?: Record<string, string>;
+  optiuni?: OpteImport;
+  locatie?: string;
+  dataValabil?: string;
+  actor?: string;
+  acum?: string;
+}
+
+export interface RezultatUnificat {
+  stareNoua: AppState;
+  batch: ImportBatch;
+  /** Prezent doar pentru sursele FC, care trec prin validare-apoi-activare. */
+  rezultat: RezultatCentral | null;
+  /** Sursa FC sub care s-a versionat importul; `null` pentru rapoartele necombinabile. */
+  sursa: TipSursaFC | null;
+}
+
+/**
+ * Poarta UNICĂ de import. Ambele ecrane intră pe aici, deci nu există două căi prin care
+ * datele ajung în stare — și niciun drum pe care proveniența să se piardă tăcut.
+ *
+ * Rapoartele care SUNT surse FC trec prin stratul canonic: validare pe o copie, apoi
+ * activare, cu versiune, interval, amprentă și protecție la dublă activare. Restul trec
+ * direct prin motor — același `importa`, niciodată o a doua implementare — și primesc
+ * urma de audit, ca fiecare fișier intrat în aplicație să fie explicabil.
+ */
+export function importaUnificat(state: AppState, cerere: CerereUnificata): RezultatUnificat {
+  const acum = cerere.acum ?? new Date().toISOString();
+  const actor = cerere.actor?.trim() || ACTOR_SISTEM;
+  const sursa = sursaPentruIntern(cerere.intern, cerere.parsat.antete);
+
+  if (sursa) {
+    const pregatire = pregatesteImport(state, {
+      fisier: cerere.fisier, parsat: cerere.parsat, tip: sursa,
+      internPreferat: cerere.intern,
+      ...(cerere.mapare ? { mapare: cerere.mapare } : {}),
+      ...(cerere.optiuni ? { optiuni: cerere.optiuni } : {}),
+      ...(cerere.locatie ? { locatie: cerere.locatie } : {}),
+      ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+      actor, acum,
+    });
+    const { stareNoua, rezultat } = activeazaImport(state, pregatire);
+    return { stareNoua, batch: batchDinRezultat(rezultat), rezultat, sursa };
+  }
+
+  // raport necombinabil: se importă direct, dar NU tăcut
+  const rulat = importa(cerere.intern, cerere.parsat, cerere.fisier, state, cerere.mapare, {
+    ...cerere.optiuni,
+    ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+  });
+  const reusit = rulat.batch.status === 'IMPORTAT';
+  const audit: IntrareAudit = {
+    id: `A_${fnv1a(`${cerere.fisier}|${acum}|${cerere.intern}|${actor}`)}`,
+    actor, data: acum, fisier: cerere.fisier,
+    tip: 'NEDETECTAT', tipIntern: cerere.intern, perioada: rulat.batch.perioada ?? null,
+    scop: 'COMPANIE', restaurante: [],
+    randuri: rulat.batch.randuri, importate: rulat.batch.importate,
+    validare: reusit ? 'VALIDAT' : 'RESPINS',
+    amprenta: `fp_direct_${fnv1a(`${cerere.fisier}|${cerere.intern}|${rulat.batch.randuri}`)}`,
+    versiune: null, activat: reusit,
+  };
+  return {
+    stareNoua: { ...rulat.stateNou, auditImport: [...(rulat.stateNou.auditImport ?? []), audit] },
+    batch: rulat.batch, rezultat: null, sursa: null,
+  };
+}
+
+/** Rezultatul canonic, redus la forma pe care ecranele o afișează deja. */
+function batchDinRezultat(r: RezultatCentral): ImportBatch {
+  return {
+    ...(r.perioada ? { perioada: r.perioada } : {}),
+    id: r.amprenta, tip: r.tipIntern ?? r.tip ?? 'NEDETECTAT', fisier: r.fisier,
+    data: r.importatLa, randuri: r.randuri, importate: r.importate,
+    avertismente: r.avertismente, erori: r.erori,
+    status: r.activat ? 'IMPORTAT' : 'ESUAT',
+  };
+}
 
 /** Comoditate: pregătește și, dacă validarea trece, activează — într-un singur apel. */
 export function importaPrinCentru(state: AppState, cerere: CerereImport): RezultatActivare {

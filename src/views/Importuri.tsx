@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { useSel, useStore } from '../lib/store';
-import { campuriTip, citesteFisier, detecteazaTip, importa, mapeazaAntete, TIP_LABEL, type Parsat, type TipImport } from '../lib/importer';
+import { campuriTip, citesteFisier, detecteazaTip, mapeazaAntete, TIP_LABEL, type Parsat, type TipImport } from '../lib/importer';
+// poarta unică: acelaşi motor pentru ambele ecrane, dar cu proveniență, versiune și audit
+import { importaUnificat } from '../lib/import-center';
 import { analizeazaFisier, type FoaieAnalizata } from '../lib/auto';
 import { Btn, Camp, Gol, In, Insigna, Sel, T, Td, Th, Titlu, cx } from '../lib/ui';
 import Nemapate from './shared/Nemapate';
@@ -66,6 +68,9 @@ function TabImport() {
   const [foaieSel, setFoaieSel] = useState(0);
   const [canalPret, setCanalPret] = useState<'AUTO' | 'INSTORE' | 'DELIVERY'>('AUTO');
   const [dataValabil, setDataValabil] = useState('');
+  // restaurantul declarat, pentru rapoartele pe unitate care n-au coloană de locație.
+  // Înainte, un asemenea fișier era atribuit TĂCUT primului restaurant din listă.
+  const [locatieRaport, setLocatieRaport] = useState('');
   const [lot, setLot] = useState<{ nume: string; analiza: FoaieAnalizata[] }[] | null>(null);
   const [jurnalLot, setJurnalLot] = useState<string[] | null>(null);
   const [inLucru, setInLucru] = useState(false);
@@ -100,8 +105,11 @@ function TabImport() {
     let perioadaMax: string | undefined;
     const optLot = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
     for (const { fisier, f } of foi) {
-      const { stateNou, batch } = importa(f.tip!, f.parsat, fisier, stare, f.mapare, optLot);
-      stare = stateNou;
+      const { stareNoua, batch } = importaUnificat(stare, {
+        fisier, parsat: f.parsat, intern: f.tip!, mapare: f.mapare, optiuni: optLot,
+        ...(locatieRaport ? { locatie: locatieRaport } : {}),
+      });
+      stare = stareNoua;
       if (batch.perioada && (!perioadaMax || batch.perioada > perioadaMax)) perioadaMax = batch.perioada;
       const loc = batch.avertismente.find(a => a.startsWith('Locație creată pentru raport:'))?.replace('Locație creată pentru raport: ', '');
       jurnal.push(`${fisier} → ${TIP_LABEL[f.tip!]}: ${batch.importate} înregistrări${loc ? ` · ${loc}` : ''}`
@@ -155,10 +163,13 @@ function TabImport() {
     if (!parsat) return;
     const opt = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
     const inainte = instantaneu(state);
-    const { stateNou, batch } = importa(tip, parsat, numeFisier, state, mapare, opt);
+    const { stareNoua, batch } = importaUnificat(state, {
+      fisier: numeFisier, parsat, intern: tip, mapare, optiuni: opt,
+      ...(locatieRaport ? { locatie: locatieRaport } : {}),
+    });
     if (batch.perioada && batch.perioada !== sel.luna) setSel({ ...sel, luna: batch.perioada });
-    update(() => stateNou);
-    setSchimbari(diferente(inainte, instantaneu(stateNou)));
+    update(() => stareNoua);
+    setSchimbari(diferente(inainte, instantaneu(stareNoua)));
     setRezumat(batch.status === 'IMPORTAT'
       ? `Import reușit: ${batch.importate} înregistrări din ${batch.randuri} rânduri.${batch.avertismente.length ? ` ${batch.avertismente.length} avertismente — vezi istoricul.` : ''}`
       : `Import eșuat: ${batch.erori.join('; ')}`);
@@ -327,8 +338,12 @@ function TabImport() {
               let stare = state;
               for (const f of foi) {
                 const optAuto = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
-                const { stateNou, batch } = importa(f.tip!, f.parsat, `${numeFisier} — ${f.foaie}`, stare, f.mapare, optAuto);
-                stare = stateNou;
+                const { stareNoua, batch } = importaUnificat(stare, {
+                  fisier: `${numeFisier} — ${f.foaie}`, parsat: f.parsat, intern: f.tip!,
+                  mapare: f.mapare, optiuni: optAuto,
+                  ...(locatieRaport ? { locatie: locatieRaport } : {}),
+                });
+                stare = stareNoua;
                 const unitate = f.tip === 'RETETAR_NBO' ? 'produse' : f.tip === 'RETETAR' ? 'linii de rețetă' : 'rânduri';
                 jurnal.push(`${f.foaie} → ${TIP_LABEL[f.tip!]}: ${batch.importate} ${unitate}`
                   + (f.tip !== 'RETETAR_NBO' ? ` din ${batch.randuri}` : '')
@@ -437,6 +452,24 @@ function TabImport() {
                   </div>
                 );
               })()}
+              {['PMIX', 'SALES_MIX', 'SALES', 'FC29', 'FC29_MATERIAL'].includes(tip)
+                && !parsat.antete.some(a => /locatie|loca\u021bie|restaurant|unitate|magazin|store/i.test(a)) && (
+                <div className="mt-2 rounded border-2 border-primary/40 bg-card px-3 py-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Restaurantul acestui raport</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Sel className="h-8" value={locatieRaport} onChange={e => setLocatieRaport(e.target.value)}>
+                      <option value="">— alege restaurantul —</option>
+                      {state.locatii.map(l => <option key={l.cod} value={l.cod}>{l.nume}</option>)}
+                    </Sel>
+                    {!locatieRaport && (
+                      <span className="text-xs font-semibold text-danger">
+                        Fișierul nu conține coloană de restaurant. Fără alegere, importul se oprește —
+                        datele nu se atribuie unei unități ghicite.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {['FC_BAZA', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'COST_INGREDIENTE', 'PRETURI_FURNIZORI'].includes(tip) && (
                 <label className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   <span className="font-semibold uppercase tracking-wider text-muted-foreground">Prețurile se aplică de la data</span>
