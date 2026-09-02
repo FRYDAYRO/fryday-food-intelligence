@@ -9,12 +9,13 @@
 // există două liste. Regulile omului rămân exact unde le-a pus, cu prioritatea de azi.
 import { clasifica, buildCtx, fcPerioada } from '../src/lib/engine';
 import {
-  clasificaCategorie29, clasaDinCategorie, regulileImpliciteLegacy, imbinaReguli, REGULI_IMPLICITE_29,
+  clasificaCategorie29, clasaDinCategorie, regulileImpliciteLegacy, imbinaReguli, REGULI_IMPLICITE_29, VERSIUNE_REGULI_29,
   type FCCategory,
 } from '../src/lib/fc-clasificare';
 import { nboFC } from '../src/lib/fc-core';
 import { COMPANIE, perioadaDin } from '../src/lib/fc-domeniu';
 import { genereazaSeed, stareGoala } from '../src/lib/seed';
+import { genereazaSeedNBO } from '../src/lib/seed-nbo';
 import { migreaza } from '../src/lib/store';
 import type { AppState, RegulaClasificare } from '../src/lib/types';
 
@@ -91,7 +92,8 @@ t('canonic: regula utilizatorului bate implicitul (comportamentul de azi)',
   clasificaCategorie29('Carne', [{ pattern: 'carne', categorie: 'OTHER' }]).categorie === 'OTHER');
 
 console.log('\n— 5. Migrarea stării salvate: sigură, fără ștergeri —');
-const salvat = { ...genereazaSeed(), reguli: [...VECHI, { pattern: 'servetele', clasa: 'EXCLUS' as const }] };
+// o stare salvată ÎNAINTE de F1: cele 4 reguli vechi + una a omului, fără marcajul de migrare
+const salvat = { ...genereazaSeed(), reguliImplicite: undefined, reguli: [...VECHI, { pattern: 'servetele', clasa: 'EXCLUS' as const }] };
 const migrat = migreaza(JSON.parse(JSON.stringify(salvat)));
 t('nicio regulă existentă nu e ștearsă', salvat.reguli.every(r => migrat.reguli.some(m => m.pattern === r.pattern && m.clasa === r.clasa)));
 t('regulile existente rămân ÎN FAȚĂ, în ordinea lor',
@@ -102,7 +104,7 @@ t('implicitele noi intră DUPĂ', migrat.reguli.length > salvat.reguli.length
 t('nu apar duplicate de tipar', new Set(migrat.reguli.map(r => r.pattern)).size === migrat.reguli.length);
 t('CLEANING e acum clasificat și pe starea migrată', legacy('CLEANING', migrat.reguli).clasa === 'EXCLUS'
   && legacy('CLEANING', migrat.reguli).auto === false);
-const faraReguli = migreaza(JSON.parse(JSON.stringify({ ...genereazaSeed(), reguli: undefined })));
+const faraReguli = migreaza(JSON.parse(JSON.stringify({ ...genereazaSeed(), reguliImplicite: undefined, reguli: undefined })));
 t('stare fără reguli → primește implicitele', faraReguli.reguli.length === REGULI_IMPLICITE_29.length);
 t('migrarea e idempotentă', migreaza(JSON.parse(JSON.stringify(migrat))).reguli.length === migrat.reguli.length);
 t('imbinaReguli nu atinge lista existentă', (() => {
@@ -140,5 +142,26 @@ t('nicio categorie „neclasificată" în Tower', nou.categoriiNeclasificate.len
 const Svechi = { ...S, reguli: VECHI };
 const fcVechi = fcPerioada(Svechi, buildCtx(Svechi), '2026-08', 'RETEA');
 t('(înainte de fix ar fi fost 30,50 %)', fcVechi.fcCurat !== null && aprox(fcVechi.fcCurat, 30.5), `${fcVechi.fcCurat}`);
+
+
+console.log('\n— 7. Migrarea rulează o singură dată: ce șterge omul rămâne șters —');
+t('starea migrată poartă marcajul versiunii', migrat.reguliImplicite === VERSIUNE_REGULI_29);
+t('seed-ul proaspăt îl poartă și el', stareGoala().reguliImplicite === VERSIUNE_REGULI_29 && genereazaSeed().reguliImplicite === VERSIUNE_REGULI_29);
+// omul șterge „food" și „pui" din ecranul Food Cost, apoi aplicația se reîncarcă
+const faraFood = { ...migrat, reguli: migrat.reguli.filter(r => r.pattern !== 'food' && r.pattern !== 'pui') };
+const reincarcat = migreaza(JSON.parse(JSON.stringify(faraFood)));
+t('o regulă implicită ștearsă NU revine la reîncărcare', !reincarcat.reguli.some(r => r.pattern === 'food' || r.pattern === 'pui'),
+  `${reincarcat.reguli.length} reguli`);
+t('… și numărul rămâne cel de după ștergere', reincarcat.reguli.length === faraFood.reguli.length);
+t('golirea completă a listei rămâne golire', migreaza(JSON.parse(JSON.stringify({ ...migrat, reguli: [] }))).reguli.length === 0);
+t('o stare veche, FĂRĂ marcaj, primește implicitele o dată', migreaza(JSON.parse(JSON.stringify({ ...salvat, reguliImplicite: undefined }))).reguli.length === migrat.reguli.length);
+t('deduplicarea ignoră majusculele și diacriticele („Curățenie" = „curatenie")', (() => {
+  const dublu = imbinaReguli([{ pattern: 'Curățenie', clasa: 'EXCLUS' }, { pattern: 'AMBALAJE', clasa: 'PAPER' }], IMPLICITE);
+  return !dublu.some(r => r.pattern === 'curatenie') && !dublu.some(r => r.pattern === 'ambalaje')
+    && dublu.length === IMPLICITE.length;
+})());
+t('setul NBO nu mai are o listă proprie: aceleași implicite, derivate',
+  JSON.stringify(genereazaSeedNBO().reguli) === JSON.stringify(regulileImpliciteLegacy()) && genereazaSeedNBO().reguliImplicite === VERSIUNE_REGULI_29);
+t('pe setul NBO, CLEANING e EXCLUS și în FC Curat', clasifica('CLEANING', genereazaSeedNBO().reguli).clasa === 'EXCLUS');
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);

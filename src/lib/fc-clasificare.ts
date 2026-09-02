@@ -133,6 +133,13 @@ export const clasaDinCategorie = (c: FCCategory): Clasa29 =>
   (c === 'FOOD' ? 'FOOD' : esteFC(c) ? 'PAPER' : 'EXCLUS');
 
 /**
+ * Versiunea listei implicite deja îmbinate într-o stare salvată (`AppState.reguliImplicite`).
+ * Migrarea rulează O SINGURĂ DATĂ pe versiune: altfel o regulă implicită ștearsă de om din
+ * ecranul Food Cost s-ar întoarce tăcut la fiecare reîncărcare, iar decizia lui ar fi anulată.
+ */
+export const VERSIUNE_REGULI_29 = '29.1';
+
+/**
  * Regulile implicite ale clasificatorului vechi — DERIVATE din `REGULI_IMPLICITE_29`, nu o
  * a doua listă. Ordinea se păstrează (specific înaintea genericului), fiindcă și
  * clasificatorul vechi ia prima potrivire.

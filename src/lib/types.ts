@@ -277,6 +277,8 @@ export interface AppState {
   waste: WasteFapt[];
   inventar: InventarFapt[];
   reguli: RegulaClasificare[];
+  /** Versiunea listei implicite 2.9 deja îmbinată în `reguli` — migrarea nu se repetă. Lipsă = nemigrat. */
+  reguliImplicite?: string;
   tinte: Tinta[];
   importuri: ImportBatch[];
   /** Istoricul versiunilor de sursă (Import Center). Opțional: instantaneele vechi nu îl au. */

@@ -23,7 +23,7 @@
 import { norm, pretLa } from './engine';
 import { clasificaCategorie29 } from './fc-clasificare';
 import type {
-  AppState, ImportBatch, IntrareAudit, IntrarePretIstoric, Reteta, VersiuneSursa,
+  AppState, ImportBatch, IntrareAudit, IntrarePretIstoric, Nemapat, Reteta, VersiuneSursa,
 } from './types';
 import {
   detecteazaCanal, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
@@ -493,6 +493,9 @@ export interface PregatireImport {
 export const amprentaStare = (s: AppState): string => `st_${fnv1a(JSON.stringify([
   s.ingrediente, s.produse, s.retete, s.vanzari, s.salesReport, s.linii29, s.materiale29,
   s.waste, s.inventar, s.locatii, s.versiuniImport ?? [], s.istoricPreturi ?? [],
+  // coada de aprobare face parte din instantaneu: o activare o rescrie (întreagă sau doar
+  // intrările noi), deci o alocare sau un „lasă nemapat" făcute între timp o schimbă
+  s.nemapate ?? [],
 ]))}`;
 
 const ACTOR_SISTEM = 'SISTEM';
@@ -856,7 +859,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       .map(r => String(r[map.produs!] ?? '').trim())
       .filter(c => c && !cunoscute.has(c)))].sort();
     adaugaDiag(col, 'PRODUS_LIPSA', 'ATENTIE', 'Produse necunoscute în nomenclator',
-      'Vânzările lor intră, dar fără rețetă costul nu se poate calcula — apar în acoperire.', necunoscute);
+      'Vânzările lor NU intră în calcul: codurile merg în coada de aprobare, unde se leagă de un produs.', necunoscute);
     const cuReteta = new Set(state.retete.map(r => r.cod));
     adaugaDiag(col, 'RETETA_LIPSA', 'ATENTIE', 'Produse vândute fără rețetă',
       'Costul lor NU e presupus zero: rămâne necunoscut până la importul rețetei.',
@@ -926,12 +929,18 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const randuriUtile = pEfectiv.randuri.filter(r => !randGol(r)).length;
   const dinGrila = CITITE_DIN_GRILA.includes(intern);
   const randuriSursa = dinGrila ? (pEfectiv.matrice?.length ?? randuriUtile) : randuriUtile;
+  // ce a adus rularea în coada de aprobare peste ce exista: identități noi SAU aceleași
+  // identități cu alte cifre / din alt fișier (coada reține ultimul import în care au apărut)
+  const aduse = nemapateAduse(state, rulat.stateNou);
   if (importate === 0) {
     adaugaDiag(col, 'NIMIC_IMPORTAT', 'BLOCANT', 'Importul nu a adus niciun rând',
       randuriSursa === 0
         ? 'Fișierul nu conține rânduri de date.'
-        : 'Toate rândurile au fost ignorate de motor (coloane, date sau valori necitibile). '
-          + 'Un import care nu importă nimic nu se activează — altfel ar crea o versiune goală.',
+        : aduse.length > 0
+          ? `Niciun rând costabil: ${aduse.length} ${numeIntrari(intern, aduse.length)} în nomenclator. `
+            + 'Un import fără rânduri costabile nu se activează; se poate păstra doar coada de aprobare.'
+          : 'Toate rândurile au fost ignorate de motor (coloane, date sau valori necitibile). '
+            + 'Un import care nu importă nimic nu se activează — altfel ar crea o versiune goală.',
       [`${randuriSursa} rânduri în fișier, 0 importate`]);
   }
 
@@ -943,12 +952,10 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // rămâne cum era — fără candidat, fără coadă.
   const doarNimicCostabil = erori.length === 0 && !duplicatExact
     && blocante.length > 0 && blocante.every(d => d.cod === 'NIMIC_IMPORTAT');
-  const stiute = new Set(state.nemapate.map(n => n.denumire));
-  const coadaNoua = rulat.stateNou.nemapate.some(n => !stiute.has(n.denumire));
+  const coadaNoua = aduse.length > 0;
   const pastreazaCandidat = valid || (doarNimicCostabil && coadaNoua);
   if (coadaNoua && !valid && !pastreazaCandidat) {
-    const nrNoi = rulat.stateNou.nemapate.filter(n => !stiute.has(n.denumire)).length;
-    avertismente.push(`Coada de aprobare din acest fișier (${nrNoi} intrări) NU a fost păstrată: `
+    avertismente.push(`Coada de aprobare din acest fișier (${aduse.length} intrări) NU a fost păstrată: `
       + 'importul a fost respins din alt motiv decât lipsa rândurilor costabile.');
   }
 
@@ -986,8 +993,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
     diagnostice: sorteazaDiag(col.diag),
-    nemapateDePastrat: doarNimicCostabil && coadaNoua
-      ? rulat.stateNou.nemapate.filter(n => !stiute.has(n.denumire)).length : 0,
+    nemapateDePastrat: doarNimicCostabil && coadaNoua ? aduse.length : 0,
     schimbari,
     audit: {
       id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
@@ -1045,10 +1051,13 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   const r = pregatire.rezultat;
   // pregătirea e valabilă doar pentru starea pe care a fost calculată: altfel activarea ei
   // ar rescrie datele cu un instantaneu vechi și ar șterge, tăcut, importul dintre timp
-  // (inclusiv la o a doua activare a ACELEIAȘI pregătiri)
-  if (pregatire.valid && pregatire.bazaStare !== amprentaStare(state)) {
+  // (inclusiv la o a doua activare a ACELEIAȘI pregătiri). Garda se aplică ori de câte ori
+  // activarea AR SCRIE ceva — și când păstrează doar coada de aprobare a unui 4.7 respins,
+  // fiindcă și acel instantaneu al cozii e vechi dacă starea s-a mișcat.
+  const arScrie = pregatire.valid || pregatire.stareCandidat !== null;
+  if (arScrie && pregatire.bazaStare !== amprentaStare(state)) {
     const respins: RezultatCentral = {
-      ...r, stare: 'RESPINS', activat: false,
+      ...r, stare: 'RESPINS', activat: false, nemapateDePastrat: 0,
       erori: [...r.erori, 'Starea s-a schimbat de la pregătirea acestui import (alt import activat între timp, '
         + 'sau aceeași pregătire activată de două ori). Repetă pregătirea pe starea curentă.'],
     };
@@ -1074,10 +1083,13 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     const avertismente = [...r.avertismente];
     const erori = [...r.erori];
     if (pastreaza) {
-      erori.push(`Niciun rând costabil: toate cele ${noi.numar} coduri sunt necunoscute în nomenclator. `
+      erori.push(`Niciun rând costabil: ${noi.numar} ${numeIntrari(r.tipIntern, noi.numar)} în nomenclator — `
         + `${fmtNr(noi.buc)} buc și ${fmtNr(Math.round(noi.lei))} lei au fost puse în coada de aprobare. `
         + 'Nicio vânzare nu a fost atribuită și nicio versiune nu a fost creată.');
     }
+    // coada candidatului e exact ce ar fi scris și o activare validă (motorul reține ultimul
+    // import în care a apărut fiecare identitate); garda de mai sus garantează că starea de
+    // acum e cea pe care a fost calculată, deci nimic adăugat între timp nu e pierdut
     return {
       stareNoua: {
         ...state,
@@ -1128,17 +1140,33 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   };
 }
 
-/** Ce a adus importul în coada de aprobare peste ce exista deja — pe identitate, cu buc și lei. */
+/**
+ * Intrările din coada candidatului pe care importul chiar le-a adus: identități noi sau
+ * identități deja în coadă, dar cu alte cifre ori din alt fișier. O intrare identică (același
+ * fișier, aceleași buc și lei) nu e „adusă" — de aceea reimportul aceluiași fișier e idempotent.
+ */
+function nemapateAduse(inainte: AppState, candidat: AppState): Nemapat[] {
+  const cheie = (n: Nemapat) => `${n.denumire}\u0000${n.cant}\u0000${n.valoare}\u0000${n.fisier}`;
+  const vechi = new Set(inainte.nemapate.map(cheie));
+  return candidat.nemapate.filter(n => !vechi.has(cheie(n)));
+}
+
+/** Ce a adus importul în coada de aprobare peste ce exista deja — cu buc și lei. */
 function nemapateNoi(inainte: AppState, candidat: AppState | null): { numar: number; buc: number; lei: number } {
   if (!candidat) return { numar: 0, buc: 0, lei: 0 };
-  const vechi = new Set(inainte.nemapate.map(n => n.denumire));
-  const noi = candidat.nemapate.filter(n => !vechi.has(n.denumire));
+  const noi = nemapateAduse(inainte, candidat);
   return {
     numar: noi.length,
     buc: noi.reduce((a, n) => a + n.cant, 0),
     lei: noi.reduce((a, n) => a + n.valoare, 0),
   };
 }
+
+/** „coduri necunoscute" pentru rapoartele pe coduri, „denumiri necunoscute" pentru 4.7 pe nume. */
+const numeIntrari = (intern: TipImport | null | undefined, n: number): string =>
+  intern === 'SALES_MIX'
+    ? (n === 1 ? 'denumire necunoscută' : 'denumiri necunoscute')
+    : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
 
 const fmtNr = (n: number): string => new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 2 }).format(n);
 

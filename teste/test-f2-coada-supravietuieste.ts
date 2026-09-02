@@ -162,4 +162,110 @@ t('… fără versiune', (ac.stareNoua.versiuniImport ?? []).length === 0);
 t('… cu același rezultat ca poarta unică', ac.stareNoua.nemapate.length === s.nemapate.length
   && ac.rezultat.erori[0] === r.rezultat?.erori[0]);
 
+
+// ————————————————————————————————— 6. o pregătire veche nu rescrie coada de acum
+console.log('\n— 6. Garda de stare veche acoperă și calea „păstrează coada" —');
+// Pregătirea lui TOT e calculată pe BAZA. Între timp starea se mișcă. Activarea acelei
+// pregătiri trebuie REFUZATĂ, nu aplicată peste o coadă care nu mai e cea de atunci.
+const STALE = /Starea s-a schimbat/;
+const ZZ = { denumire: 'ZZ-9', categorie: '?', cant: 3, valoare: 33, fisier: 'alt 4.7.xlsx', sursa: 'PMIX' as const };
+// (a) altă intrare a ajuns în coadă între timp
+const cuAlta: AppState = { ...BAZA, nemapate: [ZZ] };
+const acA = activeazaImport(cuAlta, pg);
+t('(a) activarea unei pregătiri vechi e refuzată', acA.rezultat.stare === 'RESPINS' && STALE.test(acA.rezultat.erori.join(' ')),
+  acA.rezultat.erori.join(' ').slice(0, 60));
+t('(a) intrarea adăugată între timp NU e ștearsă', acA.stareNoua.nemapate.length === 1 && acA.stareNoua.nemapate[0].denumire === 'ZZ-9',
+  acA.stareNoua.nemapate.map(n => n.denumire).join(','));
+t('(a) rezultatul nu mai oferă „păstrează coada"', acA.rezultat.nemapateDePastrat === 0 && !randImport(acA.rezultat).poateActiva);
+t('(a) urma de audit s-a scris, ca neactivat', (acA.stareNoua.auditImport ?? []).length === 1 && acA.stareNoua.auditImport![0].activat === false);
+// (b) o denumire a fost ALOCATĂ (alias) după prima activare
+const dupaPrima = activeazaImport(BAZA, pg).stareNoua;
+const cuAlias: AppState = {
+  ...dupaPrima,
+  produse: dupaPrima.produse.map(p => p.cod === 'P1' ? { ...p, aliasuri: ['XX-1'] } : p),
+  nemapate: dupaPrima.nemapate.filter(n => n.denumire !== 'XX-1'),
+};
+const acB = activeazaImport(cuAlias, pg);
+t('(b) după o alocare, aceeași pregătire e refuzată', acB.rezultat.stare === 'RESPINS' && STALE.test(acB.rezultat.erori.join(' ')));
+t('(b) denumirea alocată NU reînvie în coadă', acB.stareNoua.nemapate.every(n => n.denumire !== 'XX-1')
+  && acB.stareNoua.nemapate.length === 1, acB.stareNoua.nemapate.map(n => n.denumire).join(','));
+// (c) o denumire a fost lăsată nemapată (scoasă din coadă) — singura schimbare e coada
+const cuRenunt: AppState = { ...dupaPrima, nemapate: dupaPrima.nemapate.filter(n => n.denumire !== 'YY-2') };
+const acC = activeazaImport(cuRenunt, pg);
+t('(c) după „lasă nemapat", aceeași pregătire e refuzată', acC.rezultat.stare === 'RESPINS' && STALE.test(acC.rezultat.erori.join(' ')));
+t('(c) denumirea scoasă NU reînvie', acC.stareNoua.nemapate.length === 1 && acC.stareNoua.nemapate[0].denumire === 'XX-1',
+  acC.stareNoua.nemapate.map(n => n.denumire).join(','));
+// (d) aceeași pregătire, activată de două ori la rând
+const acD = activeazaImport(dupaPrima, pg);
+t('(d) a doua activare a ACELEIAȘI pregătiri e refuzată', acD.rezultat.stare === 'RESPINS' && STALE.test(acD.rezultat.erori.join(' ')));
+t('(d) coada rămâne exact cum era', JSON.stringify(acD.stareNoua.nemapate) === JSON.stringify(dupaPrima.nemapate));
+// (e) o pregătire NOUĂ, pe starea mișcată, merge — și adaugă peste coada de acum, nu o înlocuiește
+const pgNou = pregatesteImport(cuAlta, { fisier: '4.7 nou.xlsx', parsat: TOT, tip: 'PMIX_47', acum: ACUM });
+const acE = activeazaImport(cuAlta, pgNou);
+t('(e) pregătirea proaspătă pe starea curentă păstrează coada', acE.stareNoua.nemapate.length === 3, `${acE.stareNoua.nemapate.length}`);
+t('(e) intrarea de dinainte NU e pierdută, iar cele noi sunt lângă ea (buc și lei intacte)',
+  [...acE.stareNoua.nemapate].sort((a, b) => a.denumire.localeCompare(b.denumire)).map(n => `${n.denumire}:${n.cant}/${n.valoare}`).join(',')
+    === 'XX-1:15/225,YY-2:2/40,ZZ-9:3/33', acE.stareNoua.nemapate.map(n => `${n.denumire}:${n.cant}/${n.valoare}`).join(','));
+t('(e) mesajul numără doar intrările aduse de acest fișier (2), nu toată coada', /2 coduri/.test(acE.rezultat.erori.join(' ')));
+// (f) semantica activării valide nu s-a schimbat: și ea e refuzată pe stare veche (a fost și înainte)
+const pgValid2 = pregatesteImport(BAZA, { fisier: 'ok.xlsx', parsat: P(ANTETE, [rand('P1', 'Burger', 1, 11.9)]), tip: 'PMIX_47', acum: ACUM });
+t('(f) o pregătire validă veche e refuzată la fel', pgValid2.valid
+  && STALE.test(activeazaImport(cuAlta, pgValid2).rezultat.erori.join(' ')));
+t('(f) … iar pe starea ei se activează', activeazaImport(BAZA, pgValid2).rezultat.stare === 'ACTIVAT');
+
+
+// ————————————————————————————————— 7. cifrele din mesaj sunt cele din coadă
+console.log('\n— 7. Mesajul spune exact ce a primit coada —');
+// (a) XX-1 era deja în coadă din iulie (8 buc / 120 lei); fișierul nou aduce XX-1 15/225 și YY-2 2/40
+const cuIulie: AppState = { ...BAZA, nemapate: [{ denumire: 'XX-1', categorie: 'Milkshake Mango', cant: 8, valoare: 120, fisier: '4.7 iulie.xlsx', sursa: 'PMIX' }] };
+const r7a = importaUnificat(cuIulie, { fisier: '4.7 nou.xlsx', parsat: TOT, intern: 'PMIX', acum: ACUM });
+t('(a) coada e păstrată', r7a.batch.status === 'ESUAT' && r7a.stareNoua.nemapate.length === 2);
+t('(a) codul deja în coadă e ÎMPROSPĂTAT cu cifrele ultimului import (15 buc / 225 lei)',
+  r7a.stareNoua.nemapate.find(n => n.denumire === 'XX-1')?.cant === 15
+  && aprox(r7a.stareNoua.nemapate.find(n => n.denumire === 'XX-1')?.valoare ?? 0, 225)
+  && r7a.stareNoua.nemapate.find(n => n.denumire === 'XX-1')?.fisier === '4.7 nou.xlsx');
+const er7a = r7a.batch.erori.join(' ');
+t('(a) mesajul numără AMBELE coduri aduse (2), nu doar cel nou', /2 coduri necunoscute/.test(er7a), er7a.slice(0, 70));
+t('(a) … cu bucățile și leii pe care coada chiar i-a primit: 17 buc, 265 lei', /17 buc/.test(er7a) && /265 lei/.test(er7a));
+t('(a) … și nu mai pretinde „toate cele"', !/toate cele/.test(er7a));
+t('(a) Tower: 2 de păstrat', r7a.rezultat?.nemapateDePastrat === 2);
+// (b) luna următoare: ACELEAȘI coduri, alt fișier, alte cifre — banii nu se pierd
+const SEPT = P(ANTETE, [rand('XX-1', 'Milkshake Mango', 30, 450, '2026-09-01'), rand('YY-2', 'Ceva Nou', 7, 140, '2026-09-02')]);
+const r7b = importaUnificat(s, { fisier: '4.7 sept.xlsx', parsat: SEPT, intern: 'PMIX', acum: ACUM });
+t('(b) fișierul lunii următoare, cu aceleași coduri, e reținut', r7b.batch.status === 'ESUAT' && r7b.rezultat?.nemapateDePastrat === 2);
+t('(b) coada poartă cifrele din septembrie (37 buc / 590 lei), nu pe cele vechi',
+  r7b.stareNoua.nemapate.reduce((a, n) => a + n.cant, 0) === 37 && aprox(r7b.stareNoua.nemapate.reduce((a, n) => a + n.valoare, 0), 590),
+  r7b.stareNoua.nemapate.map(n => `${n.denumire}:${n.cant}/${n.valoare}`).join(','));
+t('(b) … fără dubluri de identitate', r7b.stareNoua.nemapate.length === 2);
+t('(b) mesajul spune 37 buc și 590 lei', /37 buc/.test(r7b.batch.erori.join(' ')) && /590 lei/.test(r7b.batch.erori.join(' ')));
+t('(b) reimportul IDENTIC rămâne idempotent (nimic adus, nimic scris)',
+  importaUnificat(r7b.stareNoua, { fisier: '4.7 sept.xlsx', parsat: SEPT, intern: 'PMIX', acum: ACUM }).rezultat?.nemapateDePastrat === 0);
+// (c) diagnosticul de lângă buton spune motivul real, nu „valori necitibile"
+const d7 = r.rezultat?.diagnostice.find(d => d.cod === 'NIMIC_IMPORTAT');
+t('(c) NIMIC_IMPORTAT explică: coduri necunoscute, nu valori necitibile',
+  !!d7 && /coduri necunoscute/.test(d7.detaliu ?? '') && !/necitibile/.test(d7.detaliu ?? ''), d7?.detaliu?.slice(0, 80));
+t('(c) … iar pe un fișier cu date necitibile rămâne textul vechi',
+  /necitibile/.test(rd.rezultat?.diagnostice.find(d => d.cod === 'NIMIC_IMPORTAT')?.detaliu ?? ''));
+t('(c) PRODUS_LIPSA nu mai spune că vânzările „intră"',
+  !/intră, dar/.test(r.rezultat?.diagnostice.find(d => d.cod === 'PRODUS_LIPSA')?.detaliu ?? ''));
+// (d) un import curat nu poartă mesajul de coadă
+const r7d = importaUnificat(BAZA, { fisier: 'curat.xlsx', parsat: DOAR_P1, intern: 'PMIX', acum: ACUM });
+t('(d) importul complet mapat nu are niciun mesaj de coadă', r7d.batch.status === 'IMPORTAT'
+  && !/coada de aprobare/.test(r7d.batch.avertismente.join(' ') + r7d.batch.erori.join(' ')), r7d.batch.avertismente.join(' | ').slice(0, 80));
+// (e) 4.7 pe DENUMIRI (grila NCR), 100 % necunoscut: aceeași semantică, cu „denumiri" în mesaj
+const GRILA: Parsat = { foaie: 'S', antete: ['Menu Item Name', 'Qty', 'Price', 'Extension'], randuri: [], matrice: [
+  ['4.7 Sales Mix'], ['Fiscal Year: 2026'], ['Period: 8 Week: 1'], ['8/3/2026 - 8/9/2026'],
+  ['Menu Item Name', 'Qty', 'Price', 'Extension'], ['CATEGORY SHAKES*'],
+  ['Milkshake Mango', 10, 15.000, '$150.00'], ['Ceva Nou', 2, 20.000, '$40.00'], ['Total 12 $190.00'],
+  ['Groups/Stores Selected for this Report'], ['FRYDAY IASI PALAS'],
+] };
+const r7e = importaUnificat(BAZA, { fisier: '4.7 nume.xlsx', parsat: GRILA, intern: 'SALES_MIX', locatie: 'L01', acum: ACUM });
+const bloc7e = (r7e.rezultat?.diagnostice ?? []).filter(d => d.nivel === 'BLOCANT').map(d => d.cod);
+t('(e) 4.7 pe denumiri, nimic mapat: singurul blocant e NIMIC_IMPORTAT', bloc7e.join(',') === 'NIMIC_IMPORTAT', bloc7e.join(','));
+t('(e) coada e păstrată, cu sursa SALES_MIX', r7e.stareNoua.nemapate.length === 2 && r7e.stareNoua.nemapate.every(n => n.sursa === 'SALES_MIX'),
+  r7e.stareNoua.nemapate.map(n => `${n.denumire}/${n.sursa}`).join(','));
+t('(e) leii sunt conservați: 190', aprox(r7e.stareNoua.nemapate.reduce((a, n) => a + n.valoare, 0), 190));
+t('(e) mesajul vorbește de „denumiri", nu de „coduri"', /2 denumiri necunoscute/.test(r7e.batch.erori.join(' ')), r7e.batch.erori.join(' ').slice(0, 80));
+t('(e) nicio vânzare, nicio versiune', r7e.stareNoua.vanzari.length === 0 && (r7e.stareNoua.versiuniImport ?? []).length === 0);
+
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
