@@ -25,6 +25,7 @@ import Topuri from './views/Topuri';
 import ProductImpact from './views/ProductImpact';
 import Setari from './views/Setari';
 import ControlTower from './views/tower/ControlTower';
+import Bariera from './views/shared/Bariera';
 
 const MODULE = [
   { id: 'tower', nume: 'FC Control Tower', C: ControlTower },
@@ -205,9 +206,11 @@ function Continut() {
         <AliniazaSelectia />
         <Antet scopPropriu={SCOP_PROPRIU.has(modul)} />
         <AvertismentFiltrat />
-        <main className="p-4 md:p-6">
-          <Activ />
-        </main>
+        <Bariera zona={MODULE.find(m => m.id === modul)!.nume} cheie={modul}>
+          <main className="p-4 md:p-6">
+            <Activ />
+          </main>
+        </Bariera>
       </div>
     </div>
   );
@@ -220,10 +223,12 @@ export const DATA_BUILD = '08.08.2026';
 export default function App() {
   const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
   return (
-    <StoreProvider>
-      <SelCtx.Provider value={{ sel, setSel }}>
-        <Continut />
-      </SelCtx.Provider>
-    </StoreProvider>
+    <Bariera>
+      <StoreProvider>
+        <SelCtx.Provider value={{ sel, setSel }}>
+          <Continut />
+        </SelCtx.Provider>
+      </StoreProvider>
+    </Bariera>
   );
 }
