@@ -933,7 +933,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const totCant = [...necunoscute.values()].reduce((a, x) => a + x.cant, 0);
         const totLei = [...necunoscute.values()].reduce((a, x) => a + x.valoare, 0);
         avert.push(`${necunoscute.size} coduri fără produs în nomenclator: ${fmtNr(totCant)} buc, `
-          + `${fmtNr(Math.round(totLei))} lei — NU intră în calcul, dar au fost puse în coada de aprobare.`);
+          + `${fmtNr(Math.round(totLei))} lei — NU intră în calcul.`);
         for (const [c, v] of [...necunoscute.entries()].sort((a, b) => b[1].valoare - a[1].valoare).slice(0, 25)) {
           avert.push(`Nemapat: cod „${c}"${v.nume ? ` (${v.nume})` : ''} — ${fmtNr(v.cant)} buc, ${fmtNr(Math.round(v.valoare))} lei`);
         }

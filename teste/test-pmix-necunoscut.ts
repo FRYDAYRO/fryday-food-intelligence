@@ -80,7 +80,9 @@ const av = r.batch.avertismente.join(' | ');
 t('avertismentul numără codurile', /2 coduri fără produs/.test(av), av.slice(0, 90));
 t('… și spune bucățile și leii', /17 buc/.test(av) && /265 lei/.test(av));
 t('… și spune limpede că nu intră în calcul', /NU intră în calcul/.test(av));
-t('… și că au ajuns în coada de aprobare', /coada de aprobare/.test(av));
+// motorul spune doar faptul (nu intră în calcul); DACĂ au ajuns în coadă decide activarea,
+// unde e sigur — vezi test-f2-coada-supravietuieste.ts
+t('… și NU promite ce nu decide el (coada e treaba activării)', !/coada de aprobare/.test(av));
 t('fiecare cod e numit separat, cu numele lui', /cod „XX-99" \(Milkshake Mango\)/.test(av));
 t('coada de aprobare chiar le vede', coadaAprobare(s).length === 2, `${coadaAprobare(s).length}`);
 

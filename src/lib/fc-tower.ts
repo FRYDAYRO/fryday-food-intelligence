@@ -918,8 +918,13 @@ export interface RandImportTower {
   avertismente: string[];
   erori: string[];
   stare: RezultatCentral['stare'];
-  /** Doar un import VALIDAT se poate activa — starea de aici e singura poartă din interfață. */
+  /**
+   * Un import VALIDAT se poate activa. Un import respins DOAR pentru lipsa rândurilor
+   * costabile, dar care a adus intrări în coada de aprobare, se poate „activa" și el —
+   * activarea reține atunci coada, fără versiune și fără vânzări (`doarCoada`).
+   */
   poateActiva: boolean;
+  doarCoada: boolean;
   motivBlocare: string | null;
   versiune: string | null;
   activat: boolean;
@@ -928,7 +933,8 @@ export interface RandImportTower {
 
 export function randImport(r: RezultatCentral): RandImportTower {
   const blocante = r.diagnostice.filter(d => d.nivel === 'BLOCANT');
-  const poateActiva = r.stare === 'VALIDAT';
+  const doarCoada = r.stare !== 'VALIDAT' && r.nemapateDePastrat > 0;
+  const poateActiva = r.stare === 'VALIDAT' || doarCoada;
   const motivBlocare =
     r.stare === 'VALIDAT' ? null
       : r.stare === 'ACTIVAT' ? 'Importul e deja activat.'
@@ -956,6 +962,7 @@ export function randImport(r: RezultatCentral): RandImportTower {
     erori: r.erori,
     stare: r.stare,
     poateActiva,
+    doarCoada,
     motivBlocare,
     versiune: r.versiune,
     activat: r.activat,

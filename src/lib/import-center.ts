@@ -440,6 +440,13 @@ export interface RezultatCentral {
   diagnostice: DiagnosticImport[];
   schimbari: SchimbariDetectate | null;
   audit: IntrareAudit | null;
+  /**
+   * Câte intrări NOI ar intra în coada de aprobare dacă importul ar fi aplicat. Nenul doar
+   * când singurul motiv de respingere e lipsa rândurilor costabile — atunci activarea nu
+   * creează versiune și nu atribuie nimic, dar reține coada. Interfața îl folosește ca să
+   * ofere exact această acțiune, cu numele ei, nu „Activează".
+   */
+  nemapateDePastrat: number;
 }
 
 export interface CerereImport {
@@ -689,7 +696,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
       avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta,
       versiune: null, activat: false, stare, importatLa: acum, actor,
-      diagnostice: col.diag, schimbari: null,
+      diagnostice: col.diag, schimbari: null, nemapateDePastrat: 0,
       audit: {
         id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
         tip: tipRez ?? 'NEDETECTAT', tipIntern: '—', perioada: null,
@@ -930,6 +937,20 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   const blocante = col.diag.filter(d => d.nivel === 'BLOCANT');
   const valid = erori.length === 0 && blocante.length === 0 && !duplicatExact;
+  // Candidatul se păstrează și când SINGURUL motiv de respingere e lipsa rândurilor costabile,
+  // dacă rularea a adus intrări noi în coada de aprobare: acolo sunt banii, iar activarea
+  // (nu pregătirea, care nu scrie nimic) decide să rețină doar coada. Orice altă gardă
+  // rămâne cum era — fără candidat, fără coadă.
+  const doarNimicCostabil = erori.length === 0 && !duplicatExact
+    && blocante.length > 0 && blocante.every(d => d.cod === 'NIMIC_IMPORTAT');
+  const stiute = new Set(state.nemapate.map(n => n.denumire));
+  const coadaNoua = rulat.stateNou.nemapate.some(n => !stiute.has(n.denumire));
+  const pastreazaCandidat = valid || (doarNimicCostabil && coadaNoua);
+  if (coadaNoua && !valid && !pastreazaCandidat) {
+    const nrNoi = rulat.stateNou.nemapate.filter(n => !stiute.has(n.denumire)).length;
+    avertismente.push(`Coada de aprobare din acest fișier (${nrNoi} intrări) NU a fost păstrată: `
+      + 'importul a fost respins din alt motiv decât lipsa rândurilor costabile.');
+  }
 
   const schimbari: SchimbariDetectate = {
     // lista de prețuri folosește același motor ca nomenclatorul, dar NU e o revizie de
@@ -965,6 +986,8 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
     diagnostice: sorteazaDiag(col.diag),
+    nemapateDePastrat: doarNimicCostabil && coadaNoua
+      ? rulat.stateNou.nemapate.filter(n => !stiute.has(n.denumire)).length : 0,
     schimbari,
     audit: {
       id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
@@ -977,7 +1000,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   };
   return {
     rezultat,
-    stareCandidat: valid ? deterministaBatch(rulat.stateNou, state, amprenta, acum) : null,
+    stareCandidat: pastreazaCandidat ? deterministaBatch(rulat.stateNou, state, amprenta, acum) : null,
     valid,
     bazaStare: amprentaStare(state),
   };
@@ -1037,9 +1060,31 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   }
   if (!pregatire.valid || !pregatire.stareCandidat || !r.tip || !r.tipIntern) {
     const audit: IntrareAudit = { ...(r.audit ?? auditGol(r)), activat: false };
+    // Un 4.7 în care NICIUN cod nu se potrivește nu aduce rânduri costabile, deci nu se
+    // activează — o versiune goală ar intra în banda de perioade fără nimic în spate. Dar
+    // coada de aprobare pe care a produs-o e exact ce trebuie să rămână: acolo sunt banii.
+    // Se păstrează DOAR când lipsa rândurilor costabile e singurul motiv de respingere; orice
+    // altă gardă (coloane lipsă, granularitate mixtă, duplicat) rămâne la fel de strictă,
+    // fiindcă atunci „codurile necunoscute" pot fi resturi dintr-o citire greșită a fișierului.
+    const noi = nemapateNoi(state, pregatire.stareCandidat);
+    const doarNimicCostabil = r.erori.length === 0 && r.duplicat !== 'DUPLICAT_EXACT'
+      && r.diagnostice.some(d => d.nivel === 'BLOCANT')
+      && r.diagnostice.every(d => d.nivel !== 'BLOCANT' || d.cod === 'NIMIC_IMPORTAT');
+    const pastreaza = doarNimicCostabil && noi.numar > 0 && pregatire.stareCandidat !== null;
+    const avertismente = [...r.avertismente];
+    const erori = [...r.erori];
+    if (pastreaza) {
+      erori.push(`Niciun rând costabil: toate cele ${noi.numar} coduri sunt necunoscute în nomenclator. `
+        + `${fmtNr(noi.buc)} buc și ${fmtNr(Math.round(noi.lei))} lei au fost puse în coada de aprobare. `
+        + 'Nicio vânzare nu a fost atribuită și nicio versiune nu a fost creată.');
+    }
     return {
-      stareNoua: { ...state, auditImport: [...(state.auditImport ?? []), audit] },
-      rezultat: { ...r, activat: false, audit },
+      stareNoua: {
+        ...state,
+        ...(pastreaza ? { nemapate: pregatire.stareCandidat!.nemapate } : {}),
+        auditImport: [...(state.auditImport ?? []), audit],
+      },
+      rezultat: { ...r, activat: false, audit, avertismente, erori },
     };
   }
 
@@ -1066,6 +1111,11 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     ...(r.audit ?? auditGol(r)),
     validare: 'VALIDAT', versiune: versiune.id, activat: true,
   };
+  const noiInCoada = nemapateNoi(state, pregatire.stareCandidat);
+  const avertismenteActivare = noiInCoada.numar > 0
+    ? [...r.avertismente, `${noiInCoada.numar} intrări noi în coada de aprobare: ${fmtNr(noiInCoada.buc)} buc, `
+        + `${fmtNr(Math.round(noiInCoada.lei))} lei — nu intră în calcul până la aprobare.`]
+    : r.avertismente;
   const stareNoua: AppState = {
     ...pregatire.stareCandidat,
     versiuniImport: versiuniNoi,
@@ -1074,9 +1124,23 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   };
   return {
     stareNoua,
-    rezultat: { ...r, stare: 'ACTIVAT', activat: true, versiune: versiune.id, audit },
+    rezultat: { ...r, stare: 'ACTIVAT', activat: true, versiune: versiune.id, audit, avertismente: avertismenteActivare },
   };
 }
+
+/** Ce a adus importul în coada de aprobare peste ce exista deja — pe identitate, cu buc și lei. */
+function nemapateNoi(inainte: AppState, candidat: AppState | null): { numar: number; buc: number; lei: number } {
+  if (!candidat) return { numar: 0, buc: 0, lei: 0 };
+  const vechi = new Set(inainte.nemapate.map(n => n.denumire));
+  const noi = candidat.nemapate.filter(n => !vechi.has(n.denumire));
+  return {
+    numar: noi.length,
+    buc: noi.reduce((a, n) => a + n.cant, 0),
+    lei: noi.reduce((a, n) => a + n.valoare, 0),
+  };
+}
+
+const fmtNr = (n: number): string => new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 2 }).format(n);
 
 const auditGol = (r: RezultatCentral): IntrareAudit => ({
   id: `A_${fnv1a(`${r.amprenta}|${r.importatLa}|${r.fisier}|${r.actor}`)}`, actor: r.actor, data: r.importatLa, fisier: r.fisier,

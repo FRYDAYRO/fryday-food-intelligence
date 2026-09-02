@@ -70,7 +70,10 @@ export default function ImportCenter() {
     update(() => stareNoua);
     setMesaj(rezultat.activat
       ? `Import activat ca versiunea ${rezultat.versiune}.`
-      : `Importul nu a fost activat: ${rezultat.erori[0] ?? rezultat.stare}. Datele au rămas neschimbate.`);
+      : rezultat.nemapateDePastrat > 0
+        // coada a fost reținută: datele NU au rămas neschimbate, și nu se spune că ar fi
+        ? `Importul nu a fost activat. ${rezultat.erori[0] ?? ''}`
+        : `Importul nu a fost activat: ${rezultat.erori[0] ?? rezultat.stare}. Datele au rămas neschimbate.`);
     setPregatire(null); setParsat(null);
   };
 
@@ -175,7 +178,7 @@ export default function ImportCenter() {
 
             <div className="flex flex-wrap items-center gap-2">
               <Btn data-actiune="activeaza" disabled={!rand.poateActiva} onClick={activeaza}>
-                Activează importul
+                {rand.doarCoada ? 'Păstrează coada de aprobare' : 'Activează importul'}
               </Btn>
               {!rand.poateActiva && (
                 <span className={cx('text-sm', rand.stare === 'RESPINS' ? 'text-red-700' : 'text-muted-foreground')}>

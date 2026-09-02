@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppState } from './types';
 import { genereazaSeed, stareGoala } from './seed';
 import { genereazaSeedNBO } from './seed-nbo';
+import { imbinaReguli } from './fc-clasificare';
 // Baza reală FRYDAY, încorporată în aplicație: nomenclator, rețete și prețuri pe canal.
 // Vânzările NU sunt incluse — se importă periodic (PMIX / Sales Mix 4.7).
 import bazaFryday from '../date/baza-fryday.json';
@@ -108,7 +109,9 @@ export function migreaza(brut: unknown): AppState {
   p.istoricPreturi = p.istoricPreturi ?? [];
   p.auditImport = p.auditImport ?? [];
   p.auditAcces = p.auditAcces ?? [];
-  p.reguli = p.reguli ?? d.reguli;
+  // regulile deja salvate (inclusiv cele adăugate de om) rămân neatinse și în față;
+  // implicitele noi intră doar în urma lor, ca vocabularul să fie același ca în punte
+  p.reguli = imbinaReguli(p.reguli ?? [], d.reguli);
   p.tinte = p.tinte ?? d.tinte;
   return p;
 }

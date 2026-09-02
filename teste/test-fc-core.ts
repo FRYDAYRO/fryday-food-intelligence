@@ -120,8 +120,14 @@ t('categoriile cu diacritice sunt clasificate corect, nu raportate ca necunoscut
   !nbo.categoriiNeclasificate.includes('Materiale curățenie'), nbo.categoriiNeclasificate.join(',') || '(niciuna)');
 // categoriile care nu se potrivesc cu nicio regulă primesc implicit FOOD — semnal de calitate,
 // nu un fapt: fără el, o categorie de ambalaje formulată altfel ar intra tăcut în Food
+// „Carne și pui" e vocabular real FRYDAY, mapat explicit pe FOOD de lista canonică — deci nu
+// mai e „fără regulă". Mecanismul se verifică pe o categorie chiar necunoscută.
+t('categoriile cu regulă explicită NU mai sunt semnalate (Carne și pui → FOOD)',
+  !nbo.categoriiNeclasificate.includes('Carne și pui'), nbo.categoriiNeclasificate.join(',') || '(niciuna)');
+const cuNecunoscuta: AppState = { ...s0, linii29: [...s0.linii29,
+  { perioada: '2026-07', locatie: 'L01', categorie: 'Chestii diverse', valoare: 10 }] };
 t('categoriile fără regulă sunt raportate, nu trecute tăcut pe FOOD',
-  nbo.categoriiNeclasificate.includes('Carne și pui'), nbo.categoriiNeclasificate.length + ' categorii semnalate');
+  nboFC(cuNecunoscuta, cerere('TOTAL')).categoriiNeclasificate.includes('Chestii diverse'));
 t('cele cu regulă NU apar ca nesemnalate',
   !nbo.categoriiNeclasificate.includes('Ambalaje') && !nbo.categoriiNeclasificate.includes('Uniforme personal'));
 t('2.9 își poartă sursa', nbo.surse.some(s => s.raport === 'NBO_29' && s.randuri > 0));

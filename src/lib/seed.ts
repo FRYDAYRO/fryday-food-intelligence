@@ -1,5 +1,6 @@
 import type { AppState, Canal, Ingredient, Linie29, Produs, Reteta, SalesReportRand, VanzareFapt } from './types';
 import { agregatePerioada, buildCtx } from './engine';
+import { regulileImpliciteLegacy } from './fc-clasificare';
 
 // PRNG determinist — datele demo sunt identice la fiecare regenerare
 function mulberry32(a: number) {
@@ -286,12 +287,8 @@ export function genereazaSeed(): AppState {
     locatii, furnizori, ingrediente, produse, retete, vanzari, salesReport, linii29,
     materiale29: [],
     waste: [], inventar: [],
-    reguli: [
-      { pattern: 'uniforme', clasa: 'EXCLUS' },
-      { pattern: 'administrative', clasa: 'EXCLUS' },
-      { pattern: 'curatenie', clasa: 'EXCLUS' },
-      { pattern: 'ambalaje', clasa: 'PAPER' },
-    ],
+    // o singură sursă de vocabular pentru 2.9: lista canonică din `fc-clasificare`, derivată
+    reguli: regulileImpliciteLegacy(),
     tinte: [
       { locatie: 'RETEA', fcCurat: 21.0 },
       { locatie: 'L01', fcCurat: 20.5 },

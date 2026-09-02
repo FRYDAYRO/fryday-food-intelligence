@@ -8,6 +8,7 @@
 // ca cineva să afle. Aici, o categorie nerecunoscută rămâne `UNCLASSIFIED` și apare în
 // diagnosticele de calitate a datelor, ca să fie mapată explicit.
 import { norm } from './engine';
+import type { Clasa29, RegulaClasificare } from './types';
 
 /** Categoria unei linii 2.9. `UNCLASSIFIED` nu e o valoare implicită, ci o problemă de raportat. */
 export type FCCategory =
@@ -115,6 +116,41 @@ export const REGULI_IMPLICITE_29: RegulaCategorie29[] = [
   { pattern: 'intretinere', categorie: 'OPERATIONAL' },
   { pattern: 'mentenanta', categorie: 'OPERATIONAL' },
 ];
+
+/**
+ * Clasa VECHE (FOOD / PAPER / EXCLUS) a unei categorii canonice.
+ *
+ * FC Curat se calculează peste tot — ecranul Food Cost, `fcPerioada`, `nboFC` din Control
+ * Tower — cu clasificatorul vechi din `engine` și cu `state.reguli`. Puntea pe materiale
+ * folosește lista canonică de mai sus. Cele două plecau din vocabulare diferite: patru tipare
+ * în română contra treizeci în două limbi. Aceeași categorie 2.9 dădea un Food Cost Curat
+ * într-un ecran și altul în celălalt. Regula de aici e puntea dintre ele.
+ *
+ * `NORMALIZED` cade pe PAPER: e materie de Food Cost (`esteFC`), iar puntea o numește
+ * chiar „NORMALIZED_PAPER". Tot ce e operațional iese din FC Curat, deci EXCLUS.
+ */
+export const clasaDinCategorie = (c: FCCategory): Clasa29 =>
+  (c === 'FOOD' ? 'FOOD' : esteFC(c) ? 'PAPER' : 'EXCLUS');
+
+/**
+ * Regulile implicite ale clasificatorului vechi — DERIVATE din `REGULI_IMPLICITE_29`, nu o
+ * a doua listă. Ordinea se păstrează (specific înaintea genericului), fiindcă și
+ * clasificatorul vechi ia prima potrivire.
+ */
+export const regulileImpliciteLegacy = (): RegulaClasificare[] =>
+  REGULI_IMPLICITE_29.map(r => ({ pattern: r.pattern, clasa: clasaDinCategorie(r.categorie) }));
+
+/**
+ * Îmbină regulile deja salvate cu cele implicite, FĂRĂ să șteargă și FĂRĂ să reordoneze
+ * nimic din ce exista. Clasificatorul vechi ia prima potrivire dintr-o singură listă, iar
+ * regulile omului stau acolo unde le-a pus el — deci ele rămân în față, cu prioritatea de
+ * azi, iar implicitele noi intră doar în urma lor și doar dacă tiparul lipsește. Ce era
+ * clasificat rămâne clasificat la fel; se schimbă numai ce cădea înainte, tăcut, pe FOOD.
+ */
+export function imbinaReguli(existente: RegulaClasificare[], implicite: RegulaClasificare[]): RegulaClasificare[] {
+  const stiute = new Set(existente.map(r => norm(r.pattern)));
+  return [...existente, ...implicite.filter(r => !stiute.has(norm(r.pattern)))];
+}
 
 export type SursaClasificare = 'UTILIZATOR' | 'IMPLICITA' | 'NECLASIFICAT';
 
