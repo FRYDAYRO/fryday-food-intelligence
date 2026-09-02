@@ -27,7 +27,7 @@ import { analizaIngrediente } from '../src/lib/fc-ingrediente';
 import { simuleazaFC } from '../src/lib/fc-simulare';
 import { activeazaImport, pregatesteImport } from '../src/lib/import-center';
 import {
-  accesTower, cerereBaza, cerereDin, normalizeazaSelectie, punteTower, semnaleCalitate, tabelMagazine,
+  accesTower, cerereBaza, cerereDin, normalizeazaSelectie, punteTower, semnaleCalitate,
   type SelectieFC,
 } from '../src/lib/fc-tower';
 import {
@@ -381,7 +381,7 @@ const valid = {
     randuri: [{ Data: '2026-07-05', 'Cod produs': 'PX1', Canal: 'InStore', Cantitate: 3, 'Valoare neta': 90 }],
   },
   acum: ACUM, locatie: 'L01',
-} as const;
+};
 t('un PMIX fără canal NU primește un canal inventat — rândul e refuzat, nu alocat',
   (() => {
     const faraCanal = pregatesteImport(STRES, {
@@ -588,7 +588,7 @@ t('cererea directă pe alt restaurant e REFUZATĂ, cu motiv',
 t('scopul dedus din parametri străini se întoarce cu refuzuri, nu cu datele',
   (() => {
     const sc = scopDinParametri(STRES, aMgr, { locatie: 'L01', canal: 'TOTAL' });
-    return sc.refuzuri.length > 0 && sc.nivel !== restaurant('L01');
+    return sc.refuzuri.length > 0 && sc.locatie !== 'L01' && !sc.companie;
   })());
 t('ecranul randat pentru manager cu selecție forțată nu arată alt restaurant',
   !new RegExp('\\bL01\\b').test(
@@ -611,10 +611,12 @@ t('importul în scopul propriu rămâne permis pentru cine are dreptul',
 t('refuzul se înregistrează în urma de acces, cu scop și motiv',
   (() => {
     const dupa = inregistreazaAcces(STRES, aMgr, {
-      actiune: 'CERERE_DATE', scop: 'L01', rezultat: 'REFUZAT', detaliu: 'test de audit',
+      actiune: 'ACCES_REFUZAT', scop: 'L01', rezultat: 'REFUZAT', detaliu: 'test de audit', acum: ACUM,
     });
     const ultim = (dupa.auditAcces ?? []).at(-1);
-    return !!ultim && ultim.rezultat === 'REFUZAT' && ultim.scop === 'L01';
+    return !!ultim && ultim.rezultat === 'REFUZAT' && ultim.scop === 'L01'
+      // ceasul e parametru: urma poartă momentul DAT, nu ora la care s-a întâmplat să ruleze testul
+      && ultim.data === ACUM;
   })());
 
 t('managementul vede ambele restaurante',

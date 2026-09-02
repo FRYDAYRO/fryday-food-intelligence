@@ -18,10 +18,10 @@
 //  · datele incomplete nu se ascund: perioade neîncheiate, restaurante lipsă, PMIX/rețete/
 //    prețuri lipsă, canale necunoscute, materiale neclasificate, reconciliere incompletă —
 //    toate apar numite în calitate, cu `complete: false`.
-import { AZI_ISO, costProdus, pretCurent, pretLa } from './engine';
+import { AZI_ISO, areCostMasurabil, costProdus, pretCurent, pretLa } from './engine';
 import type { AppState, Canal } from './types';
 import {
-  canalePentru, contineData, locatieDin, perioadaAnterioara, perioadaDin, perioadeIntre, restaurant,
+  canalePentru, contineData, eLocatieReala, locatieDin, perioadaAnterioara, perioadaDin, perioadeIntre, restaurant,
   type CerereFC, type CtxFC, type FCChannel, type FCChannelSursa, type FCLevel, type FCPeriod,
   type FCPeriodType, type SursaFC,
 } from './fc-domeniu';
@@ -47,8 +47,14 @@ export interface CerereTimeline extends CerereFC {
 export interface MetriciFC {
   salesRON: number;
   sursaVanzari: 'Sales Report' | 'PMIX';
+  /**
+   * De ce 4.1 NU e numitorul, deși există rânduri pe perioadă: fereastra lui nu coincide
+   * cu a vânzărilor pe produs. Absent = nicio incompatibilitate. Fără el, substituirea
+   * numitorului ar fi tăcută.
+   */
+  motivNumitorIncompatibil?: string;
 
-  /** FC teoretic din rețete: cost ÷ vânzări nete. */
+  /** FC teoretic din rețete: cost ÷ vânzări nete. `null` când nicio vânzare n-a avut cost calculabil. */
   recipeFcPct: number | null;
   recipeCostRON: number;
   foodCostRON: number;
@@ -101,7 +107,10 @@ export function metriciFC(state: AppState, ctx: CtxFC, cerere: CerereFC): Metric
 
   return {
     salesRON: net, sursaVanzari: numitor.sursa,
-    recipeFcPct: pct(recipe.cost),
+    ...(numitor.motivIncompatibil !== undefined ? { motivNumitorIncompatibil: numitor.motivIncompatibil } : {}),
+    // FC-ul din rețete e o cifră doar peste vânzări cu cost calculabil; altfel `pct` ar
+    // întoarce 0% pentru o perioadă fără rețetar — vezi `areCostMasurabil`.
+    recipeFcPct: areCostMasurabil(recipe.netAcoperit, recipe.cost) ? pct(recipe.cost) : null,
     recipeCostRON: recipe.cost, foodCostRON: recipe.costFood, paperCostRON: recipe.costPaper,
     acoperirePct: recipe.acoperirePct,
     acoperireCompletaPct: recipe.acoperireCompletaPct,
@@ -457,6 +466,12 @@ export interface AnalizaTimeline {
   magazine: RandMagazinTL[] | null;
   /** Partea de 2.9 fără restaurant — face exactă identitatea companie = Σ restaurante + fără-locație. */
   nboFaraLocatieRON: number | null;
+  /**
+   * Vânzările de REȚEA — rândurile unui 4.7 agregat, care aparțin companiei, nu unui
+   * restaurant. Nu apar între magazine, dar rămân în totalul companiei: fără cifra asta,
+   * `companie = Σ restaurante` ar părea ruptă când, de fapt, e completă.
+   */
+  vanzariReteaRON: number;
   clasamente: Clasament[] | null;
   categorii: RandCategorieTL[];
   produse: RandProdusTL[];
@@ -484,7 +499,7 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
       + `${cerere.canal !== 'TOTAL' ? ` pe canalul ${cerere.canal}` : ''} — nu e nimic de analizat.`;
     return {
       cerere, disponibil: false, motivIndisponibil: motiv,
-      metrici: null, comparatie: null, magazine: null, nboFaraLocatieRON: null, clasamente: null,
+      metrici: null, comparatie: null, magazine: null, nboFaraLocatieRON: null, vanzariReteaRON: 0, clasamente: null,
       categorii: [], produse: [], materiale: [],
       calitate: { ...calitateGoala, pmixLipsa: true },
       complete: false, motiveIncomplet: [motiv], surse: [],
@@ -502,10 +517,11 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
   let magazine: RandMagazinTL[] | null = null;
   let nboFaraLocatieRON: number | null = null;
   if (!loc) {
+    // codurile rezervate NU sunt restaurante: un raport de rețea nu devine al 31-lea magazin
     const locatii = [...new Set([
       ...inScop.map(v => v.locatie),
       ...(state.materiale29 ?? []).filter(m => m.locatie && bridge.perioadeSursa.includes(m.perioada)).map(m => m.locatie!),
-    ])].sort();
+    ])].filter(eLocatieReala).sort();
     magazine = locatii.map(l => ({
       locatie: l,
       metrici: metriciFC(state, ctx, { ...cerere, nivel: restaurant(l) }),
@@ -566,6 +582,7 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
     cerere, disponibil: true,
     metrici, comparatie,
     magazine, nboFaraLocatieRON,
+    vanzariReteaRON: inScop.filter(v => !eLocatieReala(v.locatie)).reduce((s2, v) => s2 + v.net, 0),
     clasamente: magazine ? clasamente(magazine) : null,
     categorii, produse, materiale,
     calitate,

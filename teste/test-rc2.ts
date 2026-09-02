@@ -2,6 +2,10 @@ import { genereazaSeed } from '../src/lib/seed';
 import { buildCtx, aplicaScenariu, aplicaInDate, consumuriLuna, consumLunarIngredient, alerte, kpiProdus, versiuneActiva } from '../src/lib/engine';
 import { importa, type Parsat } from '../src/lib/importer';
 
+// ceasul, fixat: fereastra de schimbări recente a lui `alerte` se măsoară față de el.
+// Fără asta, suita ar pica singură pe măsură ce calendarul înaintează.
+const ACUM = '2026-08-15';
+
 let ok = 0, fail = 0;
 const t = (n: string, c: boolean, d = '') => { if (c) { ok++; console.log('  ✔', n, d); } else { fail++; console.log('  ✘', n, d); } };
 const aprox = (a: number, b: number, tol = 0.01) => Math.abs(a - b) <= tol;
@@ -27,11 +31,11 @@ const topCheltuiala = [...cons.entries()].sort((a, b) => b[1].valoare - a[1].val
 t('pieptul e cheltuiala #1', topCheltuiala[0] === 'I001', `${topCheltuiala[0]}: ${topCheltuiala[1].valoare.toFixed(0)} lei`);
 
 console.log('— Alerte noi: marjă foarte mică + profit în scădere —');
-const a0 = alerte(s0, ctx0, '2026-07');
+const a0 = alerte(s0, ctx0, '2026-07', ACUM);
 t('Cola (marjă ~68%) → MARJA_MICA', a0.some(a => a.categorie === 'MARJA_MICA' && a.titlu.includes('Cola')));
 // profit în scădere: scumpim pieptul de la 1 iulie → profit iul < iun pe burgeri
 const s3 = { ...s0, ingrediente: s0.ingrediente.map(i => i.cod !== 'I001' ? i : { ...i, preturi: [{ validDeLa: '2026-01-01', pret: 13.2 }, { validDeLa: '2026-07-01', pret: 22 }] }) };
-const a3 = alerte(s3, buildCtx(s3), '2026-07');
+const a3 = alerte(s3, buildCtx(s3), '2026-07', ACUM);
 t('scumpirea mare → alerte PROFIT în scădere', a3.some(a => a.categorie === 'PROFIT'), a3.filter(a => a.categorie === 'PROFIT').map(a => a.titlu.split(':')[0]).join(', '));
 
 console.log('— Import Prețuri Furnizori + mapare manuală —');

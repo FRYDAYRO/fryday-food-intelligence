@@ -23,12 +23,13 @@
 import { norm, pretLa } from './engine';
 import { clasificaCategorie29 } from './fc-clasificare';
 import type {
-  AppState, IntrareAudit, IntrarePretIstoric, Reteta, VersiuneSursa,
+  AppState, ImportBatch, IntrareAudit, IntrarePretIstoric, Nemapat, Reteta, VersiuneSursa,
 } from './types';
 import {
   detecteazaCanal, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
+import { parseSalesMix } from './salesmix';
 
 // ————————————————————————————————————————————————————————— tipurile canonice de sursă
 
@@ -231,7 +232,8 @@ function fnv1a(s: string): string {
  * de ordinea coloanelor. Rândurile își păstrează ordinea (o reordonare e alt conținut).
  */
 export function amprentaSursa(
-  tip: TipSursaFC, p: Parsat, opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport },
+  tip: TipSursaFC, p: Parsat,
+  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string> },
 ): string {
   // antetele se ordonează canonic, dar se păstrează ORIGINALELE: două coloane care se
   // normalizează la fel („Pret" și „Preț") rămân distincte, altfel conținut diferit ar
@@ -244,7 +246,9 @@ export function amprentaSursa(
   const matrice = (p.matrice ?? []).map(rand => rand.map(val).join('\u0001'));
   const o = opt?.optiuni ?? {};
   const optiuni = JSON.stringify(o, Object.keys(o).sort());
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni,
+  const m = opt?.mapare ?? {};
+  const mapare = JSON.stringify(m, Object.keys(m).sort());
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare,
     ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
   return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
@@ -410,6 +414,9 @@ export interface RezultatCentral {
   detectie: Detectie;
   perioada: string | null;
   perioade: string[];
+  /** Fereastra reală a raportului, cu precizie de zi. `null` = nedeclarată de sursă. */
+  intervalDe: string | null;
+  intervalLa: string | null;
   /** Data de la care se aplică versiunea acestui import. */
   dataEfectiva: string;
   granularitate: Granularitate;
@@ -433,6 +440,13 @@ export interface RezultatCentral {
   diagnostice: DiagnosticImport[];
   schimbari: SchimbariDetectate | null;
   audit: IntrareAudit | null;
+  /**
+   * Câte intrări NOI ar intra în coada de aprobare dacă importul ar fi aplicat. Nenul doar
+   * când singurul motiv de respingere e lipsa rândurilor costabile — atunci activarea nu
+   * creează versiune și nu atribuie nimic, dar reține coada. Interfața îl folosește ca să
+   * ofere exact această acțiune, cu numele ei, nu „Activează".
+   */
+  nemapateDePastrat: number;
 }
 
 export interface CerereImport {
@@ -447,6 +461,19 @@ export interface CerereImport {
   /** Restaurantul declarat, când fișierul nu îl conține. */
   locatie?: string;
   optiuni?: OpteImport;
+  /**
+   * Maparea manuală de coloane, când omul a corectat-o în interfață. Fără ea, ecranul
+   * vechi de importuri nu putea trece prin stratul canonic: maparea automată e o
+   * presupunere bună, dar pe antete neobișnuite omul are ultimul cuvânt.
+   */
+  mapare?: Record<string, string>;
+  /**
+   * Varianta internă aleasă deja de ecran. Un tip canonic are mai multe structuri
+   * posibile (PMIX ↔ SALES_MIX, RETETAR ↔ RETETAR_NBO); când apelantul a stabilit-o,
+   * detecția nu are voie s-o suprascrie — mai ales după o mapare manuală, care schimbă
+   * exact câmpurile pe care detecția se uită.
+   */
+  internPreferat?: TipImport;
 }
 
 export interface PregatireImport {
@@ -466,6 +493,9 @@ export interface PregatireImport {
 export const amprentaStare = (s: AppState): string => `st_${fnv1a(JSON.stringify([
   s.ingrediente, s.produse, s.retete, s.vanzari, s.salesReport, s.linii29, s.materiale29,
   s.waste, s.inventar, s.locatii, s.versiuniImport ?? [], s.istoricPreturi ?? [],
+  // coada de aprobare face parte din instantaneu: o activare o rescrie (întreagă sau doar
+  // intrările noi), deci o alocare sau un „lasă nemapat" făcute între timp o schimbă
+  s.nemapate ?? [],
 ]))}`;
 
 const ACTOR_SISTEM = 'SISTEM';
@@ -567,11 +597,20 @@ interface Perioade {
   perioade: string[]; granularitate: Granularitate; dateInvalide: string[];
   /** Cea mai veche dată de valabilitate din fișier — data efectivă a unei liste de prețuri. */
   dataMin: string | null;
+  /**
+   * Fereastra REALĂ acoperită de raport, cu precizie de zi. Lunile de mai sus nu o pot
+   * exprima: 17–23 august și 1–9 august dau amândouă „2026-08", deși nu au nicio zi comună.
+   * `null` = raportul nu declară intervalul; atunci nu se presupune nimic despre el.
+   */
+  intervalDe: string | null;
+  intervalLa: string | null;
 }
 
 function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, string>, dataValabil?: string): Perioade {
   const dateInvalide: string[] = [];
   const luni = new Set<string>();
+  // zilele efective, ca fereastra raportului să nu se piardă în rotunjirea la lună
+  const zile: string[] = [];
   let granularitate: Granularitate = 'FARA';
   if (map.data !== undefined) {
     granularitate = 'ZI';
@@ -580,7 +619,7 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
       if (String(brut ?? '').trim() === '') return;
       const d = parseData(brut);
       if (!d) dateInvalide.push(`rândul ${i + 2}: „${String(brut)}"`);
-      else luni.add(d.slice(0, 7));
+      else { luni.add(d.slice(0, 7)); zile.push(d); }
     });
   } else if (map.perioada !== undefined) {
     granularitate = 'LUNA';
@@ -605,7 +644,25 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   }
   const perioade = [...luni].sort();
   if (perioade.length > 1 && granularitate !== 'FARA') granularitate = 'INTERVAL';
-  return { perioade, granularitate, dateInvalide, dataMin: valabilitati.sort()[0] ?? null };
+
+  // Intervalul: din datele rândurilor când raportul are o coloană de dată; altfel din
+  // antetul NCR al grilei („Start Date / End Date", sau „MM/DD/AAAA - MM/DD/AAAA"), pe care
+  // parserul îl citea deja și îl arunca. Nu se inventează nimic: fără declarație → null.
+  const sortate = zile.sort();
+  let intervalDe: string | null = sortate[0] ?? null;
+  let intervalLa: string | null = sortate[sortate.length - 1] ?? null;
+  if ((!intervalDe || !intervalLa) && p.matrice?.length) {
+    const sm = parseSalesMix(p.matrice);
+    intervalDe = sm.perioadaDe;
+    intervalLa = sm.perioadaLa;
+  }
+  // un capăt fără celălalt nu e un interval: se declară nedeclarat, nu pe jumătate
+  const complet = intervalDe !== null && intervalLa !== null;
+  return {
+    perioade, granularitate, dateInvalide, dataMin: valabilitati.sort()[0] ?? null,
+    intervalDe: complet ? intervalDe : null,
+    intervalLa: complet ? intervalLa : null,
+  };
 }
 
 /** Cheia de duplicat pe rând, pe variantă internă. */
@@ -637,12 +694,12 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   ): PregatireImport => {
     const rezultat: RezultatCentral = {
       fisier: cerere.fisier, tip: tipRez, tipIntern: null, detectie,
-      perioada: null, perioade: [], dataEfectiva: acum.slice(0, 10),
+      perioada: null, perioade: [], intervalDe: null, intervalLa: null, dataEfectiva: acum.slice(0, 10),
       granularitate: 'FARA', scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE',
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
       avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta,
       versiune: null, activat: false, stare, importatLa: acum, actor,
-      diagnostice: col.diag, schimbari: null,
+      diagnostice: col.diag, schimbari: null, nemapateDePastrat: 0,
       audit: {
         id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
         tip: tipRez ?? 'NEDETECTAT', tipIntern: '—', perioada: null,
@@ -662,12 +719,18 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   const amprenta = amprentaSursa(tip, p, {
     dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
+    mapare: cerere.mapare,
   });
-  const internBrut = variantaInterna(tip, p.antete);
+  // varianta fixată de ecran are prioritate, dar numai dacă aparține chiar tipului cerut:
+  // un `internPreferat` străin ar muta importul în alt raport, tăcut
+  const preferat = cerere.internPreferat
+    && REGULI_CONTINUT.some(r => r.tip === tip && r.intern === cerere.internPreferat)
+    ? cerere.internPreferat : null;
+  const internBrut = preferat ?? variantaInterna(tip, p.antete);
   // restaurantul declarat se injectează ÎNAINTE de mapare: altfel ar rămâne o etichetă în
   // metadate, iar rândurile ar ajunge, tăcut, pe primul restaurant din nomenclator
   const pEfectiv = cerere.locatie && internBrut ? cuRestaurantDeclarat(p, internBrut, cerere.locatie) : p;
-  const intern = internBrut ?? variantaInterna(tip, pEfectiv.antete);
+  const intern = internBrut ?? preferat ?? variantaInterna(tip, pEfectiv.antete);
   if (!intern) {
     // structura nu e cea a tipului — NU se îndeasă într-un format vecin.
     // Tipul CONFIRMAT de utilizator face din nepotrivire o eroare de validare (fișier greșit
@@ -689,7 +752,10 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       : gol('NECESITA_CONFIRMARE', [mesaj], tip, amprenta);
   }
 
-  const map = mapeazaAntete(pEfectiv.antete, intern);
+  const mapAuto = mapeazaAntete(pEfectiv.antete, intern);
+  // aceeași compunere ca în `importa`: manualul suprascrie automatul, iar valoarea goală ȘTERGE
+  const map: Record<string, string> = { ...mapAuto };
+  if (cerere.mapare) for (const [c, a] of Object.entries(cerere.mapare)) { if (a) map[c] = a; else delete map[c]; }
   const obligatorii = OBLIGATORII[intern] ?? [];
   const lipsa = obligatorii.filter(c => map[c] === undefined);
   adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Coloane obligatorii lipsă',
@@ -793,7 +859,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       .map(r => String(r[map.produs!] ?? '').trim())
       .filter(c => c && !cunoscute.has(c)))].sort();
     adaugaDiag(col, 'PRODUS_LIPSA', 'ATENTIE', 'Produse necunoscute în nomenclator',
-      'Vânzările lor intră, dar fără rețetă costul nu se poate calcula — apar în acoperire.', necunoscute);
+      'Vânzările lor NU intră în calcul: codurile merg în coada de aprobare, unde se leagă de un produs.', necunoscute);
     const cuReteta = new Set(state.retete.map(r => r.cod));
     adaugaDiag(col, 'RETETA_LIPSA', 'ATENTIE', 'Produse vândute fără rețetă',
       'Costul lor NU e presupus zero: rămâne necunoscut până la importul rețetei.',
@@ -855,7 +921,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
   };
-  const rulat = importa(intern, pEfectiv, cerere.fisier, copie, undefined, optiuni);
+  const rulat = importa(intern, pEfectiv, cerere.fisier, copie, cerere.mapare, optiuni);
   const erori = [...rulat.batch.erori];
   const avertismente = [...rulat.batch.avertismente];
 
@@ -863,17 +929,35 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const randuriUtile = pEfectiv.randuri.filter(r => !randGol(r)).length;
   const dinGrila = CITITE_DIN_GRILA.includes(intern);
   const randuriSursa = dinGrila ? (pEfectiv.matrice?.length ?? randuriUtile) : randuriUtile;
+  // ce a adus rularea în coada de aprobare peste ce exista: identități noi SAU aceleași
+  // identități cu alte cifre / din alt fișier (coada reține ultimul import în care au apărut)
+  const aduse = nemapateAduse(state, rulat.stateNou);
   if (importate === 0) {
     adaugaDiag(col, 'NIMIC_IMPORTAT', 'BLOCANT', 'Importul nu a adus niciun rând',
       randuriSursa === 0
         ? 'Fișierul nu conține rânduri de date.'
-        : 'Toate rândurile au fost ignorate de motor (coloane, date sau valori necitibile). '
-          + 'Un import care nu importă nimic nu se activează — altfel ar crea o versiune goală.',
+        : aduse.length > 0
+          ? `Niciun rând costabil: ${aduse.length} ${numeIntrari(intern, aduse.length)} în nomenclator. `
+            + 'Un import fără rânduri costabile nu se activează; se poate păstra doar coada de aprobare.'
+          : 'Toate rândurile au fost ignorate de motor (coloane, date sau valori necitibile). '
+            + 'Un import care nu importă nimic nu se activează — altfel ar crea o versiune goală.',
       [`${randuriSursa} rânduri în fișier, 0 importate`]);
   }
 
   const blocante = col.diag.filter(d => d.nivel === 'BLOCANT');
   const valid = erori.length === 0 && blocante.length === 0 && !duplicatExact;
+  // Candidatul se păstrează și când SINGURUL motiv de respingere e lipsa rândurilor costabile,
+  // dacă rularea a adus intrări noi în coada de aprobare: acolo sunt banii, iar activarea
+  // (nu pregătirea, care nu scrie nimic) decide să rețină doar coada. Orice altă gardă
+  // rămâne cum era — fără candidat, fără coadă.
+  const doarNimicCostabil = erori.length === 0 && !duplicatExact
+    && blocante.length > 0 && blocante.every(d => d.cod === 'NIMIC_IMPORTAT');
+  const coadaNoua = aduse.length > 0;
+  const pastreazaCandidat = valid || (doarNimicCostabil && coadaNoua);
+  if (coadaNoua && !valid && !pastreazaCandidat) {
+    avertismente.push(`Coada de aprobare din acest fișier (${aduse.length} intrări) NU a fost păstrată: `
+      + 'importul a fost respins din alt motiv decât lipsa rândurilor costabile.');
+  }
 
   const schimbari: SchimbariDetectate = {
     // lista de prețuri folosește același motor ca nomenclatorul, dar NU e o revizie de
@@ -896,7 +980,9 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const nr = randuriSursa;
   const rezultat: RezultatCentral = {
     fisier: cerere.fisier, tip, tipIntern: intern, detectie,
-    perioada: per.perioade[0] ?? null, perioade: per.perioade, dataEfectiva, granularitate: per.granularitate,
+    perioada: per.perioade[0] ?? null, perioade: per.perioade,
+    intervalDe: per.intervalDe, intervalLa: per.intervalLa,
+    dataEfectiva, granularitate: per.granularitate,
     scop: scop.scop, restaurante: scop.restaurante,
     randuri: nr, importate,
     sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
@@ -907,6 +993,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
     diagnostice: sorteazaDiag(col.diag),
+    nemapateDePastrat: doarNimicCostabil && coadaNoua ? aduse.length : 0,
     schimbari,
     audit: {
       id: `A_${fnv1a(`${amprenta}|${acum}|${cerere.fisier}|${actor}`)}`, actor, data: acum, fisier: cerere.fisier,
@@ -919,7 +1006,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   };
   return {
     rezultat,
-    stareCandidat: valid ? deterministaBatch(rulat.stateNou, state, amprenta, acum) : null,
+    stareCandidat: pastreazaCandidat ? deterministaBatch(rulat.stateNou, state, amprenta, acum) : null,
     valid,
     bazaStare: amprentaStare(state),
   };
@@ -964,10 +1051,13 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   const r = pregatire.rezultat;
   // pregătirea e valabilă doar pentru starea pe care a fost calculată: altfel activarea ei
   // ar rescrie datele cu un instantaneu vechi și ar șterge, tăcut, importul dintre timp
-  // (inclusiv la o a doua activare a ACELEIAȘI pregătiri)
-  if (pregatire.valid && pregatire.bazaStare !== amprentaStare(state)) {
+  // (inclusiv la o a doua activare a ACELEIAȘI pregătiri). Garda se aplică ori de câte ori
+  // activarea AR SCRIE ceva — și când păstrează doar coada de aprobare a unui 4.7 respins,
+  // fiindcă și acel instantaneu al cozii e vechi dacă starea s-a mișcat.
+  const arScrie = pregatire.valid || pregatire.stareCandidat !== null;
+  if (arScrie && pregatire.bazaStare !== amprentaStare(state)) {
     const respins: RezultatCentral = {
-      ...r, stare: 'RESPINS', activat: false,
+      ...r, stare: 'RESPINS', activat: false, nemapateDePastrat: 0,
       erori: [...r.erori, 'Starea s-a schimbat de la pregătirea acestui import (alt import activat între timp, '
         + 'sau aceeași pregătire activată de două ori). Repetă pregătirea pe starea curentă.'],
     };
@@ -979,9 +1069,34 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   }
   if (!pregatire.valid || !pregatire.stareCandidat || !r.tip || !r.tipIntern) {
     const audit: IntrareAudit = { ...(r.audit ?? auditGol(r)), activat: false };
+    // Un 4.7 în care NICIUN cod nu se potrivește nu aduce rânduri costabile, deci nu se
+    // activează — o versiune goală ar intra în banda de perioade fără nimic în spate. Dar
+    // coada de aprobare pe care a produs-o e exact ce trebuie să rămână: acolo sunt banii.
+    // Se păstrează DOAR când lipsa rândurilor costabile e singurul motiv de respingere; orice
+    // altă gardă (coloane lipsă, granularitate mixtă, duplicat) rămâne la fel de strictă,
+    // fiindcă atunci „codurile necunoscute" pot fi resturi dintr-o citire greșită a fișierului.
+    const noi = nemapateNoi(state, pregatire.stareCandidat);
+    const doarNimicCostabil = r.erori.length === 0 && r.duplicat !== 'DUPLICAT_EXACT'
+      && r.diagnostice.some(d => d.nivel === 'BLOCANT')
+      && r.diagnostice.every(d => d.nivel !== 'BLOCANT' || d.cod === 'NIMIC_IMPORTAT');
+    const pastreaza = doarNimicCostabil && noi.numar > 0 && pregatire.stareCandidat !== null;
+    const avertismente = [...r.avertismente];
+    const erori = [...r.erori];
+    if (pastreaza) {
+      erori.push(`Niciun rând costabil: ${noi.numar} ${numeIntrari(r.tipIntern, noi.numar)} în nomenclator — `
+        + `${fmtNr(noi.buc)} buc și ${fmtNr(Math.round(noi.lei))} lei au fost puse în coada de aprobare. `
+        + 'Nicio vânzare nu a fost atribuită și nicio versiune nu a fost creată.');
+    }
+    // coada candidatului e exact ce ar fi scris și o activare validă (motorul reține ultimul
+    // import în care a apărut fiecare identitate); garda de mai sus garantează că starea de
+    // acum e cea pe care a fost calculată, deci nimic adăugat între timp nu e pierdut
     return {
-      stareNoua: { ...state, auditImport: [...(state.auditImport ?? []), audit] },
-      rezultat: { ...r, activat: false, audit },
+      stareNoua: {
+        ...state,
+        ...(pastreaza ? { nemapate: pregatire.stareCandidat!.nemapate } : {}),
+        auditImport: [...(state.auditImport ?? []), audit],
+      },
+      rezultat: { ...r, activat: false, audit, avertismente, erori },
     };
   }
 
@@ -997,7 +1112,9 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     fisier: r.fisier, amprenta: r.amprenta,
     dataEfectiva, importatLa: r.importatLa,
     activa: devineActiva, scop: r.scop, restaurante: r.restaurante,
-    perioada: r.perioada, randuri: r.randuri,
+    perioada: r.perioada,
+    ...(r.intervalDe && r.intervalLa ? { intervalDe: r.intervalDe, intervalLa: r.intervalLa } : {}),
+    randuri: r.randuri,
   };
   const versiuniNoi = versiuni.map(v => (v.tip === r.tip && devineActiva ? { ...v, activa: false } : v));
   versiuniNoi.push(versiune);
@@ -1006,6 +1123,11 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     ...(r.audit ?? auditGol(r)),
     validare: 'VALIDAT', versiune: versiune.id, activat: true,
   };
+  const noiInCoada = nemapateNoi(state, pregatire.stareCandidat);
+  const avertismenteActivare = noiInCoada.numar > 0
+    ? [...r.avertismente, `${noiInCoada.numar} intrări noi în coada de aprobare: ${fmtNr(noiInCoada.buc)} buc, `
+        + `${fmtNr(Math.round(noiInCoada.lei))} lei — nu intră în calcul până la aprobare.`]
+    : r.avertismente;
   const stareNoua: AppState = {
     ...pregatire.stareCandidat,
     versiuniImport: versiuniNoi,
@@ -1014,9 +1136,39 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   };
   return {
     stareNoua,
-    rezultat: { ...r, stare: 'ACTIVAT', activat: true, versiune: versiune.id, audit },
+    rezultat: { ...r, stare: 'ACTIVAT', activat: true, versiune: versiune.id, audit, avertismente: avertismenteActivare },
   };
 }
+
+/**
+ * Intrările din coada candidatului pe care importul chiar le-a adus: identități noi sau
+ * identități deja în coadă, dar cu alte cifre ori din alt fișier. O intrare identică (același
+ * fișier, aceleași buc și lei) nu e „adusă" — de aceea reimportul aceluiași fișier e idempotent.
+ */
+function nemapateAduse(inainte: AppState, candidat: AppState): Nemapat[] {
+  const cheie = (n: Nemapat) => `${n.denumire}\u0000${n.cant}\u0000${n.valoare}\u0000${n.fisier}`;
+  const vechi = new Set(inainte.nemapate.map(cheie));
+  return candidat.nemapate.filter(n => !vechi.has(cheie(n)));
+}
+
+/** Ce a adus importul în coada de aprobare peste ce exista deja — cu buc și lei. */
+function nemapateNoi(inainte: AppState, candidat: AppState | null): { numar: number; buc: number; lei: number } {
+  if (!candidat) return { numar: 0, buc: 0, lei: 0 };
+  const noi = nemapateAduse(inainte, candidat);
+  return {
+    numar: noi.length,
+    buc: noi.reduce((a, n) => a + n.cant, 0),
+    lei: noi.reduce((a, n) => a + n.valoare, 0),
+  };
+}
+
+/** „coduri necunoscute" pentru rapoartele pe coduri, „denumiri necunoscute" pentru 4.7 pe nume. */
+const numeIntrari = (intern: TipImport | null | undefined, n: number): string =>
+  intern === 'SALES_MIX'
+    ? (n === 1 ? 'denumire necunoscută' : 'denumiri necunoscute')
+    : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
+
+const fmtNr = (n: number): string => new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 2 }).format(n);
 
 const auditGol = (r: RezultatCentral): IntrareAudit => ({
   id: `A_${fnv1a(`${r.amprenta}|${r.importatLa}|${r.fisier}|${r.actor}`)}`, actor: r.actor, data: r.importatLa, fisier: r.fisier,
@@ -1025,6 +1177,109 @@ const auditGol = (r: RezultatCentral): IntrareAudit => ({
   validare: r.stare === 'NECESITA_CONFIRMARE' ? 'NECESITA_CONFIRMARE' : 'RESPINS',
   amprenta: r.amprenta, versiune: null, activat: false,
 });
+
+/**
+ * Sursa canonică FC căreia îi aparține o structură internă — sau `null` când nu are una.
+ *
+ * Nu toate importurile sunt surse de Food Cost. Waste, inventarul, meniurile, baza FC și
+ * listele de prețuri de vânzare nu se COMBINĂ cu alt raport într-o cifră, deci nu au
+ * interval de comparat și nici verdict de compatibilitate. Pentru ele proveniența
+ * înseamnă urma de audit, nu o versiune de sursă — a le inventa una ar pune în banda de
+ * perioade rapoarte care n-au ce căuta acolo.
+ *
+ * `COST_INGREDIENTE` aparține la două surse (nomenclator sau doar prețuri); se alege după
+ * câmpurile chiar prezente, în ordinea din `REGULI_CONTINUT`, nu după nume.
+ */
+export function sursaPentruIntern(intern: TipImport, antete: string[]): TipSursaFC | null {
+  const ale = REGULI_CONTINUT.filter(r => r.intern === intern);
+  if (!ale.length) return null;
+  if (ale.length === 1) return ale[0].tip;
+  const m = mapeazaAntete(antete, intern);
+  return (ale.find(r => r.cerute.every(c => m[c] !== undefined)) ?? ale[0]).tip;
+}
+
+export interface CerereUnificata {
+  fisier: string;
+  parsat: Parsat;
+  /** Structura deja stabilită de ecran: detecție proprie, alegere manuală sau analiză pe foi. */
+  intern: TipImport;
+  mapare?: Record<string, string>;
+  optiuni?: OpteImport;
+  locatie?: string;
+  dataValabil?: string;
+  actor?: string;
+  acum?: string;
+}
+
+export interface RezultatUnificat {
+  stareNoua: AppState;
+  batch: ImportBatch;
+  /** Prezent doar pentru sursele FC, care trec prin validare-apoi-activare. */
+  rezultat: RezultatCentral | null;
+  /** Sursa FC sub care s-a versionat importul; `null` pentru rapoartele necombinabile. */
+  sursa: TipSursaFC | null;
+}
+
+/**
+ * Poarta UNICĂ de import. Ambele ecrane intră pe aici, deci nu există două căi prin care
+ * datele ajung în stare — și niciun drum pe care proveniența să se piardă tăcut.
+ *
+ * Rapoartele care SUNT surse FC trec prin stratul canonic: validare pe o copie, apoi
+ * activare, cu versiune, interval, amprentă și protecție la dublă activare. Restul trec
+ * direct prin motor — același `importa`, niciodată o a doua implementare — și primesc
+ * urma de audit, ca fiecare fișier intrat în aplicație să fie explicabil.
+ */
+export function importaUnificat(state: AppState, cerere: CerereUnificata): RezultatUnificat {
+  const acum = cerere.acum ?? new Date().toISOString();
+  const actor = cerere.actor?.trim() || ACTOR_SISTEM;
+  const sursa = sursaPentruIntern(cerere.intern, cerere.parsat.antete);
+
+  if (sursa) {
+    const pregatire = pregatesteImport(state, {
+      fisier: cerere.fisier, parsat: cerere.parsat, tip: sursa,
+      internPreferat: cerere.intern,
+      ...(cerere.mapare ? { mapare: cerere.mapare } : {}),
+      ...(cerere.optiuni ? { optiuni: cerere.optiuni } : {}),
+      ...(cerere.locatie ? { locatie: cerere.locatie } : {}),
+      ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+      actor, acum,
+    });
+    const { stareNoua, rezultat } = activeazaImport(state, pregatire);
+    return { stareNoua, batch: batchDinRezultat(rezultat), rezultat, sursa };
+  }
+
+  // raport necombinabil: se importă direct, dar NU tăcut
+  const rulat = importa(cerere.intern, cerere.parsat, cerere.fisier, state, cerere.mapare, {
+    ...cerere.optiuni,
+    ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+  });
+  const reusit = rulat.batch.status === 'IMPORTAT';
+  const audit: IntrareAudit = {
+    id: `A_${fnv1a(`${cerere.fisier}|${acum}|${cerere.intern}|${actor}`)}`,
+    actor, data: acum, fisier: cerere.fisier,
+    tip: 'NEDETECTAT', tipIntern: cerere.intern, perioada: rulat.batch.perioada ?? null,
+    scop: 'COMPANIE', restaurante: [],
+    randuri: rulat.batch.randuri, importate: rulat.batch.importate,
+    validare: reusit ? 'VALIDAT' : 'RESPINS',
+    amprenta: `fp_direct_${fnv1a(`${cerere.fisier}|${cerere.intern}|${rulat.batch.randuri}`)}`,
+    versiune: null, activat: reusit,
+  };
+  return {
+    stareNoua: { ...rulat.stateNou, auditImport: [...(rulat.stateNou.auditImport ?? []), audit] },
+    batch: rulat.batch, rezultat: null, sursa: null,
+  };
+}
+
+/** Rezultatul canonic, redus la forma pe care ecranele o afișează deja. */
+function batchDinRezultat(r: RezultatCentral): ImportBatch {
+  return {
+    ...(r.perioada ? { perioada: r.perioada } : {}),
+    id: r.amprenta, tip: r.tipIntern ?? r.tip ?? 'NEDETECTAT', fisier: r.fisier,
+    data: r.importatLa, randuri: r.randuri, importate: r.importate,
+    avertismente: r.avertismente, erori: r.erori,
+    status: r.activat ? 'IMPORTAT' : 'ESUAT',
+  };
+}
 
 /** Comoditate: pregătește și, dacă validarea trece, activează — într-un singur apel. */
 export function importaPrinCentru(state: AppState, cerere: CerereImport): RezultatActivare {

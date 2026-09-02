@@ -1,5 +1,6 @@
 // Reconciliere post-import — răspunde la întrebarea „pot avea încredere în raportul ăsta?".
 import type { AppState } from './types';
+import { verdictCombinare, type VerdictSurse } from './perioade-surse';
 import { clasifica, luna as lunaDin, perProdus, fmtInt, fmtPct, type Ctx } from './engine';
 
 export interface ProblemaDate {
@@ -16,6 +17,12 @@ export interface Reconciliere {
   nemapate: RandNemapat[];
   // reconciliere PMIX ↔ Sales Report
   netPmix: number; netSales: number | null; diferenta: number | null; diferentaPct: number | null; inToleranta: boolean | null;
+  /**
+   * Compatibilitatea ferestrelor surselor. Când blochează, DOAR diferența PMIX ↔ Sales
+   * devine indisponibilă: netul fiecărei surse rămâne la vedere, pentru că fiecare e o
+   * cifră validă despre raportul ei.
+   */
+  verdictPerioade: VerdictSurse;
   // raportul 2.9
   are29: boolean; total29: number; categoriiNeclasificate: string[]; excluderi: number;
   // loturi
@@ -50,8 +57,12 @@ export function reconciliaza(state: AppState, ctx: Ctx, lunaSel: string, locatie
   const netPmix = netTotal;
   const liniiSales = state.salesReport.filter(s => lunaDin(s.data) === lunaSel && (!locatie || s.locatie === locatie));
   const netSales = liniiSales.length ? liniiSales.reduce((s, x) => s + x.net, 0) : null;
-  const diferenta = netSales != null ? netPmix - netSales : null;
-  const diferentaPct = netSales != null && netSales > 0 ? (diferenta! / netSales) * 100 : null;
+  // Diferența dintre două ferestre diferite nu e o diferență de raportare, ci o comparație
+  // fără sens. Netul fiecărei surse rămâne vizibil; doar scăderea lor se reține.
+  const verdictPerioade = verdictCombinare(state, ['NBO_41', 'PMIX_47']);
+  const combinabil = !verdictPerioade.blocheaza;
+  const diferenta = netSales != null && combinabil ? netPmix - netSales : null;
+  const diferentaPct = netSales != null && combinabil && netSales > 0 ? (diferenta! / netSales) * 100 : null;
   const toleranta = state.setari.tolerantaReconciliere ?? 1;
   const inToleranta = diferentaPct != null ? Math.abs(diferentaPct) <= toleranta : null;
 
@@ -132,7 +143,7 @@ export function reconciliaza(state: AppState, ctx: Ctx, lunaSel: string, locatie
   return {
     luna: lunaSel,
     netTotal, netCuReteta, acoperire, nemapate,
-    netPmix, netSales, diferenta, diferentaPct, inToleranta,
+    netPmix, netSales, diferenta, diferentaPct, inToleranta, verdictPerioade,
     are29: linii29.length > 0, total29, categoriiNeclasificate, excluderi,
     loturi, probleme,
     scorIncredere: scor,

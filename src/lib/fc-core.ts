@@ -10,7 +10,8 @@
 //  · Total = InStore + Delivery ca SUME; procentele se recalculează din totaluri;
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
-import { UMS, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
+import { UMS, areCostMasurabil, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
+import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
 import type { AppState, Canal } from './types';
 import {
   canalePentru, componentaDin29, contineData, descrieCerere, eLunaIntreaga, locatieDin, luniAtinse,
@@ -23,6 +24,11 @@ export interface NumitorFC {
   net: number;
   sursa: 'Sales Report' | 'PMIX';
   nota: string;
+  /**
+   * Motivul pentru care 4.1 NU a fost folosit ca numitor, deși există rânduri pe perioadă:
+   * fereastra lui nu e aceeași cu a vânzărilor din 4.7. Absent = nicio incompatibilitate.
+   */
+  motivIncompatibil?: string;
 }
 
 /**
@@ -35,9 +41,21 @@ export function numitorFC(state: AppState, cerere: CerereFC, netPmix: number): N
   const linii = state.salesReport.filter(r =>
     contineData(cerere.perioada, r.data) && (!loc || r.locatie === loc) && canale.includes(r.canal));
   const net = linii.reduce((s, r) => s + r.net, 0);
-  return linii.length && net > 0
-    ? { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO` }
-    : { net: netPmix, sursa: 'PMIX', nota: 'Fără Sales Report pe această perioadă — numitorul este PMIX-ul, care poate diferi de vânzările fiscale' };
+  if (!(linii.length && net > 0)) {
+    return { net: netPmix, sursa: 'PMIX', nota: 'Fără Sales Report pe această perioadă — numitorul este PMIX-ul, care poate diferi de vânzările fiscale' };
+  }
+  // 4.1 și 4.7 pot cădea în aceeași lună acoperind ferestre diferite. Costul vine din 4.7;
+  // împărțit la vânzările altei ferestre ar da un procent plauzibil și fals. Când
+  // incompatibilitatea e DEMONSTRATĂ, numitorul rămâne cel din aceeași sursă cu costul.
+  const v = verdictCombinare(state, ['NBO_41', 'PMIX_47']);
+  if (v.blocheaza) {
+    return {
+      net: netPmix, sursa: 'PMIX',
+      nota: 'Sales Report-ul acoperă altă perioadă decât vânzările pe produs — numitorul rămâne PMIX-ul, din aceeași fereastră cu costul',
+      motivIncompatibil: v.motiv,
+    };
+  }
+  return { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO` };
 }
 
 // ————————————————————————————————————————————————————————— 1. Recipe FC
@@ -63,7 +81,10 @@ export interface RecipeFC {
   costPaper: number;
   /** cost / vânzările acoperite — cifra comparabilă. */
   fcPct: number | null;
-  /** cost / TOATE vânzările — subestimează când acoperirea nu e completă. */
+  /**
+   * cost / TOATE vânzările — subestimează când acoperirea nu e completă,
+   * și e `null` (nu 0) când nicio vânzare n-a avut cost calculabil.
+   */
   fcPeTotalVandut: number | null;
   produseFaraReteta: ProdusFaraReteta[];
   surse: SursaFC[];
@@ -115,7 +136,7 @@ export function recipeFC(state: AppState, ctx: CtxFC, cerere: CerereFC): RecipeF
     acoperireCompletaPct: netVandut > 0 ? ((netAcoperit - netCostIncomplet) / netVandut) * 100 : null,
     cost, costFood, costPaper,
     fcPct: netAcoperit > 0 ? (cost / netAcoperit) * 100 : null,
-    fcPeTotalVandut: netVandut > 0 ? (cost / netVandut) * 100 : null,
+    fcPeTotalVandut: netVandut > 0 && areCostMasurabil(netAcoperit, cost) ? (cost / netVandut) * 100 : null,
     produseFaraReteta: [...fara.values()].sort((a, b) => b.net - a.net),
     surse: [
       { raport: 'PMIX', randuri, interval, nota: `${cerere.canal === 'TOTAL' ? 'ambele canale' : cerere.canal}` },
@@ -159,6 +180,8 @@ export function nboFC(state: AppState, cerere: CerereFC): NBOFC {
     return indisponibil(`Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} nu acoperă luni întregi, `
       + 'deci consumul real nu i se poate atribui fără a inventa o repartiție pe zile.');
   }
+  const vCombinare = verdictCombinare(state, COMBINATIE_FC);
+  if (vCombinare.blocheaza) return indisponibil(vCombinare.motiv);
   if (cerere.canal !== 'TOTAL') {
     return indisponibil('Raportul 2.9 nu conține canalul: consumul real există doar pe Total, '
       + 'nu separat pe InStore și Delivery.');
@@ -224,6 +247,8 @@ export interface ReconciliationFC {
   rezidualLei: number | null;
   /** Toți pașii sunt calculabili → puntea explică integral diferența. */
   complet: boolean;
+  /** Compatibilitatea ferestrelor surselor. Blocarea propriu-zisă vine prin `nbo`. */
+  verdictPerioade: VerdictSurse;
   surse: SursaFC[];
 }
 
@@ -253,11 +278,12 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
   const fcOperationalPct = nbo.disponibil && numitor.net > 0 ? (nbo.consumTotal / numitor.net) * 100 : null;
 
   const surse: SursaFC[] = [...recipe.surse, ...nbo.surse];
+  const verdictPerioade = verdictCombinare(state, COMBINATIE_FC);
 
   if (!nbo.disponibil) {
     return {
       cerere, recipe, nbo, numitor, fcRecipePct, fcCuratPct, fcOperationalPct,
-      diferentaLei: null, pasi: [], rezidualLei: null, complet: false, surse,
+      diferentaLei: null, pasi: [], rezidualLei: null, complet: false, verdictPerioade, surse,
     };
   }
 
@@ -315,7 +341,7 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
     cerere, recipe, nbo, numitor, fcRecipePct, fcCuratPct, fcOperationalPct,
     diferentaLei, pasi, rezidualLei,
     complet: catreCurat.every(p => p.disponibil),
-    surse,
+    verdictPerioade, surse,
   };
 }
 

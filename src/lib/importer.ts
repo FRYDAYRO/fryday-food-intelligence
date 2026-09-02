@@ -1,9 +1,11 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
 import { clasificaCategorie29 } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
+import { analizeaza47 } from './adaptor-47';
+import { LOCATIE_RETEA } from './fc-domeniu';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
 export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
@@ -743,15 +745,37 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       const zile = sm.perioadaDe && sm.perioadaLa
         ? Math.round((new Date(sm.perioadaLa).getTime() - new Date(sm.perioadaDe).getTime()) / 86400000) + 1 : 1;
 
-      // locația: raportul e agregat pe mai multe restaurante
-      let locatie = opt?.locatieRaport ?? '';
+      /**
+       * Locația: se cere adaptorului canonic, nu se ghicește aici. `analizeaza47` trece
+       * numele din antet prin Store Master și spune dacă raportul e atribuibil unui
+       * restaurant anume. Un raport de rețea NU devine restaurant: rândurile lui primesc
+       * codul rezervat `RETEA`, care nu intră în nomenclatorul de locații.
+       *
+       * Înainte, un raport pe mai multe unități fabrica o locație „AGREGAT" care ajungea
+       * în `state.locatii` și apărea ca al 31-lea restaurant în clasamente.
+       */
+      const a47 = analizeaza47(sm, numeFisier);
       const locatii = [...state.locatii];
-      if (!locatie) {
-        if (sm.magazine.length === 1) locatie = sm.magazine[0];
-        else locatie = 'AGREGAT';
+      let locatie: string;
+      if (opt?.locatieRaport) {
+        // restaurantul declarat explicit de om la import — decizia lui bate deducția
+        locatie = opt.locatieRaport;
+      } else if (a47.atribuibilPeRestaurant && a47.restaurantUnic) {
+        locatie = a47.restaurantUnic;
+      } else {
+        locatie = LOCATIE_RETEA;
+        if (a47.motiv) avert.push(a47.motiv);
       }
-      if (!locatii.some(l => l.cod === locatie)) {
-        locatii.push({ cod: locatie, nume: locatie === 'AGREGAT' ? `Toate restaurantele (${sm.magazine.length || '?'} unități, agregat)` : locatie });
+      // proveniența identităților: ce s-a rezolvat și ce nu, cu numele exacte
+      const nerezolvate = a47.restaurante.filter(r => r.status === 'UNMATCHED' || r.status === 'AMBIGUOUS');
+      if (nerezolvate.length) {
+        avert.push(`${nerezolvate.length} din ${a47.rezumat.totalDeclarate} restaurante din antet nu s-au putut `
+          + `identifica sigur: ${nerezolvate.map(r => `„${r.valoareSursa}" (${r.status})`).slice(0, 8).join(', ')}. `
+          + 'Vânzările NU li se atribuie.');
+      }
+      // un cod rezervat nu e restaurant: nu intră în nomenclator și nu apare în selector
+      if (locatie !== LOCATIE_RETEA && !locatii.some(l => l.cod === locatie)) {
+        locatii.push({ cod: locatie, nume: locatie });
         avert.push(`Locație creată pentru raport: ${locatie}`);
       }
 
@@ -847,6 +871,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         ...state.nemapate.filter(n => !rezolvabile.has(cheieDenumire(n.denumire)) && !nepotrivite.has(n.denumire)),
         ...[...nepotrivite.entries()].map(([den, v]) => ({
           denumire: den, categorie: v.categorie, cant: v.cant, valoare: v.valoare, fisier: numeFisier,
+          sursa: 'SALES_MIX' as const,
         })),
       ].sort((a, b) => b.valoare - a.valoare);
 
@@ -862,8 +887,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       for (const x of state.produse) {
         dupaCod.set(x.cod, x.cod);
         if (x.codPos) dupaCod.set(x.codPos, x.cod);
+        // aliasurile sunt identitățile venite din POS pe care omul le-a confirmat în coada
+        // de aprobare. Fără ele, aprobarea unui cod necunoscut n-ar schimba nimic la
+        // următorul import — coada s-ar reumple la nesfârșit cu același rând.
+        for (const a of x.aliasuri ?? []) dupaCod.set(a, x.cod);
       }
-      const necunoscute = new Set<string>();
+      // Codul necunoscut NU se pierde: se reține cu bucăți și lei, ca banii din raport să
+      // rămână explicabili și rândul să ajungă în coada de aprobare.
+      const necunoscute = new Map<string, { cant: number; valoare: number; nume: string }>();
       const prinPos = new Set<string>();
       const noi: VanzareFapt[] = [];
       const canalFisier = detecteazaCanal('', numeFisier);
@@ -875,7 +906,16 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const canal = detecteazaCanal(g(r, 'canal'), numeFisier) ?? canalFisier;
         if (!canal) { avert.push(`Rând ${i + 2}: canal neidentificat — ignorat`); return; }
         const codIntern = dupaCod.get(cod);
-        if (!codIntern) { necunoscute.add(cod); return; }
+        if (!codIntern) {
+          // fără produs nu există TVA, deci netul nu se poate deduce dintr-un brut:
+          // se ia ce spune fișierul, iar dacă nu spune nimic rămâne 0 și se declară
+          const valFisier = parseNumar(g(r, 'net')) ?? parseNumar(g(r, 'brut')) ?? 0;
+          const e = necunoscute.get(cod) ?? { cant: 0, valoare: 0, nume: String(g(r, 'denumire') ?? '').trim() };
+          e.cant += cant; e.valoare += valFisier;
+          if (!e.nume) e.nume = String(g(r, 'denumire') ?? '').trim();
+          necunoscute.set(cod, e);
+          return;
+        }
         if (codIntern !== cod) prinPos.add(`${cod} → ${codIntern}`);
         const locatie = rezolvaLocatie(g(r, 'locatie'));
         perioade.add(data.slice(0, 7));
@@ -889,7 +929,15 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         }
         noi.push({ data, locatie, canal, produs: codIntern, cant, brut: brut ?? net * (1 + prod.tva / 100), net });
       });
-      necunoscute.forEach(c => avert.push(`Cod produs nemapat în nomenclator: ${c} — rânduri ignorate`));
+      if (necunoscute.size) {
+        const totCant = [...necunoscute.values()].reduce((a, x) => a + x.cant, 0);
+        const totLei = [...necunoscute.values()].reduce((a, x) => a + x.valoare, 0);
+        avert.push(`${necunoscute.size} coduri fără produs în nomenclator: ${fmtNr(totCant)} buc, `
+          + `${fmtNr(Math.round(totLei))} lei — NU intră în calcul.`);
+        for (const [c, v] of [...necunoscute.entries()].sort((a, b) => b[1].valoare - a[1].valoare).slice(0, 25)) {
+          avert.push(`Nemapat: cod „${c}"${v.nume ? ` (${v.nume})` : ''} — ${fmtNr(v.cant)} buc, ${fmtNr(Math.round(v.valoare))} lei`);
+        }
+      }
       if (prinPos.size) avert.push(`Mapate prin numărul POS: ${[...prinPos].slice(0, 8).join(', ')}${prinPos.size > 8 ? '…' : ''}`);
       const chei = new Set(noi.map(v => `${v.data}|${v.locatie}|${v.canal}|${v.produs}`));
       const pastrate = state.vanzari.filter(v => !chei.has(`${v.data}|${v.locatie}|${v.canal}|${v.produs}`));
@@ -901,7 +949,19 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         if (e) { e.cant += v.cant; e.brut += v.brut; e.net += v.net; } else agg.set(k, { ...v });
       }
       importate = agg.size;
-      stateNou = { ...state, vanzari: [...pastrate, ...agg.values()] };
+      // Codurile necunoscute intră în ACEEAȘI coadă de aprobare ca denumirile din 4.7 —
+      // o singură mapare, un singur ecran. Intrările vechi rămân doar cât timp încă nu se
+      // pot rezolva și nu reapar în importul curent; la aprobare, codul devine alias și
+      // rândul se potrivește singur la următorul import.
+      const rezolvabileP = new Set(dupaCod.keys());
+      const nemapateP: Nemapat[] = [
+        ...state.nemapate.filter(n => !rezolvabileP.has(n.denumire) && !necunoscute.has(n.denumire)),
+        ...[...necunoscute.entries()].map(([cod, v]) => ({
+          denumire: cod, categorie: v.nume || '—', cant: v.cant, valoare: v.valoare,
+          fisier: numeFisier, sursa: 'PMIX' as const,
+        })),
+      ].sort((a, b) => b.valoare - a.valoare);
+      stateNou = { ...state, vanzari: [...pastrate, ...agg.values()], nemapate: nemapateP };
     }
   } else if (tip === 'SALES') {
     const lipsa = lipsesc(['data', 'locatie']);

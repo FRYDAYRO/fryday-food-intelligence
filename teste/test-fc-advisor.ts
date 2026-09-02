@@ -19,7 +19,7 @@ import { accesTower, cerereBaza, cerereDin, punteTower, type SelectieFC } from '
 import {
   MESAJ_INSUFICIENT, PRAGURI_ADVISOR, calculeazaPrioritate, cifreDin, descrieDosar,
   dosarAdvisor, dosarPentru,
-  type CauzaFC, type DosarAdvisor,
+  type CauzaFC,
 } from '../src/lib/fc-advisor';
 import {
   MODEL_RECOMANDAT, PROMPT_SISTEM, construiestePrompt, narreaza, naratorDeterminist,

@@ -52,9 +52,21 @@ t('SAMURAI se potrivește pe denumire', r.stateNou.vanzari.some(v => v.produs ==
 const vSam = r.stateNou.vanzari.filter(v => v.produs === '820023' && v.data === '2026-07-27');
 t('SAMURAI: 300 buc InStore, brut 4.797', vSam.length === 1 && vSam[0].cant === 300 && aprox(vSam[0].brut, 4797, 0.5));
 t('netul la TVA 11%', aprox(vSam[0].net, 4797 / 1.11, 0.05), vSam[0].net.toFixed(2));
-t('locație agregată creată', r.stateNou.locatii.some(l => l.cod === 'AGREGAT'));
+// Comportament schimbat deliberat: un raport pe mai multe unități NU mai fabrică o
+// locație. Rândurile lui primesc codul rezervat RETEA, care nu intră în nomenclator.
+t('NU se mai creează pseudo-locația AGREGAT', !r.stateNou.locatii.some(l => l.cod === 'AGREGAT'));
+t('… și nici RETEA nu devine restaurant', !r.stateNou.locatii.some(l => l.cod === 'RETEA'));
+t('nomenclatorul de locații rămâne exact cum era', r.stateNou.locatii.length === s0.locatii.length);
+// rândurile ADĂUGATE de acest import — cele vechi din seed rămân pe restaurantele lor
+const adaugate = r.stateNou.vanzari.filter(v => !s0.vanzari.includes(v));
+t('vânzările există totuși, toate pe codul rezervat',
+  adaugate.length > 0 && adaugate.every(v => v.locatie === 'RETEA'),
+  [...new Set(adaugate.map(v => v.locatie))].join(','));
+t('vânzările vechi rămân neatinse pe restaurantele lor',
+  s0.vanzari.every(v => r.stateNou.vanzari.includes(v)));
 t('avertisment despre cele 5 zile', r.batch.avertismente.some(a => a.includes('5 zile') && a.includes('2026-07-27')));
-t('avertisment despre agregarea pe restaurante', r.batch.avertismente.some(a => a.includes('agregat')));
+t('avertismentul spune că raportul e de REȚEA și de ce nu se atribuie',
+  r.batch.avertismente.some(a => a.includes('REȚEA') && a.includes('nu se pot atribui unui restaurant')));
 t('avertisment despre liniile cu preț 0', r.batch.avertismente.some(a => a.includes('preț 0')));
 t('avertisment despre cantitățile negative', r.batch.avertismente.some(a => a.includes('negativ')));
 t('acoperirea pe denumiri raportată', r.batch.avertismente.some(a => a.includes('Acoperire pe denumiri')));
@@ -76,7 +88,7 @@ t('reimportul nu dublează rândurile', r3.stateNou.vanzari.length === r2.stateN
 
 console.log('— Analiza pe datele reale importate —');
 const ctx = buildCtx(r2.stateNou);
-const rows = perProdus(r2.stateNou.vanzari, ctx, { luna: '2026-07', locatie: 'AGREGAT', vedere: 'TOTAL' });
+const rows = perProdus(r2.stateNou.vanzari, ctx, { luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
 const pesto = rows.find(x => x.cod === '700970')!;
 t('Chicken Pesto apare cu 705 bucăți', pesto.buc === 705, `${pesto.buc}`);
 // cardul NBO nu are canal, deci cutia de livrare (0,974) se aplică și în sală:

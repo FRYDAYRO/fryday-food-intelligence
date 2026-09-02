@@ -193,6 +193,21 @@ export function kpiProdus(cod: string, canal: Canal, ctx: CtxCost, data = '9999-
 
 // ---------------------------------------------------------------- §3.7 agregate PMIX
 
+/**
+ * Food Cost există doar dacă măcar o vânzare din perioadă a avut cost calculabil.
+ *
+ * Cost 0 peste vânzări nenule NU înseamnă Food Cost 0% — înseamnă Food Cost NECUNOSCUT:
+ * produsele vândute n-au rețetă, sau numitorul vine din Sales Report fără PMIX-ul
+ * corespondent. Raportul e zero din aritmetică, nu din economie; prezentat ca procent
+ * devine o cifră falsă pe care se sprijină apoi comparații, variance și narativ
+ * („0,0% → 45,1%": o creștere inventată dintr-o lună fără rețetar).
+ *
+ * Aceeași regulă pe care motorul canonic o aplică deja în `recipeFC.fcPct` — scrisă aici,
+ * în amonte, ca toate straturile să o citească din același loc.
+ */
+export const areCostMasurabil = (netAcoperit: number, cost: number): boolean =>
+  netAcoperit > 0 || cost > 0;
+
 export interface FiltruPerioada { luna: string; locatie?: string; vedere: Vedere; }
 
 export interface Agregat {
@@ -476,13 +491,14 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
     if (cls !== 'EXCLUS') consumCurat += l.valoare;
     if (cls === 'PAPER') paper29 += l.valoare;
   }
-  const fcTeoretic = net > 0 ? (ag.cost / net) * 100 : null;
   // Când acoperirea rețetarului nu e completă, raportul cost/vânzări totale subestimează Food Cost-ul:
   // numitorul include produse fără cost calculabil. Cifra comparabilă se raportează la partea acoperită.
   // Se calculează strict pe PMIX (unde se măsoară și costul, și acoperirea), nu pe numitorul oficial:
   // altfel o divergență PMIX ↔ Sales Report ar deforma rezultatul. Divergența se raportează separat,
   // în ecranul de reconciliere.
   const netAcoperit = ag.net - ag.netFaraReteta;
+  const masurabil = areCostMasurabil(netAcoperit, ag.cost);
+  const fcTeoretic = net > 0 && masurabil ? (ag.cost / net) * 100 : null;
   const fcTeoreticAcoperit = netAcoperit > 0 ? (ag.cost / netAcoperit) * 100 : null;
   const comisionLei = ag.netDelivery * ((state.setari.comisionDeliveryPct ?? 0) / 100);
   const agD = agregatePerioada(state.vanzari, ctx, { luna: lunaSel, locatie: loc, vedere: 'DELIVERY' }, memo);
@@ -495,7 +511,7 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
   return {
     luna: lunaSel, locatie, net, numitor,
     paperTeoretic: ag.costPaper, paper29,
-    fcPaper: net > 0 ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
+    fcPaper: net > 0 && (are29 || masurabil) ? ((are29 ? paper29 : ag.costPaper) / net) * 100 : null,
     costTeoretic: ag.cost, fcTeoretic, fcTeoreticAcoperit,
     netAcoperit, netFaraReteta: ag.netFaraReteta,
     netDelivery: ag.netDelivery, comisionLei,
@@ -993,9 +1009,17 @@ export function costLunar(state: AppState, ctx: Ctx, lunaRef: string): { net: nu
   return { net, cost };
 }
 
-export function alerte(state: AppState, ctx: Ctx, lunaSel: string): Alerta[] {
+/**
+ * Alertele lunii. `laData` e PARAMETRU, nu ceasul citit pe ascuns: fereastra de schimbări
+ * recente se măsoară față de el, deci aceleași date produc aceleași alerte oricând ar rula
+ * calculul. Implicit rămâne ceasul real, ca aplicația să se comporte identic.
+ *
+ * Fără parametru, o alertă dispărea singură pe măsură ce calendarul înainta, iar un test
+ * scris pe date fixe pica peste noapte fără ca nimic din cod să se fi schimbat.
+ */
+export function alerte(state: AppState, ctx: Ctx, lunaSel: string, laData?: string): Alerta[] {
   const rez: Alerta[] = [];
-  const azi = new Date();
+  const azi = laData ? new Date(`${laData}T00:00:00Z`) : new Date();
   const cutoff = new Date(azi.getTime() - FEREASTRA_ZILE * 86400000).toISOString().slice(0, 10);
   const tintaRetea = state.tinte.find(t => t.locatie === 'RETEA')?.fcCurat ?? null;
 
@@ -1298,3 +1322,24 @@ export const fmtPP = (n: number | null | undefined) =>
   n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toLocaleString('ro-RO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`;
 export const fmtInt = (n: number | null | undefined) =>
   n == null ? '—' : Math.round(n).toLocaleString('ro-RO');
+
+/**
+ * Intervalul unui raport, scris scurt și fără repetiții: „17–23 Aug 2026",
+ * „28 Iul – 3 Aug 2026", „28 Dec 2025 – 3 Ian 2026", „17 Aug 2026" pentru o zi.
+ * Lunile sunt scrise explicit, nu prin `toLocaleDateString`: forma prescurtată diferă
+ * între versiunile de ICU, iar o etichetă de perioadă nu are voie să se schimbe sub picioare.
+ */
+const LUNI_SCURT = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+
+export function fmtInterval(de: string | null | undefined, la: string | null | undefined): string {
+  if (!de || !la) return '—';
+  const [aD, lD, zD] = de.split('-');
+  const [aL, lL, zL] = la.split('-');
+  if (!aD || !lD || !zD || !aL || !lL || !zL) return '—';
+  const luna = (l: string) => LUNI_SCURT[Number(l) - 1] ?? l;
+  const zi = (z: string) => String(Number(z));
+  if (de === la) return `${zi(zD)} ${luna(lD)} ${aD}`;
+  if (aD !== aL) return `${zi(zD)} ${luna(lD)} ${aD} – ${zi(zL)} ${luna(lL)} ${aL}`;
+  if (lD !== lL) return `${zi(zD)} ${luna(lD)} – ${zi(zL)} ${luna(lL)} ${aD}`;
+  return `${zi(zD)}–${zi(zL)} ${luna(lD)} ${aD}`;
+}

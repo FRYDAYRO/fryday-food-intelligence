@@ -14,10 +14,13 @@ import {
   SECTIUNI, accesTower, normalizeazaSelectie, origineDate, selectieImplicita,
   type IdSectiune, type SelectieFC,
 } from '../../lib/fc-tower';
+import { bandaPerioade } from '../../lib/perioade-surse';
+import { BandaPerioade } from './parti';
 import { TowerProvider, useTower } from './context';
 import Bara from './Bara';
 import Overview from './Overview';
 import AnalizaFC from './AnalizaFC';
+import Variatii from './Variatii';
 import Nbo29 from './Nbo29';
 import Pmix47 from './Pmix47';
 import Reconciliere from './Reconciliere';
@@ -30,6 +33,7 @@ import SetariTower from './SetariTower';
 const ECRANE: Record<IdSectiune, (p: { onNavigheaza: (s: IdSectiune) => void }) => React.ReactElement> = {
   OVERVIEW: ({ onNavigheaza }) => <Overview onNavigheaza={onNavigheaza} />,
   ANALIZA_FC: () => <AnalizaFC />,
+  VARIATII: () => <Variatii />,
   NBO29: () => <Nbo29 />,
   PMIX47: () => <Pmix47 />,
   RECONCILIERE: () => <Reconciliere />,
@@ -102,6 +106,17 @@ function RestaurantNemapat({ nume }: { nume: string }) {
   );
 }
 
+/**
+ * Banda de perioade, memorată pe versiunile de import. Selectorul citește doar
+ * `state.versiuniImport` — nu rulează puntea și nicio agregare grea — dar e randat pe
+ * fiecare secțiune, deci nu are voie să recalculeze la fiecare tastă apăsată în bară.
+ */
+function BandaPerioadeTower() {
+  const { state } = useTower();
+  const date = useMemo(() => bandaPerioade(state), [state.versiuniImport]);
+  return <BandaPerioade date={date} />;
+}
+
 /** Conținutul turnului, presupunând contextul deja pus — ușor de randat și în teste. */
 export function ContinutTower({ initial = 'OVERVIEW' }: { initial?: IdSectiune }) {
   const { acces, nemapat } = useTower();
@@ -113,6 +128,7 @@ export function ContinutTower({ initial = 'OVERVIEW' }: { initial?: IdSectiune }
       <NavigareTower activ={activ} onAlege={setSectiune} />
       <Bara />
       <BandaContext />
+      <BandaPerioadeTower />
       <main className="p-4 md:p-6" data-zona="continut" data-sectiune-activa={activ}>
         {nemapat ? <RestaurantNemapat nume={nemapat} /> : <Ecran onNavigheaza={setSectiune} />}
       </main>

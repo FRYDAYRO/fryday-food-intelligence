@@ -3,6 +3,7 @@
 // Chicken Pesto Burger (700970 / POS 26031) și rețetarul CHICKEN GANG Chișinău.
 // Prețurile ingredientelor sunt convertite din costul unitar NBO în UM de bază (kg / l / buc).
 import type { AppState, Ingredient, Produs, Reteta, SalesReportRand, VanzareFapt } from './types';
+import { VERSIUNE_REGULI_29, regulileImpliciteLegacy } from './fc-clasificare';
 
 function mulberry32(a: number) {
   return () => {
@@ -157,13 +158,8 @@ export function genereazaSeedNBO(): AppState {
     linii29: [],                       // raportul 2.9 nu a fost încă importat
     materiale29: [],
     waste: [], inventar: [],
-    reguli: [
-      { pattern: 'ambalaj', clasa: 'PAPER' },
-      { pattern: 'hartie', clasa: 'PAPER' },
-      { pattern: 'cutie', clasa: 'PAPER' },
-      { pattern: 'consumabil', clasa: 'EXCLUS' },
-      { pattern: 'curatenie', clasa: 'EXCLUS' },
-    ],
+    // aceeași listă implicită ca peste tot (derivată din `REGULI_IMPLICITE_29`), nu una proprie
+    reguli: regulileImpliciteLegacy(), reguliImplicite: VERSIUNE_REGULI_29,
     tinte: [{ locatie: 'RETEA', fcCurat: 30 }],
     importuri: [{
       id: 'NBO1', tip: 'RETETAR', fisier: 'recipe cards NBO 07.01.2026',

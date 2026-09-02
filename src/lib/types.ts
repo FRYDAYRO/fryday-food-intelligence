@@ -171,11 +171,19 @@ export interface InventarFapt {
 }
 
 export interface Nemapat {
-  denumire: string;          // denumirea POS care nu s-a potrivit cu nomenclatorul
+  /**
+   * Identitatea care NU s-a potrivit — și exact ce se leagă la aprobare: denumirea POS
+   * pentru rapoartele care listează nume (4.7 Sales Mix), codul pentru cele care listează
+   * coduri (PMIX). Ambele ajung în `Produs.aliasuri`, deci există o singură mapare.
+   */
+  denumire: string;
+  /** Descrierea din raport, ca omul să recunoască rândul: categoria la 4.7, numele la PMIX. */
   categorie: string;
   cant: number;              // din ultimul import în care a apărut
-  valoare: number;           // lei bruti — criteriul de prioritizare
+  valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
+  /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
+  sursa?: 'SALES_MIX' | 'PMIX';
 }
 
 /**
@@ -195,6 +203,14 @@ export interface VersiuneSursa {
   scop: string;               // COMUN | COMPANIE | RESTAURANT
   restaurante: string[];
   perioada: string | null;
+  /**
+   * Intervalul REAL acoperit de raport, cu precizie de zi. `perioada` de mai sus e luna,
+   * și două rapoarte din aceeași lună pot acoperi ferestre disjuncte (17–23 aug vs 1–9 aug):
+   * la granularitate de lună ar părea compatibile. De aceea intervalul se păstrează separat.
+   * Absent = sursa nu l-a declarat — nu se presupune nimic.
+   */
+  intervalDe?: string;
+  intervalLa?: string;
   randuri: number;
 }
 
@@ -261,6 +277,8 @@ export interface AppState {
   waste: WasteFapt[];
   inventar: InventarFapt[];
   reguli: RegulaClasificare[];
+  /** Versiunea listei implicite 2.9 deja îmbinată în `reguli` — migrarea nu se repetă. Lipsă = nemigrat. */
+  reguliImplicite?: string;
   tinte: Tinta[];
   importuri: ImportBatch[];
   /** Istoricul versiunilor de sursă (Import Center). Opțional: instantaneele vechi nu îl au. */

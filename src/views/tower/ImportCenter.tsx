@@ -9,6 +9,7 @@ import {
   activeazaImport, pregatesteImport, ETICHETA_SURSA,
   type CerereImport, type PregatireImport, type TipSursaFC,
 } from '../../lib/import-center';
+import { fmtInterval } from '../../lib/engine';
 import { Btn, Camp, In, Insigna, Sel, cx } from '../../lib/ui';
 import { randImport, type RandImportTower } from '../../lib/fc-tower';
 import { verificaImport, verificaScriere } from '../../lib/fc-acces';
@@ -69,7 +70,10 @@ export default function ImportCenter() {
     update(() => stareNoua);
     setMesaj(rezultat.activat
       ? `Import activat ca versiunea ${rezultat.versiune}.`
-      : `Importul nu a fost activat: ${rezultat.erori[0] ?? rezultat.stare}. Datele au rămas neschimbate.`);
+      : rezultat.nemapateDePastrat > 0
+        // coada a fost reținută: datele NU au rămas neschimbate, și nu se spune că ar fi
+        ? `Importul nu a fost activat. ${rezultat.erori[0] ?? ''}`
+        : `Importul nu a fost activat: ${rezultat.erori[0] ?? rezultat.stare}. Datele au rămas neschimbate.`);
     setPregatire(null); setParsat(null);
   };
 
@@ -126,6 +130,7 @@ export default function ImportCenter() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 text-sm">
               {([
                 ['Perioadă', rand.perioada ?? '—'],
+                ['Interval acoperit', fmtInterval(rand.intervalDe, rand.intervalLa)],
                 ['Granularitate', rand.granularitate],
                 ['Scop', `${rand.scop}${rand.restaurante.length ? ` (${rand.restaurante.join(', ')})` : ''}`],
                 ['Rânduri', `${rand.importate} importate din ${rand.randuri}`],
@@ -173,7 +178,7 @@ export default function ImportCenter() {
 
             <div className="flex flex-wrap items-center gap-2">
               <Btn data-actiune="activeaza" disabled={!rand.poateActiva} onClick={activeaza}>
-                Activează importul
+                {rand.doarCoada ? 'Păstrează coada de aprobare' : 'Activează importul'}
               </Btn>
               {!rand.poateActiva && (
                 <span className={cx('text-sm', rand.stare === 'RESPINS' ? 'text-red-700' : 'text-muted-foreground')}>

@@ -42,7 +42,7 @@ import {
 // ————————————————————————————————————————————————————————— navigarea
 
 export type IdSectiune =
-  | 'OVERVIEW' | 'ANALIZA_FC' | 'NBO29' | 'PMIX47' | 'RECONCILIERE'
+  | 'OVERVIEW' | 'ANALIZA_FC' | 'VARIATII' | 'NBO29' | 'PMIX47' | 'RECONCILIERE'
   | 'INGREDIENTE' | 'SIMULARI' | 'IMPORTURI' | 'AI_ADVISOR' | 'SETARI';
 
 export interface Sectiune {
@@ -60,6 +60,7 @@ export interface Sectiune {
 export const SECTIUNI: Sectiune[] = [
   { id: 'OVERVIEW', nume: 'Overview', descriere: 'KPI-urile perioadei, puntea FC și restaurantele', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'ANALIZA_FC', nume: 'Analiză FC', descriere: 'Evoluția în timp, defalcări și clasamente', doarCompanie: false, scrie: false, placeholder: false },
+  { id: 'VARIATII', nume: 'Variații', descriere: 'Săptămâna și luna încheiate: ΔFC, Δpreț pe ingredient și de unde vine mișcarea', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'NBO29', nume: 'NBO 2.9', descriere: 'Consumul raportat, pe material și categorie', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'PMIX47', nume: 'PMIX 4.7', descriere: 'Vânzările pe produs care stau sub FC-ul teoretic', doarCompanie: false, scrie: false, placeholder: false },
   { id: 'RECONCILIERE', nume: 'Reconciliere', descriere: 'Ce explică puntea și ce rămâne neexplicat', doarCompanie: false, scrie: false, placeholder: false },
@@ -904,6 +905,9 @@ export interface RandImportTower {
   stareDetectie: string;
   incredereDetectie: number;
   perioada: string | null;
+  /** Fereastra REALĂ a raportului, cu precizie de zi. `null` = sursa nu o declară. */
+  intervalDe: string | null;
+  intervalLa: string | null;
   granularitate: string;
   scop: string;
   restaurante: string[];
@@ -914,8 +918,13 @@ export interface RandImportTower {
   avertismente: string[];
   erori: string[];
   stare: RezultatCentral['stare'];
-  /** Doar un import VALIDAT se poate activa — starea de aici e singura poartă din interfață. */
+  /**
+   * Un import VALIDAT se poate activa. Un import respins DOAR pentru lipsa rândurilor
+   * costabile, dar care a adus intrări în coada de aprobare, se poate „activa" și el —
+   * activarea reține atunci coada, fără versiune și fără vânzări (`doarCoada`).
+   */
   poateActiva: boolean;
+  doarCoada: boolean;
   motivBlocare: string | null;
   versiune: string | null;
   activat: boolean;
@@ -924,7 +933,8 @@ export interface RandImportTower {
 
 export function randImport(r: RezultatCentral): RandImportTower {
   const blocante = r.diagnostice.filter(d => d.nivel === 'BLOCANT');
-  const poateActiva = r.stare === 'VALIDAT';
+  const doarCoada = r.stare !== 'VALIDAT' && r.nemapateDePastrat > 0;
+  const poateActiva = r.stare === 'VALIDAT' || doarCoada;
   const motivBlocare =
     r.stare === 'VALIDAT' ? null
       : r.stare === 'ACTIVAT' ? 'Importul e deja activat.'
@@ -939,6 +949,8 @@ export function randImport(r: RezultatCentral): RandImportTower {
     stareDetectie: r.detectie.stare,
     incredereDetectie: r.detectie.incredere,
     perioada: r.perioada,
+    intervalDe: r.intervalDe,
+    intervalLa: r.intervalLa,
     granularitate: r.granularitate,
     scop: r.scop,
     restaurante: r.restaurante,
@@ -950,6 +962,7 @@ export function randImport(r: RezultatCentral): RandImportTower {
     erori: r.erori,
     stare: r.stare,
     poateActiva,
+    doarCoada,
     motivBlocare,
     versiune: r.versiune,
     activat: r.activat,
