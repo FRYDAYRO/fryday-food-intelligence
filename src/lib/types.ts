@@ -171,11 +171,19 @@ export interface InventarFapt {
 }
 
 export interface Nemapat {
-  denumire: string;          // denumirea POS care nu s-a potrivit cu nomenclatorul
+  /**
+   * Identitatea care NU s-a potrivit — și exact ce se leagă la aprobare: denumirea POS
+   * pentru rapoartele care listează nume (4.7 Sales Mix), codul pentru cele care listează
+   * coduri (PMIX). Ambele ajung în `Produs.aliasuri`, deci există o singură mapare.
+   */
+  denumire: string;
+  /** Descrierea din raport, ca omul să recunoască rândul: categoria la 4.7, numele la PMIX. */
   categorie: string;
   cant: number;              // din ultimul import în care a apărut
-  valoare: number;           // lei bruti — criteriul de prioritizare
+  valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
+  /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
+  sursa?: 'SALES_MIX' | 'PMIX';
 }
 
 /**

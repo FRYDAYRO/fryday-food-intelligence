@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
 import { clasificaCategorie29 } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
@@ -871,6 +871,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         ...state.nemapate.filter(n => !rezolvabile.has(cheieDenumire(n.denumire)) && !nepotrivite.has(n.denumire)),
         ...[...nepotrivite.entries()].map(([den, v]) => ({
           denumire: den, categorie: v.categorie, cant: v.cant, valoare: v.valoare, fisier: numeFisier,
+          sursa: 'SALES_MIX' as const,
         })),
       ].sort((a, b) => b.valoare - a.valoare);
 
@@ -886,8 +887,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       for (const x of state.produse) {
         dupaCod.set(x.cod, x.cod);
         if (x.codPos) dupaCod.set(x.codPos, x.cod);
+        // aliasurile sunt identitățile venite din POS pe care omul le-a confirmat în coada
+        // de aprobare. Fără ele, aprobarea unui cod necunoscut n-ar schimba nimic la
+        // următorul import — coada s-ar reumple la nesfârșit cu același rând.
+        for (const a of x.aliasuri ?? []) dupaCod.set(a, x.cod);
       }
-      const necunoscute = new Set<string>();
+      // Codul necunoscut NU se pierde: se reține cu bucăți și lei, ca banii din raport să
+      // rămână explicabili și rândul să ajungă în coada de aprobare.
+      const necunoscute = new Map<string, { cant: number; valoare: number; nume: string }>();
       const prinPos = new Set<string>();
       const noi: VanzareFapt[] = [];
       const canalFisier = detecteazaCanal('', numeFisier);
@@ -899,7 +906,16 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const canal = detecteazaCanal(g(r, 'canal'), numeFisier) ?? canalFisier;
         if (!canal) { avert.push(`Rând ${i + 2}: canal neidentificat — ignorat`); return; }
         const codIntern = dupaCod.get(cod);
-        if (!codIntern) { necunoscute.add(cod); return; }
+        if (!codIntern) {
+          // fără produs nu există TVA, deci netul nu se poate deduce dintr-un brut:
+          // se ia ce spune fișierul, iar dacă nu spune nimic rămâne 0 și se declară
+          const valFisier = parseNumar(g(r, 'net')) ?? parseNumar(g(r, 'brut')) ?? 0;
+          const e = necunoscute.get(cod) ?? { cant: 0, valoare: 0, nume: String(g(r, 'denumire') ?? '').trim() };
+          e.cant += cant; e.valoare += valFisier;
+          if (!e.nume) e.nume = String(g(r, 'denumire') ?? '').trim();
+          necunoscute.set(cod, e);
+          return;
+        }
         if (codIntern !== cod) prinPos.add(`${cod} → ${codIntern}`);
         const locatie = rezolvaLocatie(g(r, 'locatie'));
         perioade.add(data.slice(0, 7));
@@ -913,7 +929,15 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         }
         noi.push({ data, locatie, canal, produs: codIntern, cant, brut: brut ?? net * (1 + prod.tva / 100), net });
       });
-      necunoscute.forEach(c => avert.push(`Cod produs nemapat în nomenclator: ${c} — rânduri ignorate`));
+      if (necunoscute.size) {
+        const totCant = [...necunoscute.values()].reduce((a, x) => a + x.cant, 0);
+        const totLei = [...necunoscute.values()].reduce((a, x) => a + x.valoare, 0);
+        avert.push(`${necunoscute.size} coduri fără produs în nomenclator: ${fmtNr(totCant)} buc, `
+          + `${fmtNr(Math.round(totLei))} lei — NU intră în calcul, dar au fost puse în coada de aprobare.`);
+        for (const [c, v] of [...necunoscute.entries()].sort((a, b) => b[1].valoare - a[1].valoare).slice(0, 25)) {
+          avert.push(`Nemapat: cod „${c}"${v.nume ? ` (${v.nume})` : ''} — ${fmtNr(v.cant)} buc, ${fmtNr(Math.round(v.valoare))} lei`);
+        }
+      }
       if (prinPos.size) avert.push(`Mapate prin numărul POS: ${[...prinPos].slice(0, 8).join(', ')}${prinPos.size > 8 ? '…' : ''}`);
       const chei = new Set(noi.map(v => `${v.data}|${v.locatie}|${v.canal}|${v.produs}`));
       const pastrate = state.vanzari.filter(v => !chei.has(`${v.data}|${v.locatie}|${v.canal}|${v.produs}`));
@@ -925,7 +949,19 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         if (e) { e.cant += v.cant; e.brut += v.brut; e.net += v.net; } else agg.set(k, { ...v });
       }
       importate = agg.size;
-      stateNou = { ...state, vanzari: [...pastrate, ...agg.values()] };
+      // Codurile necunoscute intră în ACEEAȘI coadă de aprobare ca denumirile din 4.7 —
+      // o singură mapare, un singur ecran. Intrările vechi rămân doar cât timp încă nu se
+      // pot rezolva și nu reapar în importul curent; la aprobare, codul devine alias și
+      // rândul se potrivește singur la următorul import.
+      const rezolvabileP = new Set(dupaCod.keys());
+      const nemapateP: Nemapat[] = [
+        ...state.nemapate.filter(n => !rezolvabileP.has(n.denumire) && !necunoscute.has(n.denumire)),
+        ...[...necunoscute.entries()].map(([cod, v]) => ({
+          denumire: cod, categorie: v.nume || '—', cant: v.cant, valoare: v.valoare,
+          fisier: numeFisier, sursa: 'PMIX' as const,
+        })),
+      ].sort((a, b) => b.valoare - a.valoare);
+      stateNou = { ...state, vanzari: [...pastrate, ...agg.values()], nemapate: nemapateP };
     }
   } else if (tip === 'SALES') {
     const lipsa = lipsesc(['data', 'locatie']);
