@@ -26,7 +26,7 @@ import type {
   AppState, ImportBatch, IntrareAudit, IntrarePretIstoric, Nemapat, Reteta, VersiuneSursa,
 } from './types';
 import {
-  detecteazaCanal, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
+  detecteazaCanal, identitateSeRezolva, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
 import { parseSalesMix } from './salesmix';
@@ -68,7 +68,7 @@ export type CodDiagnosticImport =
   | 'COLOANE_LIPSA' | 'COLOANE_NECUNOSCUTE' | 'RANDURI_DUPLICATE' | 'DATE_INVALIDE'
   | 'NUMERE_INVALIDE' | 'LOCATIE_LIPSA' | 'PRODUS_LIPSA' | 'INGREDIENT_LIPSA'
   | 'PRET_LIPSA' | 'RETETA_LIPSA' | 'CATEGORIE_NECUNOSCUTA' | 'CANAL_NECUNOSCUT'
-  | 'GRANULARITATE_MIXTA' | 'IMPORT_DUPLICAT' | 'VERSIUNI_IN_CONFLICT' | 'NIMIC_IMPORTAT';
+  | 'GRANULARITATE_MIXTA' | 'IMPORT_DUPLICAT' | 'REIMPORT_DUPA_MAPARE' | 'VERSIUNI_IN_CONFLICT' | 'NIMIC_IMPORTAT';
 
 export interface DiagnosticImport {
   cod: CodDiagnosticImport;
@@ -430,8 +430,15 @@ export interface RezultatCentral {
   erori: string[];
   /** importate ÷ rânduri, %. */
   acoperire: number | null;
-  duplicat: 'NOU' | 'DUPLICAT_EXACT' | 'REIMPORT_ACTUALIZAT';
+  /**
+   * NOU — amprentă nevăzută · REIMPORT_ACTUALIZAT — același nume de fișier, alt conținut ·
+   * REIMPORT_MAPARE — aceeași amprentă, dar o identitate lăsată nemapată de versiunea ei se
+   * mapează acum (are ce aduce) · DUPLICAT_EXACT — aceeași amprentă și nimic nou de adus.
+   */
+  duplicat: 'NOU' | 'DUPLICAT_EXACT' | 'REIMPORT_ACTUALIZAT' | 'REIMPORT_MAPARE';
   amprenta: string;
+  /** Identitățile lăsate nemapate de această rulare — ajung pe versiune la activare. */
+  necunoscute: string[];
   versiune: string | null;
   activat: boolean;
   stare: 'VALIDAT' | 'ACTIVAT' | 'RESPINS' | 'NECESITA_CONFIRMARE' | 'DUPLICAT';
@@ -697,7 +704,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       perioada: null, perioade: [], intervalDe: null, intervalLa: null, dataEfectiva: acum.slice(0, 10),
       granularitate: 'FARA', scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE',
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
-      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta,
+      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta, necunoscute: [],
       versiune: null, activat: false, stare, importatLa: acum, actor,
       diagnostice: col.diag, schimbari: null, nemapateDePastrat: 0,
       audit: {
@@ -895,13 +902,33 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // — idempotență și conflicte de versiune
   const versiuni = state.versiuniImport ?? [];
   const acelasiFisier = versiuni.filter(v => v.tip === tip);
-  const duplicatExact = acelasiFisier.some(v => v.amprenta === amprenta);
+  // Aceeași amprentă = același fișier. E duplicat DOAR dacă nu are ce aduce. Amprenta vede
+  // conținutul fișierului, nu nomenclatorul: dacă între timp o identitate pe care ULTIMA
+  // versiune a acestui fișier a lăsat-o nemapată se mapează acum (alias aprobat în coadă,
+  // produs adăugat), reimportul aduce rândurile ei — iar motorul înlocuiește pe cheie ce
+  // importase deja, deci nimic nu se dublează. Se judecă ultima versiune cu această
+  // amprentă, nu toate: cele dinaintea ei și-au avut deja reimportul, altfel s-ar deschide
+  // la nesfârșit. O versiune fără listă (dinaintea acestui contract) rămâne duplicat.
+  const cuAmprenta = acelasiFisier.filter(v => v.amprenta === amprenta);
+  const ultimaCuAmprenta = cuAmprenta.length ? cuAmprenta.reduce((a, b) => (b.nr > a.nr ? b : a)) : null;
+  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX')
+    ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state.produse, id, intern))
+    : [];
+  const duplicatExact = ultimaCuAmprenta !== null && mapateIntreTimp.length === 0;
   const duplicat: RezultatCentral['duplicat'] = duplicatExact ? 'DUPLICAT_EXACT'
-    : acelasiFisier.some(v => v.fisier === cerere.fisier) ? 'REIMPORT_ACTUALIZAT' : 'NOU';
+    : mapateIntreTimp.length ? 'REIMPORT_MAPARE'
+      : acelasiFisier.some(v => v.fisier === cerere.fisier) ? 'REIMPORT_ACTUALIZAT' : 'NOU';
   if (duplicatExact) {
     adaugaDiag(col, 'IMPORT_DUPLICAT', 'ATENTIE', 'Fișier deja importat',
       'Aceeași amprentă de conținut există deja: reimportul nu adaugă date noi și nu dublează nimic.',
       [amprenta]);
+  }
+  if (ultimaCuAmprenta && mapateIntreTimp.length) {
+    adaugaDiag(col, 'REIMPORT_DUPA_MAPARE', 'INFO', 'Reimport după aprobarea unei mapări',
+      `Fișierul a mai fost importat (${ultimaCuAmprenta.id}), dar ${mapateIntreTimp.length} `
+      + (mapateIntreTimp.length === 1 ? 'identitate lăsată atunci nemapată se mapează' : 'identități lăsate atunci nemapate se mapează')
+      + ' acum. Rândurile lor intră; ce era deja importat se înlocuiește pe cheie, nu se dublează. '
+      + 'Versiunea veche rămâne în istoric.', mapateIntreTimp);
   }
   const dataEfectiva = cerere.dataValabil ?? per.dataMin
     ?? (per.perioade[0] ? `${per.perioade[0]}-01` : acum.slice(0, 10));
@@ -988,7 +1015,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
     avertismente, erori,
     acoperire: asteptate !== null && asteptate > 0 ? Math.min(100, (importate / asteptate) * 100) : null,
-    duplicat, amprenta,
+    duplicat, amprenta, necunoscute: rulat.necunoscute ?? [],
     versiune: null, activat: false,
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
@@ -1115,6 +1142,8 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
     perioada: r.perioada,
     ...(r.intervalDe && r.intervalLa ? { intervalDe: r.intervalDe, intervalLa: r.intervalLa } : {}),
     randuri: r.randuri,
+    // ce a lăsat nemapat: exact lista după care un reimport al aceluiași fișier se judecă
+    ...(r.necunoscute.length ? { nemapate: [...r.necunoscute] } : {}),
   };
   const versiuniNoi = versiuni.map(v => (v.tip === r.tip && devineActiva ? { ...v, activa: false } : v));
   versiuniNoi.push(versiune);

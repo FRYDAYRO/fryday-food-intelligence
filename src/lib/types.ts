@@ -212,6 +212,12 @@ export interface VersiuneSursa {
   intervalDe?: string;
   intervalLa?: string;
   randuri: number;
+  /**
+   * Identitățile din raport (coduri sau denumiri POS) pe care această versiune le-a lăsat
+   * nemapate. Când una dintre ele se mapează ulterior, același fișier are ce să aducă și nu
+   * mai e duplicat. Absent = versiune activată înainte de acest contract: nu se presupune nimic.
+   */
+  nemapate?: string[];
 }
 
 /** O schimbare de preț înregistrată la import, cu sursa ei. */
