@@ -16,7 +16,7 @@
  * Intelligence. Nicio formulă de FC nu se rescrie aici; se compun cele existente.
  */
 import type { AppState } from './types';
-import { pretLa, type Ctx } from './engine';
+import { pretLa, sorteazaPreturi, type Ctx } from './engine';
 import { canalePentru, locatieDin, type CerereFC } from './fc-domeniu';
 import { consumaPerioada } from './fc-ingrediente';
 import { numitorFC, recipeFC } from './fc-core';
@@ -26,6 +26,9 @@ export interface CostMaterial29 {
   cod: string;
   denumire?: string;
   costPeUnitate: number;
+  /** Perioada raportului din care vine prețul și rândul sursă — proveniența intrării de istoric. */
+  perioada?: string;
+  rand?: number;
 }
 
 export type FelSchimbare = 'CRESTERE' | 'SCADERE' | 'NESCHIMBAT' | 'NOU' | 'NEFOLOSIT';
@@ -139,6 +142,7 @@ export function impactPreturi29(
  */
 export function aplicaPreturi29(
   state: AppState, ctx: Ctx, costuri: CostMaterial29[], validDeLa: string,
+  sursa?: { fisier: string; amprenta?: string },
 ): { stareNoua: AppState; scrise: number; sarite: number } {
   let scrise = 0, sarite = 0;
   const ingrediente = state.ingrediente.map(ing => {
@@ -147,10 +151,20 @@ export function aplicaPreturi29(
     const curent = ing.preturi.length ? pretLa(ing, validDeLa) : null;
     if (curent !== null && curent === c.costPeUnitate) { sarite++; return ing; }
     scrise++;
+    // se înlocuiește DOAR propria intrare 2.9 de la aceeași dată (corecția aceleiași ferestre);
+    // lista de prețuri sau intrarea manuală de la aceeași dată rămân în istoric (D2), iar
+    // intrările săptămânilor sau ale lunii de alături nu sunt atinse — validDeLa e altul
+    const proprie = (p: { validDeLa: string; sursa?: { tip: string } }) => p.validDeLa === validDeLa && p.sursa?.tip === 'NBO_29';
     return {
       ...ing,
-      preturi: [...ing.preturi.filter(p => p.validDeLa !== validDeLa), { validDeLa, pret: c.costPeUnitate }]
-        .sort((a, b) => a.validDeLa.localeCompare(b.validDeLa)),
+      preturi: sorteazaPreturi([...ing.preturi.filter(p => !proprie(p)), {
+        validDeLa, pret: c.costPeUnitate,
+        sursa: {
+          tip: 'NBO_29' as const, material: c.cod,
+          ...(sursa ? { fisier: sursa.fisier } : {}), ...(sursa?.amprenta ? { amprenta: sursa.amprenta } : {}),
+          ...(c.perioada ? { perioada: c.perioada } : {}), ...(c.rand !== undefined ? { rand: c.rand } : {}),
+        },
+      }]),
     };
   });
   void ctx;

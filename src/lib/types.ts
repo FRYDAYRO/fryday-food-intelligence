@@ -2,7 +2,20 @@ export type Canal = 'INSTORE' | 'DELIVERY';
 export type Vedere = 'TOTAL' | Canal;
 export type UMCod = 'g' | 'kg' | 'ml' | 'l' | 'buc';
 
-export interface PretIstoric { validDeLa: string; pret: number; }
+/**
+ * De unde vine o intrare de preț — până la fișier, amprentă (= versiunea din Import Center),
+ * perioada raportului, materialul și rândul sursă. Absent = intrare moștenită sau manuală.
+ */
+export interface SursaPret {
+  tip: 'NBO_29' | 'LISTA_PRETURI' | 'RETETAR' | 'MANUAL' | 'SIMULARE';
+  fisier?: string;
+  amprenta?: string;
+  perioada?: string;
+  material?: string;
+  rand?: number;
+}
+
+export interface PretIstoric { validDeLa: string; pret: number; sursa?: SursaPret; }
 
 export interface Ingredient {
   cod: string; denumire: string; categorie: string;
@@ -253,6 +266,7 @@ export interface IntrarePretIstoric {
   deltaPct: number | null;
   fisier: string;
   amprenta: string;
+  sursa?: SursaPret;
 }
 
 /** Urma de audit a unui import: cine, când, ce, pe ce scop, cu ce rezultat. */

@@ -688,13 +688,21 @@ export function sorteazaMagazine(
 
 // ————————————————————————————————————————————————————————— panourile de ingrediente
 
-export type IdPanou = 'DRIVERE_FC' | 'CRESTERI_PRET' | 'IMPACT_COST' | 'DEVIATII_CONSUM' | 'OPORTUNITATI';
+export type IdPanou = 'DRIVERE_FC' | 'MODIFICARI_PRET' | 'CRESTERI_PRET' | 'IMPACT_COST' | 'DEVIATII_CONSUM' | 'OPORTUNITATI';
 
 export interface RandPanouIngredient {
   ingredient: string;
   denumire: string;
+  /** Prețul la finele perioadei precedente și al celei curente, lei pe UM de bază. */
+  pretPrecedent: number | null;
+  pretCurent: number | null;
+  um: string;
+  /** Consumul perioadei curente, în UM de bază — zero e o valoare, nu un motiv de ascundere. */
+  consumCurent: number;
   deltaPretLei: number | null;
   deltaPretPct: number | null;
+  /** De unde vine ultima schimbare de preț din fereastră (fișier · perioadă · rând), când se știe. */
+  sursaPret: string | null;
   impactCostRON: number | null;
   impactFcPp: number | null;
   produseAfectate: string[];
@@ -732,9 +740,15 @@ export function confidentaIngredient(r: RandIngredient, calitate: CalitateDate):
 
 const randPanou = (r: RandIngredient, calitate: CalitateDate): RandPanouIngredient => {
   const conf = confidentaIngredient(r, calitate);
+  const ultima = r.schimbariPret[r.schimbariPret.length - 1];
+  const sursaPret = ultima
+    ? [ultima.sursa?.fisier ?? ultima.fisier, ultima.sursa?.perioada, ultima.sursa?.rand !== undefined ? `rândul ${ultima.sursa.rand}` : null]
+      .filter(Boolean).join(' · ')
+    : null;
   return {
     ingredient: r.ingredient, denumire: r.denumire,
-    deltaPretLei: r.deltaPretLei, deltaPretPct: r.deltaPretPct,
+    pretPrecedent: r.pretPrecedent, pretCurent: r.pretCurent, um: r.um, consumCurent: r.consumCurent,
+    deltaPretLei: r.deltaPretLei, deltaPretPct: r.deltaPretPct, sursaPret,
     impactCostRON: r.deltaCostLei, impactFcPp: r.fcImpactPp,
     produseAfectate: r.produse.map(p => p.produs),
     magazineAfectate: r.magazine.map(m => m.locatie),
@@ -769,6 +783,14 @@ export function panouriIngrediente(a: AnalizaIngrediente): PanouIngrediente[] {
       randuri: top(cu(contributie), contributie), excluse: fara(contributie),
     },
     {
+      id: 'MODIFICARI_PRET', eticheta: 'Modificări de preț',
+      baza: 'toate ingredientele cu preț diferit între finele celor două perioade, ordonate după |Δ%| — inclusiv cele fără consum',
+      randuri: [...cu(pret)].filter(r => (r.deltaPretLei ?? 0) !== 0)
+        .sort((x, y) => Math.abs(y.deltaPretPct ?? 0) - Math.abs(x.deltaPretPct ?? 0) || x.ingredient.localeCompare(y.ingredient))
+        .map(r => randPanou(r, cal)),
+      excluse: fara(pret),
+    },
+    {
       id: 'CRESTERI_PRET', eticheta: 'Top creșteri de preț',
       baza: 'deltaPretPct — prețul de la finele perioadei față de cel al perioadei de comparație, %',
       randuri: [...cu(pret)].filter(r => (r.deltaPretPct ?? 0) > 0)
@@ -793,6 +815,8 @@ export function panouriIngrediente(a: AnalizaIngrediente): PanouIngrediente[] {
         const baza = r ? randPanou(r, cal) : null;
         return {
           ingredient: o.ingredient, denumire: o.denumire,
+          pretPrecedent: baza?.pretPrecedent ?? null, pretCurent: baza?.pretCurent ?? null,
+          um: baza?.um ?? r?.um ?? '', consumCurent: baza?.consumCurent ?? 0, sursaPret: baza?.sursaPret ?? null,
           deltaPretLei: baza?.deltaPretLei ?? null, deltaPretPct: baza?.deltaPretPct ?? null,
           impactCostRON: o.impactEstimatLei, impactFcPp: o.fcImpactPp,
           produseAfectate: o.scop.produse, magazineAfectate: o.scop.magazine,

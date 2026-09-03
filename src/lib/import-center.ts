@@ -402,6 +402,7 @@ function schimbariPret(inainte: AppState, dupa: AppState, fisier: string, ampren
         deltaRON: pretVechi !== null ? p.pret - pretVechi : null,
         deltaPct: pretVechi !== null && pretVechi !== 0 ? ((p.pret - pretVechi) / pretVechi) * 100 : null,
         fisier, amprenta,
+        ...(p.sursa ? { sursa: p.sursa } : {}),
       });
     }
   }

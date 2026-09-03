@@ -1,4 +1,5 @@
 import type {
+  PretIstoric,
   AppState, Canal, Ingredient, LinieReteta, Produs, RegulaClasificare,
   Reteta, Schimbare, UMCod, VanzareFapt, Vedere, VersiuneReteta,
 } from './types';
@@ -46,9 +47,19 @@ export function buildCtx(s: Pick<AppState, 'ingrediente' | 'retete' | 'produse'>
 }
 
 // §3.1 — prețul valabil la o dată
+/**
+ * Precedența la ACEEAȘI dată efectivă: prețul efectiv din 2.9 e cost măsurat și bate lista de
+ * prețuri sau intrarea manuală. Nimic nu se șterge — ordinea decide doar ce intră în calcul.
+ */
+export const prioritatePret = (p: PretIstoric): number => (p.sursa?.tip === 'NBO_29' ? 1 : 0);
+
+/** Istoricul în ordinea în care se citește: după dată, iar la aceeași dată după precedență. */
+export const sorteazaPreturi = (preturi: PretIstoric[]): PretIstoric[] =>
+  [...preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa) || prioritatePret(a) - prioritatePret(b));
+
 export function pretLa(ing: Ingredient, data: string): number {
   let p = 0; let gasit = false;
-  const sorted = [...ing.preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa));
+  const sorted = sorteazaPreturi(ing.preturi);
   for (const pr of sorted) if (pr.validDeLa <= data) { p = pr.pret; gasit = true; }
   if (!gasit && sorted.length) p = sorted[0].pret;
   return p;

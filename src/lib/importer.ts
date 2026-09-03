@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, Produs, Reteta, Sursa29, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, PretIstoric, Produs, Reteta, Sursa29, SursaPret, UMCod, VanzareFapt, WasteFapt } from './types';
 import { clasificaCategorie29 } from './fc-clasificare';
-import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
+import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent, sorteazaPreturi } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
 import { analizeaza47 } from './adaptor-47';
@@ -355,11 +355,16 @@ const fmtNr = (n: number) => n.toLocaleString('ro-RO');
  * avertizează explicit, altfel corecția pare aplicată deși cifrele nu se schimbă.
  */
 function adaugaPretDatat(
-  preturi: { validDeLa: string; pret: number }[], data: string, pret: number,
-  denumire: string, avert: string[],
-): { validDeLa: string; pret: number }[] {
-  const rez = [...preturi.filter(x => x.validDeLa !== data), { validDeLa: data, pret }]
-    .sort((a, b) => a.validDeLa.localeCompare(b.validDeLa));
+  preturi: PretIstoric[], data: string, pret: number,
+  denumire: string, avert: string[], sursa?: SursaPret,
+): PretIstoric[] {
+  // Două feluri de preț: cel MĂSURAT (2.9) și cel de REFERINȚĂ (listă, rețetar, manual, moștenit).
+  // La aceeași dată, un preț de referință îl înlocuiește pe cel de referință dinainte (o
+  // corecție din aceeași zi nu dublează), dar nu atinge intrarea din 2.9 — D2: ea decide în
+  // calcul și rămâne în istoric, iar celelalte rămân și ele, cu sursa lor
+  const din29 = (t?: string) => t === 'NBO_29';
+  const aceeasiSursa = (x: PretIstoric) => x.validDeLa === data && din29(x.sursa?.tip) === din29(sursa?.tip);
+  const rez = sorteazaPreturi([...preturi.filter(x => !aceeasiSursa(x)), { validDeLa: data, pret, ...(sursa ? { sursa } : {}) }]);
   const ultima = preturi.length ? preturi[preturi.length - 1].validDeLa : null;
   if (ultima && data < ultima) {
     avert.push(`${denumire}: prețul introdus e valabil de la ${data}, dar există deja un preț mai recent (${ultima}) care rămâne cel curent. `
@@ -634,7 +639,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           const ultim = preturi.length ? preturi[preturi.length - 1] : null;
           if (!ultim || Math.abs(ultim.pret - pret) > 0.0005 || preturi.some(x => x.validDeLa === azi)) {
             schimbariPret.push({ cod: g.cod, denumire: g.denumire, um: umBaza, vechi: ultim?.pret ?? null, nou: pret });
-            const noi = adaugaPretDatat(preturi, azi, pret, g.denumire, avert);
+            const noi = adaugaPretDatat(preturi, azi, pret, g.denumire, avert, { tip: 'RETETAR', fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}) });
             preturi.length = 0; preturi.push(...noi);
           }
         } else avert.push(`${g.denumire} (${g.cod}): fără cost în nomenclator`);
@@ -1242,7 +1247,8 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           if (vechi != null && vechi > 0 && Math.abs(pret - vechi) / vechi * 100 > state.setari.pragAlertaPret) {
             avert.push(`Preț ${ing.denumire}: ${vechi} → ${pret} lei (variație > ${state.setari.pragAlertaPret}%)`);
           }
-          ing.preturi = adaugaPretDatat(ing.preturi, validDeLa, pret, ing.denumire, avert);
+          ing.preturi = adaugaPretDatat(ing.preturi, validDeLa, pret, ing.denumire, avert,
+            { tip: 'LISTA_PRETURI', fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}), rand: i + 2 });
         }
         importate++;
       });
@@ -1435,7 +1441,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
             const ultim = ing.preturi.length ? ing.preturi[ing.preturi.length - 1] : null;
             if (!ultim || Math.abs(ultim.pret - pret) / Math.max(ultim.pret, 1e-9) > 0.005) {
               schimbariPret.push({ cod: l.comp, denumire: l.denumire, um: umBaza, vechi: ultim?.pret ?? null, nou: pret });
-              ing.preturi = adaugaPretDatat(ing.preturi, azi, pret, l.denumire, avert);
+              ing.preturi = adaugaPretDatat(ing.preturi, azi, pret, l.denumire, avert, { tip: 'RETETAR', fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}) });
             }
           } else {
             avert.push(`${l.denumire}: fără cost în NBO — ingredientul intră fără preț`);
