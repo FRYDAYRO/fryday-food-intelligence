@@ -11,6 +11,8 @@ export interface Ingredient {
   furnizor?: string;
   preturi: PretIstoric[];
   activ: boolean;
+  /** Identitățile din 2.9 (cod de material sau denumire) pe care omul le-a legat de acest ingredient în coada de aprobare. */
+  aliasuri?: string[];
 }
 
 export interface Furnizor { cod: string; nume: string; contact?: string; }
@@ -203,7 +205,7 @@ export interface Nemapat {
   valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
   /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
-  sursa?: 'SALES_MIX' | 'PMIX';
+  sursa?: 'SALES_MIX' | 'PMIX' | 'NBO_29';
 }
 
 /**

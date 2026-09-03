@@ -7,6 +7,7 @@ import { cheieDenumire, parseSalesMix } from './salesmix';
 import { analizeaza47 } from './adaptor-47';
 import { LOCATIE_RETEA } from './fc-domeniu';
 import { cheieFereastra, fereastraDin, fereastraRand } from './surse-29';
+import { identificaIngredient } from './fc-material';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
 export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
@@ -334,7 +335,11 @@ export interface RezultatImport {
  * pe coduri (PMIX) — codul intern, numărul POS sau un alias, exact; pe denumiri (4.7 Sales
  * Mix) — denumirea produsului sau un alias, pe cheia de potrivire a denumirilor.
  */
-export function identitateSeRezolva(produse: Produs[], identitate: string, tip: 'PMIX' | 'SALES_MIX'): boolean {
+export function identitateSeRezolva(
+  nomenclator: { produse: Produs[]; ingrediente: Ingredient[] }, identitate: string, tip: 'PMIX' | 'SALES_MIX' | 'FC29_MATERIAL',
+): boolean {
+  if (tip === 'FC29_MATERIAL') return identificaIngredient(nomenclator.ingrediente, identitate, identitate) !== null;
+  const { produse } = nomenclator;
   if (tip === 'PMIX') {
     return produse.some(p => p.cod === identitate || p.codPos === identitate || (p.aliasuri ?? []).includes(identitate));
   }
@@ -1051,12 +1056,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
     else {
       const lunaImplicita = opt?.dataValabil?.slice(0, 7);
-      const dupaNumeIng = new Map(state.ingrediente.map(i => [norm(i.denumire), i.cod]));
       const DA = new Set(['da', 'yes', 'true', '1', 'x', 'normalizat']);
 
       const noi: Material29[] = [];
       const neclasificate = new Set<string>();
       const nemapate = new Set<string>();
+      // materialele fără corespondent, pe identitate (codul, sau denumirea când codul lipsește),
+      // cu leii cumulați — merg în coada comună de aprobare, nu se creează și nu se ghicesc
+      const necunoscute = new Map<string, { denumire: string; cant: number; valoare: number }>();
       const canaleNecunoscute = new Set<string>();
       const faraCost: number[] = [];
       let faraPerioada = 0, faraLocatie = 0, cuTeoretic = 0, cuCanal = 0, totalActual = 0;
@@ -1081,8 +1088,13 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
 
         const categorie = String(g(r, 'categorie')).trim();
         if (clasificaCategorie29(categorie).neclasificat) neclasificate.add(categorie || '(fără categorie)');
-        if (!state.ingrediente.some(x => x.cod === material) && !dupaNumeIng.has(norm(denumire))) {
+        if (identificaIngredient(state.ingrediente, material, denumire) === null) {
           nemapate.add(`${denumire} (${material})`);
+          const identitate = material || denumire;
+          const n = necunoscute.get(identitate) ?? { denumire, cant: 0, valoare: 0 };
+          n.cant += map.cant !== undefined ? (parseNumar(g(r, 'cant')) ?? 0) : 0;
+          n.valoare += costActual;
+          necunoscute.set(identitate, n);
         }
 
         const costTeoretic = map.costTeoretic !== undefined ? parseNumar(g(r, 'costTeoretic')) : null;
@@ -1167,8 +1179,19 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       if (nemapate.size) {
         avert.push(`${nemapate.size} materiale fără corespondent în nomenclator: `
           + [...nemapate].slice(0, 8).join(', ') + (nemapate.size > 8 ? '…' : '')
-          + ' — costul lor va apărea ca „Neexplicat" în puntea de reconciliere');
+          + ' — au intrat în coada de aprobare; costul lor apare ca „Neexplicat" în punte până la aprobare');
       }
+      // coada comună: intrările de material care încă nu se rezolvă și nu reapar acum rămân;
+      // cele reapărute se împrospătează cu cifrele acestui fișier; produsele nu sunt atinse
+      necunoscuteRulare = [...necunoscute.keys()];
+      const nemapateNoi29: Nemapat[] = [
+        ...state.nemapate.filter(n => n.sursa !== 'NBO_29'
+          || (identificaIngredient(state.ingrediente, n.denumire, n.categorie) === null && !necunoscute.has(n.denumire))),
+        ...[...necunoscute.entries()].map(([identitate, v]) => ({
+          denumire: identitate, categorie: v.denumire, cant: v.cant, valoare: v.valoare,
+          fisier: numeFisier, sursa: 'NBO_29' as const,
+        })),
+      ];
 
       // granularitate mixtă: aceeași perioadă cu linii pe restaurant ȘI fără restaurant se
       // însumează la nivel de companie — posibil același consum numărat de două ori
@@ -1181,7 +1204,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           + 'la nivel de companie ambele se însumează; verifică să nu fie același consum numărat de două ori');
       }
 
-      stateNou = { ...state, materiale29, linii29 };
+      stateNou = { ...state, materiale29, linii29, nemapate: nemapateNoi29 };
     }
   } else if (tip === 'COST_INGREDIENTE') {
     // prețul e opțional: un nomenclator pur (cod + denumire + UM) creează ingredientele

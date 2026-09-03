@@ -949,8 +949,8 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // la nesfârșit. O versiune fără listă (dinaintea acestui contract) rămâne duplicat.
   const cuAmprenta = acelasiFisier.filter(v => v.amprenta === amprenta);
   const ultimaCuAmprenta = cuAmprenta.length ? cuAmprenta.reduce((a, b) => (b.nr > a.nr ? b : a)) : null;
-  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX')
-    ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state.produse, id, intern))
+  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX' || intern === 'FC29_MATERIAL')
+    ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state, id, intern))
     : [];
   // Maparea deschide reimportul DOAR pentru același fișier, încă în vigoare, pe un nomenclator
   // care n-a pierdut nimic. Fiecare dintre cele trei condiții închide o cale reală de dublare:
@@ -1265,7 +1265,9 @@ function nemapateNoi(inainte: AppState, candidat: AppState | null): { numar: num
 const numeIntrari = (intern: TipImport | null | undefined, n: number): string =>
   intern === 'SALES_MIX'
     ? (n === 1 ? 'denumire necunoscută' : 'denumiri necunoscute')
-    : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
+    : intern === 'FC29_MATERIAL'
+      ? (n === 1 ? 'material necunoscut' : 'materiale necunoscute')
+      : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
 
 const fmtNr = (n: number): string => new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 2 }).format(n);
 
