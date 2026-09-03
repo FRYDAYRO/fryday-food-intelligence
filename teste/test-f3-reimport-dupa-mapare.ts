@@ -169,4 +169,49 @@ const vechi: AppState = { ...s2b, versiuniImport: versiuni(s2b).map(v => { const
 const r5 = imp(vechi, '4.7 august.xlsx', PART, '2026-09-03T09:00:00.000Z');
 t('fără listă pe versiune → DUPLICAT_EXACT, ca azi (limita e declarată)', r5.rezultat?.duplicat === 'DUPLICAT_EXACT');
 
+// ————————————————————————————————— 6. maparea NU deschide căi de dublare
+console.log('\n— 6. Maparea deschide reimportul doar pentru același fișier, încă în vigoare —');
+const inchis = (r: ReturnType<typeof imp>) => r.rezultat?.diagnostice.find(d => d.cod === 'IMPORT_DUPLICAT')?.detaliu ?? '';
+// (a) același conținut sub ALT nume: canalul s-ar deduce din nume și rândurile ar intra a doua oară
+const FARA_CANAL = P(ANTETE.filter(a => a !== 'Canal'), [
+  { Data: '2026-08-03', Locatie: 'L01', 'Cod produs': 'P1', Denumire: 'Burger', Cantitate: 100, 'Valoare neta': 1190 },
+  { Data: '2026-08-03', Locatie: 'L01', 'Cod produs': 'XX-1', Denumire: 'Milkshake Mango', Cantitate: 15, 'Valoare neta': 225 }]);
+const a1 = imp(BAZA, '4.7 instore.xlsx', FARA_CANAL);
+t('(a) fișier fără coloană de canal, canalul din nume: INSTORE', a1.batch.status === 'IMPORTAT' && vz(a1.stareNoua, 'P1')[0]?.canal === 'INSTORE');
+const a2 = imp(aproba(a1.stareNoua, 'XX-1', 'P2'), '4.7 delivery.xlsx', FARA_CANAL, '2026-09-03T09:00:00.000Z');
+t('(a) același conținut sub alt nume rămâne DUPLICAT și după alias', a2.rezultat?.duplicat === 'DUPLICAT_EXACT', `${a2.rezultat?.duplicat}`);
+t('(a) … nimic dublat pe DELIVERY: total rămâne 1190', aprox(net(a2.stareNoua), 1190) && !a2.stareNoua.vanzari.some(v => v.canal === 'DELIVERY'), `${net(a2.stareNoua)}`);
+t('(a) … iar diagnosticul spune de ce (alt nume)', /alt nume de fișier/.test(inchis(a2)), inchis(a2).slice(0, 90));
+const a3 = imp(aproba(a1.stareNoua, 'XX-1', 'P2'), '4.7 instore.xlsx', FARA_CANAL, '2026-09-03T09:00:00.000Z');
+t('(a) sub ACELAȘI nume, reimportul trece: 1190 + 225', a3.rezultat?.duplicat === 'REIMPORT_MAPARE' && aprox(net(a3.stareNoua), 1415), `${a3.rezultat?.duplicat} ${net(a3.stareNoua)}`);
+// (b) fișierul a fost CORECTAT (același nume, alt conținut): cel vechi nu se mai redeschide
+const V2 = P(ANTETE, [rand('P1', 'Burger', 120, 1428), rand('XX-1', 'Milkshake Mango', 10, 150), rand('XX-1', 'Milkshake Mango', 5, 75, '2026-08-04'), rand('YY-2', 'Ceva Nou', 2, 40)]);
+const b1 = imp(BAZA, '4.7 august.xlsx', PART);
+const b2 = imp(b1.stareNoua, '4.7 august.xlsx', V2, '2026-09-03T09:00:00.000Z');
+t('(b) corecția e REIMPORT_ACTUALIZAT: P1 = 1428', b2.rezultat?.duplicat === 'REIMPORT_ACTUALIZAT' && aprox(net(b2.stareNoua), 1428));
+const b3 = imp(aproba(b2.stareNoua, 'XX-1', 'P2'), '4.7 august.xlsx', PART, '2026-09-03T10:00:00.000Z');
+t('(b) fișierul VECHI după alias rămâne DUPLICAT (a fost înlocuit)', b3.rezultat?.duplicat === 'DUPLICAT_EXACT', `${b3.rezultat?.duplicat}`);
+t('(b) … corecția NU e anulată: P1 rămâne 1428', aprox(vz(b3.stareNoua, 'P1').reduce((a, v) => a + v.net, 0), 1428));
+t('(b) … diagnosticul numește versiunea care l-a înlocuit', /înlocuit de PMIX_47#2/.test(inchis(b3)), inchis(b3).slice(0, 90));
+const b4 = imp(aproba(b2.stareNoua, 'XX-1', 'P2'), '4.7 august.xlsx', V2, '2026-09-03T10:00:00.000Z');
+t('(b) fișierul CURENT după alias trece: 1428 + 225', b4.rezultat?.duplicat === 'REIMPORT_MAPARE' && aprox(net(b4.stareNoua), 1653), `${b4.rezultat?.duplicat} ${net(b4.stareNoua)}`);
+// (c) alt fișier, alt nume, aceeași fereastră: tot „înlocuit"
+const c1 = imp(BAZA, '4.7 aug v1.xlsx', PART);
+const c2 = imp(c1.stareNoua, '4.7 aug v2.xlsx', V2, '2026-09-03T09:00:00.000Z');
+const c3 = imp(aproba(c2.stareNoua, 'XX-1', 'P2'), '4.7 aug v1.xlsx', PART, '2026-09-03T10:00:00.000Z');
+t('(c) un fișier mai nou pe aceeași fereastră închide reimportul celui vechi', c3.rezultat?.duplicat === 'DUPLICAT_EXACT' && aprox(vz(c3.stareNoua, 'P1').reduce((a, v) => a + v.net, 0), 1428), `${c3.rezultat?.duplicat}`);
+// (d) o versiune mai nouă pe ALTĂ fereastră (septembrie) NU blochează augustul
+const SEPT2 = P(ANTETE, [rand('P1', 'Burger', 50, 595, '2026-09-01'), rand('YY-2', 'Ceva Nou', 3, 60, '2026-09-01')]);
+const d1 = imp(BAZA, '4.7 august.xlsx', PART);
+const d2 = imp(d1.stareNoua, '4.7 sept.xlsx', SEPT2, '2026-09-03T09:00:00.000Z');
+const d3 = imp(aproba(d2.stareNoua, 'XX-1', 'P2'), '4.7 august.xlsx', PART, '2026-09-03T10:00:00.000Z');
+t('(d) septembrie importat după august nu închide augustul: 1190 + 595 + 225', d3.rezultat?.duplicat === 'REIMPORT_MAPARE' && aprox(net(d3.stareNoua), 2010), `${d3.rezultat?.duplicat} ${net(d3.stareNoua)}`);
+// (e) produs ȘTERS după activare: rândurile lui ar ajunge în coadă cu vânzările încă în stare
+const e1 = imp(BAZA, '4.7 august.xlsx', PART);
+const eS = aproba({ ...e1.stareNoua, produse: e1.stareNoua.produse.filter(p => p.cod !== 'P1') }, 'XX-1', 'P2');
+const e2 = imp(eS, '4.7 august.xlsx', PART, '2026-09-03T09:00:00.000Z');
+t('(e) produs șters + alias: reimportul rămâne închis', e2.rezultat?.duplicat === 'DUPLICAT_EXACT', `${e2.rezultat?.duplicat}`);
+t('(e) … banii NU sunt de două ori: P1 nu apare în coadă', !e2.stareNoua.nemapate.some(n => n.denumire === 'P1') && aprox(net(e2.stareNoua), 1190));
+t('(e) … diagnosticul numește identitatea dispărută', /P1/.test(inchis(e2)) && /nu se mai mapează/.test(inchis(e2)), inchis(e2).slice(0, 100));
+
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);

@@ -672,6 +672,14 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   };
 }
 
+/** Două versiuni acoperă aceeași fereastră? Pe interval când îl au amândouă, altfel pe lună. */
+function seSuprapun(a: VersiuneSursa, b: VersiuneSursa): boolean {
+  if (a.intervalDe && a.intervalLa && b.intervalDe && b.intervalLa) {
+    return a.intervalDe <= b.intervalLa && b.intervalDe <= a.intervalLa;
+  }
+  return a.perioada !== null && a.perioada === b.perioada;
+}
+
 /** Cheia de duplicat pe rând, pe variantă internă. */
 function cheieRand(intern: TipImport, r: Record<string, unknown>, map: Record<string, string>): string | null {
   const v = (c: string) => (map[c] !== undefined ? String(r[map[c]] ?? '').trim() : '');
@@ -914,22 +922,24 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX')
     ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state.produse, id, intern))
     : [];
-  const duplicatExact = ultimaCuAmprenta !== null && mapateIntreTimp.length === 0;
-  const duplicat: RezultatCentral['duplicat'] = duplicatExact ? 'DUPLICAT_EXACT'
-    : mapateIntreTimp.length ? 'REIMPORT_MAPARE'
-      : acelasiFisier.some(v => v.fisier === cerere.fisier) ? 'REIMPORT_ACTUALIZAT' : 'NOU';
-  if (duplicatExact) {
-    adaugaDiag(col, 'IMPORT_DUPLICAT', 'ATENTIE', 'Fișier deja importat',
-      'Aceeași amprentă de conținut există deja: reimportul nu adaugă date noi și nu dublează nimic.',
-      [amprenta]);
-  }
-  if (ultimaCuAmprenta && mapateIntreTimp.length) {
-    adaugaDiag(col, 'REIMPORT_DUPA_MAPARE', 'INFO', 'Reimport după aprobarea unei mapări',
-      `Fișierul a mai fost importat (${ultimaCuAmprenta.id}), dar ${mapateIntreTimp.length} `
-      + (mapateIntreTimp.length === 1 ? 'identitate lăsată atunci nemapată se mapează' : 'identități lăsate atunci nemapate se mapează')
-      + ' acum. Rândurile lor intră; ce era deja importat se înlocuiește pe cheie, nu se dublează. '
-      + 'Versiunea veche rămâne în istoric.', mapateIntreTimp);
-  }
+  // Maparea deschide reimportul DOAR pentru același fișier, încă în vigoare, pe un nomenclator
+  // care n-a pierdut nimic. Fiecare dintre cele trei condiții închide o cale reală de dublare:
+  //  · alt nume de fișier cu același conținut → canalul se deduce din nume, rândurile ar intra
+  //    a doua oară pe alt canal;
+  //  · o versiune mai nouă (același nume, sau altă fereastră care o acoperă) l-a înlocuit →
+  //    reimportul celui vechi ar rescrie corecția cu cifrele vechi;
+  //  · o identitate mapată atunci e necunoscută acum (produs șters) → rândurile ei ar ajunge
+  //    în coadă, cu vânzările vechi încă în stare: aceiași bani de două ori.
+  const maiNoua = ultimaCuAmprenta ? acelasiFisier.find(w => w.nr > ultimaCuAmprenta.nr
+    && (w.fisier === ultimaCuAmprenta.fisier || seSuprapun(w, ultimaCuAmprenta))) : undefined;
+  const motivPreRulare = !ultimaCuAmprenta || !mapateIntreTimp.length ? null
+    : ultimaCuAmprenta.fisier !== cerere.fisier
+      ? `conținutul e identic cu ${ultimaCuAmprenta.id} („${ultimaCuAmprenta.fisier}"), dar sub alt nume de fișier — `
+        + 'reimportă-l sub același nume, altfel canalul dedus din nume ar dubla rândurile'
+      : maiNoua
+        ? `fișierul a fost înlocuit de ${maiNoua.id} („${maiNoua.fisier}"), care acoperă aceeași fereastră — `
+          + 'reimportă versiunea curentă, nu pe cea veche'
+        : null;
   const dataEfectiva = cerere.dataValabil ?? per.dataMin
     ?? (per.perioade[0] ? `${per.perioade[0]}-01` : acum.slice(0, 10));
   const activaCurenta = acelasiFisier.find(v => v.activa);
@@ -949,6 +959,33 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
   };
   const rulat = importa(intern, pEfectiv, cerere.fisier, copie, cerere.mapare, optiuni);
+  // a treia condiție se știe abia după rulare: ce e necunoscut ACUM față de ce era atunci
+  const disparute = ultimaCuAmprenta && mapateIntreTimp.length
+    ? (rulat.necunoscute ?? []).filter(id => !(ultimaCuAmprenta.nemapate ?? []).includes(id)) : [];
+  const motivInchis = motivPreRulare ?? (disparute.length && ultimaCuAmprenta
+    ? `${disparute.length} identități mapate la ${ultimaCuAmprenta.id} nu se mai mapează acum (${disparute.slice(0, 5).join(', ')}) — `
+      + 'vânzările lor sunt deja în stare; repară nomenclatorul înainte de reimport'
+    : null);
+  const reimportMapare = mapateIntreTimp.length > 0 && motivInchis === null;
+  const duplicatExact = ultimaCuAmprenta !== null && !reimportMapare;
+  const duplicat: RezultatCentral['duplicat'] = duplicatExact ? 'DUPLICAT_EXACT'
+    : reimportMapare ? 'REIMPORT_MAPARE'
+      : acelasiFisier.some(v => v.fisier === cerere.fisier) ? 'REIMPORT_ACTUALIZAT' : 'NOU';
+  if (duplicatExact) {
+    adaugaDiag(col, 'IMPORT_DUPLICAT', 'ATENTIE', 'Fișier deja importat',
+      motivInchis
+        ? `Aceeași amprentă de conținut există deja. ${mapateIntreTimp.length} identități s-au mapat între timp, `
+          + `dar reimportul rămâne închis: ${motivInchis}.`
+        : 'Aceeași amprentă de conținut există deja: reimportul nu adaugă date noi și nu dublează nimic.',
+      [amprenta]);
+  }
+  if (ultimaCuAmprenta && mapateIntreTimp.length) {
+    adaugaDiag(col, 'REIMPORT_DUPA_MAPARE', 'INFO', 'Reimport după aprobarea unei mapări',
+      `Fișierul a mai fost importat (${ultimaCuAmprenta.id}), dar ${mapateIntreTimp.length} `
+      + (mapateIntreTimp.length === 1 ? 'identitate lăsată atunci nemapată se mapează' : 'identități lăsate atunci nemapate se mapează')
+      + ' acum. Rândurile lor intră; ce era deja importat se înlocuiește pe cheie, nu se dublează. '
+      + 'Versiunea veche rămâne în istoric.', mapateIntreTimp);
+  }
   const erori = [...rulat.batch.erori];
   const avertismente = [...rulat.batch.avertismente];
 
