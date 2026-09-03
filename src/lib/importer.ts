@@ -1,11 +1,12 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, Produs, Reteta, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, Produs, Reteta, Sursa29, UMCod, VanzareFapt, WasteFapt } from './types';
 import { clasificaCategorie29 } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
 import { analizeaza47 } from './adaptor-47';
 import { LOCATIE_RETEA } from './fc-domeniu';
+import { cheieFereastra, fereastraDin, fereastraRand } from './surse-29';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
 export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
@@ -444,7 +445,18 @@ export interface OpteImport {
   dataRaport?: string;        // Sales Mix: ziua pe care se înregistrează perioada raportată
   locatieRaport?: string;     // Sales Mix: locația pe care se agregă raportul
   aliasuriNoi?: Record<string, string>;   // denumire din raport → cod de produs
+  /** 2.9: fereastra reală a raportului, când fișierul nu o poartă pe rând (declarată sau din antet). */
+  fereastra?: { de: string; la: string };
+  /** Amprenta fișierului, ca rândurile să-și poarte proveniența până la versiune. */
+  amprenta?: string;
 }
+
+/** Fereastra unui rând 2.9: cea declarată pentru tot fișierul, altfel luna rândului (raport lunar). */
+const fereastra29 = (opt: OpteImport | undefined, perioada: string): Fereastra29 =>
+  (opt?.fereastra ? fereastraDin(opt.fereastra.de, opt.fereastra.la) : fereastraRand({ perioada }));
+/** Proveniența unui rând 2.9: fișier, amprentă (= versiunea din Import Center) și rândul din fișier. */
+const sursa29 = (fisier: string, opt: OpteImport | undefined, rand?: number): Sursa29 =>
+  ({ fisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}), ...(rand !== undefined ? { rand } : {}) });
 
 export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: AppState,
   mapare?: Record<string, string>, opt?: OpteImport): RezultatImport {
@@ -1005,28 +1017,30 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     const lipsa = lipsesc(['categorie', 'valoare']);
     if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
     else {
-      const noi = p.randuri.flatMap((r, i) => {
+      const noi: Linie29[] = p.randuri.flatMap((r, i) => {
         const perioada = parsePerioada(g(r, 'perioada'));
         const categorie = String(g(r, 'categorie')).trim();
         const valoare = parseNumar(g(r, 'valoare'));
         if (!perioada || !categorie || valoare == null) { if (categorie) avert.push(`Rând ${i + 2}: date incomplete — ignorat`); return []; }
         const locatie = rezolvaLocatie(g(r, 'locatie'));
         perioade.add(perioada);
-        return [{ perioada, locatie, categorie, valoare }];
+        return [{ perioada, locatie, categorie, valoare, fereastra: fereastra29(opt, perioada), sursa: sursa29(numeFisier, opt, i + 2) }];
       });
-      const perechi = new Set(noi.map(l => `${l.perioada}|${l.locatie}`));
+      // identitatea de înlocuire e (fereastră reală, restaurant): un săptămânal nu atinge
+      // lunarul, lunarul nu atinge săptămânile, iar corecția aceleiași ferestre o înlocuiește
+      const chei = new Set(noi.map(l => cheieFereastra(fereastraRand(l), l.locatie)));
       importate = noi.length;
-      // detaliul pe material al perechilor înlocuite iese și el: altfel puntea pe material
+      // detaliul pe material al ferestrelor înlocuite iese și el: altfel puntea pe material
       // ar reconcilia un consum pe care acest import tocmai l-a înlocuit
-      const staleMat = (state.materiale29 ?? []).filter(m => m.locatie !== null && perechi.has(`${m.perioada}|${m.locatie}`));
+      const staleMat = (state.materiale29 ?? []).filter(m => m.locatie !== null && chei.has(cheieFereastra(fereastraRand(m), m.locatie)));
       if (staleMat.length) {
-        avert.push(`${staleMat.length} linii de detaliu pe material pentru aceleași (perioadă × locație) au fost eliminate — `
+        avert.push(`${staleMat.length} linii de detaliu pe material pentru aceleași (fereastră × locație) au fost eliminate — `
           + 'importul pe categorie le înlocuiește. Reimportă fișierul 2.9 pe material dacă vrei detaliul înapoi.');
       }
       stateNou = {
         ...state,
-        materiale29: (state.materiale29 ?? []).filter(m => !(m.locatie !== null && perechi.has(`${m.perioada}|${m.locatie}`))),
-        linii29: [...state.linii29.filter(l => !perechi.has(`${l.perioada}|${l.locatie}`)), ...noi],
+        materiale29: (state.materiale29 ?? []).filter(m => !(m.locatie !== null && chei.has(cheieFereastra(fereastraRand(m), m.locatie)))),
+        linii29: [...state.linii29.filter(l => !chei.has(cheieFereastra(fereastraRand(l), l.locatie))), ...noi],
       };
     }
   } else if (tip === 'FC29_MATERIAL') {
@@ -1093,14 +1107,16 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           costActual, costTeoretic,
           ...(normalizat ? { normalizat: true } : {}),
           ...(canal ? { canal } : {}),
+          fereastra: fereastra29(opt, perioada), sursa: sursa29(numeFisier, opt, i + 2),
         });
         totalActual += costActual;
         perioade.add(perioada);
         importate++;
       });
 
-      // reimportul aceleiași (perioade × locații) înlocuiește, nu adaugă
-      const cheia = (m: { perioada: string; locatie: string | null }) => `${m.perioada}|${m.locatie ?? ''}`;
+      // reimportul aceleiași (ferestre × locații) înlocuiește, nu adaugă; alte ferestre
+      // (săptămânile lunii, sau luna săptămânilor) rămân neatinse
+      const cheia = (m: { perioada: string; locatie: string | null; fereastra?: Fereastra29 }) => cheieFereastra(fereastraRand(m), m.locatie);
       const chei = new Set(noi.map(cheia));
       const materiale29 = [...(state.materiale29 ?? []).filter(m => !chei.has(cheia(m))), ...noi];
 
@@ -1110,13 +1126,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       const rollup = new Map<string, Linie29>();
       for (const m of noi) {
         if (!m.locatie) continue;
-        const k = `${m.perioada}|${m.locatie}|${m.categorie}`;
+        const k = `${cheieFereastra(fereastraRand(m), m.locatie)}|${m.categorie}`;
         const e = rollup.get(k);
         if (e) e.valoare += m.costActual;
-        else rollup.set(k, { perioada: m.perioada, locatie: m.locatie, categorie: m.categorie, valoare: m.costActual });
+        else rollup.set(k, { perioada: m.perioada, locatie: m.locatie, categorie: m.categorie, valoare: m.costActual,
+          fereastra: fereastraRand(m), sursa: sursa29(numeFisier, opt) });
       }
-      const perechi29 = new Set([...rollup.values()].map(l => `${l.perioada}|${l.locatie}`));
-      const linii29 = [...state.linii29.filter(l => !perechi29.has(`${l.perioada}|${l.locatie}`)), ...rollup.values()];
+      const perechi29 = new Set([...rollup.values()].map(l => cheieFereastra(fereastraRand(l), l.locatie)));
+      const linii29 = [...state.linii29.filter(l => !perechi29.has(cheieFereastra(fereastraRand(l), l.locatie))), ...rollup.values()];
 
       // ——— raportarea onestă a ce s-a importat și a ce lipsește
       avert.push(`${noi.length} linii de material, ${fmtNr(Math.round(totalActual))} lei consum actual, `

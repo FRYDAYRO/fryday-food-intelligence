@@ -14,8 +14,9 @@
 //  · perioada sursă se păstrează pe fiecare rând.
 import { consumuriLuna, norm, pretCurent } from './engine';
 import type { AppState, Material29, UMCod } from './types';
+import { selecteaza29 } from './surse-29';
 import {
-  eLunaIntreaga, locatieDin, luniAtinse,
+  locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCChannelSursa, type SursaFC,
 } from './fc-domeniu';
 import {
@@ -407,11 +408,6 @@ export function reconciliationMaterialFC(
     diagnostice: [], surse: recipe.surse,
   });
 
-  // 2.9 e lunar: nu se fabrică valori săptămânale din date lunare
-  if (!eLunaIntreaga(cerere.perioada)) {
-    return gol(`Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} (${interval}) nu acoperă `
-      + 'luni întregi, deci consumul pe material nu i se poate atribui fără a inventa o repartiție pe zile.');
-  }
   // 2.9 nu are canal: nu se inventează repartiția
   if (cerere.canal !== 'TOTAL') {
     return gol('Raportul 2.9 nu conține canalul. Consumul pe material există doar la nivel de Total; '
@@ -419,13 +415,14 @@ export function reconciliationMaterialFC(
   }
 
   const toate = state.materiale29 ?? [];
-  const inScop = toate.filter(m => luni.includes(m.perioada) && (!loc || m.locatie === loc));
-  if (!inScop.length) {
-    return gol(toate.length
-      ? `Nu există linii 2.9 pe material pentru ${luni.join(', ')}${loc ? ` la restaurantul ${loc}` : ''}.`
-      : 'Nu a fost importat niciun raport 2.9 la nivel de material. Structura pe categorie nu permite '
-        + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
+  if (!toate.length) {
+    return gol('Nu a fost importat niciun raport 2.9 la nivel de material. Structura pe categorie nu permite '
+      + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
   }
+  // sursa 2.9 potrivită cererii: lunarul pe lună, săptămânalul pe săptămână, niciodată însumate
+  const sel = selecteaza29(toate, cerere.perioada, loc);
+  if (!sel.disponibil) return gol(sel.motiv ?? `Nu există linii 2.9 pe material pentru ${luni.join(', ')}.`);
+  const inScop = sel.randuri;
 
   // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge):
   // pe scop pentru diagnostice, pe (lună × locație) pentru rânduri — ca teoreticul unui

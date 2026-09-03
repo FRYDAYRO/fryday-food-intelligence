@@ -30,6 +30,9 @@ export default function ImportCenter() {
   const [tip, setTip] = useState<TipSursaFC | ''>('');
   const [locatie, setLocatie] = useState('');
   const [dataValabil, setDataValabil] = useState('');
+  // 2.9 săptămânal exportat doar cu luna: omul declară fereastra reală, altfel raportul e lunar
+  const [fereastraDe, setFereastraDe] = useState('');
+  const [fereastraLa, setFereastraLa] = useState('');
   const [mesaj, setMesaj] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -50,6 +53,7 @@ export default function ImportCenter() {
     ...(tip ? { tip } : {}),
     ...(locatie ? { locatie } : {}),
     ...(dataValabil ? { dataValabil } : {}),
+    ...(fereastraDe && fereastraLa ? { interval: { de: fereastraDe, la: fereastraLa } } : {}),
   });
 
   const alege = async (f: File) => {
@@ -108,6 +112,12 @@ export default function ImportCenter() {
           </Camp>
           <Camp eticheta="Valabil de la">
             <In type="date" data-camp="dataValabil" value={dataValabil} onChange={e => setDataValabil(e.target.value)} />
+          </Camp>
+          <Camp eticheta="Fereastra raportului 2.9 — de la (doar dacă fișierul nu o poartă)">
+            <In type="date" data-camp="fereastraDe" value={fereastraDe} onChange={e => setFereastraDe(e.target.value)} />
+          </Camp>
+          <Camp eticheta="… până la (un 2.9 doar cu luna e raportul lunar)">
+            <In type="date" data-camp="fereastraLa" value={fereastraLa} onChange={e => setFereastraLa(e.target.value)} />
           </Camp>
           <div className="lg:col-span-4">
             <Btn varianta="linie" disabled={!parsat} onClick={repregateste}>Re-validează cu opțiunile de mai sus</Btn>

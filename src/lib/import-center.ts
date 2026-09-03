@@ -233,7 +233,7 @@ function fnv1a(s: string): string {
  */
 export function amprentaSursa(
   tip: TipSursaFC, p: Parsat,
-  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string> },
+  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string>; interval?: { de: string; la: string } },
 ): string {
   // antetele se ordonează canonic, dar se păstrează ORIGINALELE: două coloane care se
   // normalizează la fel („Pret" și „Preț") rămân distincte, altfel conținut diferit ar
@@ -248,7 +248,10 @@ export function amprentaSursa(
   const optiuni = JSON.stringify(o, Object.keys(o).sort());
   const m = opt?.mapare ?? {};
   const mapare = JSON.stringify(m, Object.keys(m).sort());
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare,
+  // fereastra declarată face parte din identitate: același conținut declarat pe altă fereastră
+  // e alt raport (săptămâna 32 și săptămâna 33 pot avea, teoretic, aceleași cifre)
+  const interval = opt?.interval ? `${opt.interval.de}|${opt.interval.la}` : '';
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare, interval,
     ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
   return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
@@ -467,6 +470,11 @@ export interface CerereImport {
   dataValabil?: string;
   /** Restaurantul declarat, când fișierul nu îl conține. */
   locatie?: string;
+  /**
+   * Fereastra reală a raportului, declarată de om când fișierul nu o poartă (un 2.9
+   * săptămânal exportat doar cu luna). Fără ea, un 2.9 cu coloană de lună e raportul lunar.
+   */
+  interval?: { de: string; la: string };
   optiuni?: OpteImport;
   /**
    * Maparea manuală de coloane, când omul a corectat-o în interfață. Fără ea, ecranul
@@ -672,6 +680,23 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   };
 }
 
+const eSursa29 = (intern: TipImport) => intern === 'FC29' || intern === 'FC29_MATERIAL';
+
+/**
+ * Fereastra reală a unui 2.9: cea din rândurile cu dată, altfel cea DECLARATĂ de om. Un
+ * fișier doar cu coloana de lună NU primește interval de versiune: „2026-08" poate eticheta
+ * și 1–9 august, iar regula documentată e că nedeclaratul rămâne nedeclarat
+ * (INSUFFICIENT_DATA, fără blocare). Rândurile lui se citesc ca raportul lunar al lunii lor.
+ */
+function cuFereastra29(per: Perioade, intern: TipImport, declarat?: { de: string; la: string }): Perioade {
+  if (!eSursa29(intern)) return per;
+  if (per.intervalDe && per.intervalLa) return per;
+  if (declarat && parseData(declarat.de) && parseData(declarat.la) && declarat.de <= declarat.la) {
+    return { ...per, intervalDe: declarat.de, intervalLa: declarat.la };
+  }
+  return per;
+}
+
 /** Două versiuni acoperă aceeași fereastră? Pe interval când îl au amândouă, altfel pe lună. */
 function seSuprapun(a: VersiuneSursa, b: VersiuneSursa): boolean {
   if (a.intervalDe && a.intervalLa && b.intervalDe && b.intervalLa) {
@@ -734,7 +759,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   const amprenta = amprentaSursa(tip, p, {
     dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
-    mapare: cerere.mapare,
+    mapare: cerere.mapare, interval: cerere.interval,
   });
   // varianta fixată de ecran are prioritate, dar numai dacă aparține chiar tipului cerut:
   // un `internPreferat` străin ar muta importul în alt raport, tăcut
@@ -812,9 +837,14 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   }
 
   // — perioade și granularitate
-  const per = determinaPerioade(intern, pEfectiv, map, cerere.dataValabil);
+  const per = cuFereastra29(determinaPerioade(intern, pEfectiv, map, cerere.dataValabil), intern, cerere.interval);
   adaugaDiag(col, 'DATE_INVALIDE', 'ATENTIE', 'Date calendaristice necitibile',
     'Rândurile cu dată invalidă nu pot fi atribuite unei perioade.', per.dateInvalide);
+  if (cerere.interval && !(parseData(cerere.interval.de) && parseData(cerere.interval.la) && cerere.interval.de <= cerere.interval.la)) {
+    adaugaDiag(col, 'DATE_INVALIDE', 'BLOCANT', 'Fereastra declarată nu e un interval valid',
+      'Fereastra raportului trebuie declarată ca două date calendaristice, prima cel mult egală cu a doua.',
+      [`${cerere.interval.de} – ${cerere.interval.la}`]);
+  }
 
   // — numere invalide pe câmpurile numerice ale variantei
   const campuriNumerice: Partial<Record<TipImport, string[]>> = {
@@ -955,6 +985,9 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const optiuni: OpteImport = {
     ...cerere.optiuni,
     ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+    // 2.9 își poartă fereastra reală și proveniența pe fiecare rând
+    ...(eSursa29(intern) && per.intervalDe && per.intervalLa ? { fereastra: { de: per.intervalDe, la: per.intervalLa } } : {}),
+    amprenta,
     // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
   };
@@ -1273,6 +1306,8 @@ export interface CerereUnificata {
   optiuni?: OpteImport;
   locatie?: string;
   dataValabil?: string;
+  /** 2.9: fereastra reală a raportului, când fișierul nu o poartă (săptămânal exportat cu luna). */
+  interval?: { de: string; la: string };
   actor?: string;
   acum?: string;
 }
@@ -1308,6 +1343,7 @@ export function importaUnificat(state: AppState, cerere: CerereUnificata): Rezul
       ...(cerere.optiuni ? { optiuni: cerere.optiuni } : {}),
       ...(cerere.locatie ? { locatie: cerere.locatie } : {}),
       ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+      ...(cerere.interval ? { interval: cerere.interval } : {}),
       actor, acum,
     });
     const { stareNoua, rezultat } = activeazaImport(state, pregatire);

@@ -68,7 +68,24 @@ export interface SalesReportRand {
   net: number; brut?: number; bonuri?: number;
 }
 
-export interface Linie29 { perioada: string; locatie: string; categorie: string; valoare: number; }
+export type Granularitate29 = 'SAPTAMANA' | 'LUNA' | 'INTERVAL';
+
+/**
+ * Fereastra REALĂ a raportului 2.9 din care vine un rând, cu precizie de zi. Un săptămânal și
+ * un lunar sunt observații diferite ale aceleiași realități: nu se adună și nu se șterg
+ * reciproc, deci identitatea unui rând e (fereastră, restaurant), nu (lună, restaurant).
+ */
+export interface Fereastra29 { de: string; la: string; granularitate: Granularitate29; }
+
+/** Proveniența unui rând 2.9: fișierul, amprenta lui (= versiunea) și rândul din fișier. */
+export interface Sursa29 { fisier: string; amprenta?: string; rand?: number; }
+
+export interface Linie29 {
+  perioada: string; locatie: string; categorie: string; valoare: number;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
+}
 
 /**
  * O linie din raportul 2.9 la nivel de MATERIAL, nu de categorie.
@@ -94,6 +111,9 @@ export interface Material29 {
   normalizat?: boolean;
   /** Canalul, DOAR când exportul îl precizează explicit. Lipsă = necunoscut, nu Total. */
   canal?: Canal;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
 }
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';

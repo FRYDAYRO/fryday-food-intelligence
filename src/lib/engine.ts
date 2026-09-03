@@ -56,6 +56,14 @@ export function pretLa(ing: Ingredient, data: string): number {
 
 export const pretCurent = (ing: Ingredient) => pretLa(ing, '9999-12-31');
 
+/**
+ * Rândul 2.9 aparține raportului LUNAR al lunii date? Rândurile săptămânale ale aceleiași
+ * luni nu intră: sunt altă observație a aceleiași realități, nu o parte de adunat. Un rând
+ * fără fereastră (importat înainte de contract) e lunar prin definiție.
+ */
+export const eLinie29Lunara = (l: { perioada: string; fereastra?: { de: string; granularitate: string } }, luna: string): boolean =>
+  (l.fereastra ? l.fereastra.granularitate === 'LUNA' && l.fereastra.de.slice(0, 7) === luna : l.perioada === luna);
+
 export function versiuneActiva(r: Reteta): VersiuneReteta {
   return r.versiuni.find(v => v.nr === r.activa) ?? r.versiuni[r.versiuni.length - 1];
 }
@@ -482,7 +490,7 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
   const net = srNet > 0 ? srNet : ag.net;
   const numitor = srNet > 0 ? 'Sales Report' as const : 'PMIX' as const;
 
-  const linii = state.linii29.filter(l => l.perioada === lunaSel && (!loc || l.locatie === loc));
+  const linii = state.linii29.filter(l => eLinie29Lunara(l, lunaSel) && (!loc || l.locatie === loc));
   const are29 = linii.length > 0;
   let consumOp = 0, consumCurat = 0, paper29 = 0;
   for (const l of linii) {
