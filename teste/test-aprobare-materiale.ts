@@ -124,4 +124,15 @@ t('selectorul rândului de material listează INGREDIENTE', /Piept de pui/.test(
 t('selectorul rândului de produs listează produse', /Burger/.test(html));
 t('titlul nu mai vorbește doar de POS', /material/i.test(html));
 
+
+// ————————————————————————————————— 7. în coadă intră doar ce trebuie mapat
+console.log('\n— 7. Uniformele și birotica nu intră în coadă; Food și Paper da; neclasificatul se semnalează —');
+const MIXT = P([rand('M1', 'Carne vita', 800), rand('U1', 'TRICOU CREW L', 90, 'UNIFORMA CREW & MANAGERI'), rand('B1', 'Toner', 300, 'Birotica'), rand('P9', 'Cutie burger', 50, 'PAPER'), rand('X9', 'Aperol', 40, 'Alcool')]);
+const r7 = imp(BAZA, { fisier: '2.9 mixt.xlsx', parsat: MIXT, acum: ACUM(8) });
+const c7 = r7.stareNoua.nemapate.filter(n => felNemapat(n) === 'MATERIAL').map(n => n.denumire).sort();
+t('doar materialul PAPER necunoscut intră în coadă', c7.join(',') === 'P9', c7.join(','));
+t('uniforma și birotica sunt importate ca rânduri 2.9, dar nu cer aprobare', (r7.stareNoua.materiale29 ?? []).some(m => m.material === 'U1') && !c7.includes('U1') && !c7.includes('B1'));
+t('categoria neclasificată („Alcool") e semnalată, nu pusă în coadă', r7.rezultat.diagnostice.some(d => d.cod === 'CATEGORIE_NECUNOSCUTA' && d.exemple.includes('Alcool')) && !c7.includes('X9'));
+t('versiunea reține ca nemapate doar identitățile din coadă', ((r7.stareNoua.versiuniImport ?? [])[0]?.nemapate ?? []).join(',') === 'P9');
+
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);

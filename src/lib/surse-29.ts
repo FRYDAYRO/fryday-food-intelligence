@@ -18,7 +18,7 @@
  * lunar al lunii lor, exact cum erau citite și până acum.
  */
 import { marginiLuna, luniAtinse, eLunaIntreaga, type FCPeriod } from './fc-domeniu';
-import type { Fereastra29, Granularitate29 } from './types';
+import type { Fereastra29, Granularitate29, VersiuneSursa } from './types';
 
 export type { Fereastra29, Granularitate29 };
 
@@ -143,3 +143,25 @@ export function selecteaza29<T extends Rand29>(
 }
 
 const seIntersecteaza = (a: { de: string; la: string }, b: { de: string; la: string }) => a.de <= b.la && b.de <= a.la;
+
+/**
+ * Versiunea `noua` o înlocuiește pe `veche` (același tip)? Da când e ACEEAȘI fereastră —
+ * amândouă declarate și egale, sau amândouă nedeclarate pe aceeași lună — sau când e
+ * același fișier redeclarat pe o fereastră care o atinge pe cea veche (corecția unei ferestre
+ * declarate greșit). Un săptămânal și un lunar ale aceleiași luni NU se înlocuiesc: coexistă.
+ */
+export function inlocuieste(noua: VersiuneSursa, veche: VersiuneSursa): boolean {
+  if (noua.tip !== veche.tip) return false;
+  if (noua.amprentaContinut && noua.amprentaContinut === veche.amprentaContinut && noua.amprenta !== veche.amprenta) return true;
+  const dN = !!(noua.intervalDe && noua.intervalLa), dV = !!(veche.intervalDe && veche.intervalLa);
+  if (dN && dV) {
+    if (noua.intervalDe === veche.intervalDe && noua.intervalLa === veche.intervalLa) return true;
+    return noua.fisier === veche.fisier && noua.intervalDe! <= veche.intervalLa! && veche.intervalDe! <= noua.intervalLa!;
+  }
+  // fără fereastră de ambele părți: sursele comune (prețuri, nomenclator, rețetar) sunt
+  // instantanee — fiecare versiune nouă o înlocuiește pe cea dinainte; rapoartele pe
+  // restaurant se înlocuiesc doar pe aceeași lună
+  if (!dN && !dV) return noua.scop === 'COMUN' || noua.perioada === veche.perioada;
+  return noua.fisier === veche.fisier;
+}
+

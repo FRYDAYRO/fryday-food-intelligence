@@ -12,9 +12,9 @@
 //  · 2.9 nu are canal → canalul sursă este UNKNOWN, nu se repartizează pe InStore/Delivery;
 //  · 2.9 e lunar → nu se fabrică valori săptămânale din date lunare;
 //  · perioada sursă se păstrează pe fiecare rând.
-import { consumuriLuna, norm, pretCurent } from './engine';
+import { consumuriInterval, norm, pretCurent } from './engine';
 import type { AppState, Material29, UMCod } from './types';
-import { selecteaza29 } from './surse-29';
+import { fereastraRand, selecteaza29, type Fereastra29 } from './surse-29';
 import {
   locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCChannelSursa, type SursaFC,
@@ -186,11 +186,14 @@ function mapeaza(material: Material29, ctx: CtxFC, utilizari: Map<string, number
 // ————————————————————————————————————————————————————— piesele refolosibile ale motorului
 // (folosite și de puntea canonică din fc-bridge — aceleași rânduri, aceleași diagnostice)
 
-/** Teoreticul reconstruit din rețete × PMIX (pe Total), pe lunile și locația cerute. */
-export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], loc: string | undefined): Map<string, number> {
+/**
+ * Teoreticul reconstruit din rețete × PMIX (pe Total), pe FERESTRELE rapoartelor 2.9 alese și
+ * pe locația cerută. Fereastra, nu luna: teoreticul unui 2.9 săptămânal e al săptămânii lui.
+ */
+export function teoreticDinRetete(state: AppState, ctx: CtxFC, ferestre: Fereastra29[], loc: string | undefined): Map<string, number> {
   const rez = new Map<string, number>();
-  for (const l of luni) {
-    for (const [cod, v] of consumuriLuna(state, ctx, l, loc)) {
+  for (const f of ferestre) {
+    for (const [cod, v] of consumuriInterval(state, ctx, f.de, f.la, loc)) {
       rez.set(cod, (rez.get(cod) ?? 0) + v.valoare);
     }
   }
@@ -205,13 +208,13 @@ export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], l
  * Locația `null` înseamnă rând agregat → teoreticul întregii rețele.
  */
 export function teoreticPeRand(
-  state: AppState, ctx: CtxFC, luni: string[], locatii: (string | null)[],
+  state: AppState, ctx: CtxFC, ferestre: Fereastra29[], locatii: (string | null)[],
 ): Map<string, number> {
   const rez = new Map<string, number>();
-  for (const l of luni) {
+  for (const f of ferestre) {
     for (const lc of new Set(locatii)) {
-      for (const [cod, v] of consumuriLuna(state, ctx, l, lc ?? undefined)) {
-        rez.set(`${l}|${lc ?? ''}|${cod}`, v.valoare);
+      for (const [cod, v] of consumuriInterval(state, ctx, f.de, f.la, lc ?? undefined)) {
+        rez.set(`${f.de}|${f.la}|${lc ?? ''}|${cod}`, v.valoare);
       }
     }
   }
@@ -239,8 +242,8 @@ export function randuriMaterialFC(
   const dupaNume = new Map<string, string>();
   for (const i of ctx.ingrediente.values()) dupaNume.set(norm(i.denumire), i.cod);
 
-  // câte rânduri ale aceleiași (luni, locații) se mapează pe fiecare ingredient
-  const cheiaRand = (m: Material29, ingredient: string) => `${m.perioada}|${m.locatie ?? ''}|${ingredient}`;
+  // câte rânduri ale aceleiași (ferestre, locații) se mapează pe fiecare ingredient
+  const cheiaRand = (m: Material29, ingredient: string) => { const f = fereastraRand(m); return `${f.de}|${f.la}|${m.locatie ?? ''}|${ingredient}`; };
   const mapari = materiale.map(m => mapeaza(m, ctx, utilizari, dupaNume));
   const cateOri = new Map<string, number>();
   materiale.forEach((m, i) => {
@@ -446,8 +449,8 @@ export function reconciliationMaterialFC(
   // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge):
   // pe scop pentru diagnostice, pe (lună × locație) pentru rânduri — ca teoreticul unui
   // ingredient să nu se atribuie de mai multe ori
-  const teoreticPeIngredient = teoreticDinRetete(state, ctx, luni, loc);
-  const teoreticRand = teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]);
+  const teoreticPeIngredient = teoreticDinRetete(state, ctx, sel.ferestre, loc);
+  const teoreticRand = teoreticPeRand(state, ctx, sel.ferestre, [...new Set(inScop.map(m => m.locatie))]);
   const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator);
 
   // ——— găleata fiecărui rând

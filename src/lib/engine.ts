@@ -946,9 +946,19 @@ export function consumLunarIngredient(codIng: string, state: AppState, ctx: CtxC
 
 // cheltuiala lunară pe fiecare ingredient (consum brut × preț curent), pentru Achiziții
 export function consumuriLuna(state: AppState, ctx: CtxCost, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
+  const [an, l] = lunaRef.split('-').map(Number);
+  const ultima = new Date(Date.UTC(an, l, 0)).toISOString().slice(0, 10);
+  return consumuriInterval(state, ctx, `${lunaRef}-01`, ultima, locatie);
+}
+
+/**
+ * Consumul teoretic (rețete × vânzări) pe o fereastră de zile [de, la] — aceeași aritmetică
+ * ca pe lună, ca teoreticul unui raport 2.9 săptămânal să fie al săptămânii lui, nu al lunii.
+ */
+export function consumuriInterval(state: AppState, ctx: CtxCost, de: string, la: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
   const vol = new Map<string, number>();
   for (const v of state.vanzari) {
-    if (luna(v.data) !== lunaRef) continue;
+    if (v.data < de || v.data > la) continue;
     if (locatie && v.locatie !== locatie) continue;
     const k = `${v.produs}|${v.canal}`;
     vol.set(k, (vol.get(k) ?? 0) + v.cant);

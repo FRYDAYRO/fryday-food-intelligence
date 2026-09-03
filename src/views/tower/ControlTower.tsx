@@ -14,6 +14,7 @@ import {
   SECTIUNI, accesTower, normalizeazaSelectie, origineDate, selectieImplicita,
   type IdSectiune, type SelectieFC,
 } from '../../lib/fc-tower';
+import { cerereBaza } from '../../lib/fc-tower';
 import { bandaPerioade } from '../../lib/perioade-surse';
 import { BandaPerioade } from './parti';
 import { TowerProvider, useTower } from './context';
@@ -112,8 +113,11 @@ function RestaurantNemapat({ nume }: { nume: string }) {
  * fiecare secțiune, deci nu are voie să recalculeze la fiecare tastă apăsată în bară.
  */
 function BandaPerioadeTower() {
-  const { state } = useTower();
-  const date = useMemo(() => bandaPerioade(state), [state.versiuniImport]);
+  const { state, sel } = useTower();
+  // verdictul se dă pe fereastra cererii curente: un săptămânal și un lunar 2.9 coexistă
+  // fără ca banda să afirme un blocaj pe care niciun motor nu-l aplică
+  const perioada = useMemo(() => cerereBaza(sel).perioada, [sel.ancora, sel.granularitate]);
+  const date = useMemo(() => bandaPerioade(state, perioada), [state.versiuniImport, perioada]);
   return <BandaPerioade date={date} />;
 }
 

@@ -30,6 +30,7 @@ import {
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
 import { parseSalesMix } from './salesmix';
+import { inlocuieste } from './surse-29';
 
 // ————————————————————————————————————————————————————————— tipurile canonice de sursă
 
@@ -443,6 +444,8 @@ export interface RezultatCentral {
   amprenta: string;
   /** Identitățile lăsate nemapate de această rulare — ajung pe versiune la activare. */
   necunoscute: string[];
+  /** Amprenta conținutului fără fereastra declarată (vezi `VersiuneSursa.amprentaContinut`). */
+  amprentaContinut: string;
   versiune: string | null;
   activat: boolean;
   stare: 'VALIDAT' | 'ACTIVAT' | 'RESPINS' | 'NECESITA_CONFIRMARE' | 'DUPLICAT';
@@ -698,14 +701,6 @@ function cuFereastra29(per: Perioade, intern: TipImport, declarat?: { de: string
   return per;
 }
 
-/** Două versiuni acoperă aceeași fereastră? Pe interval când îl au amândouă, altfel pe lună. */
-function seSuprapun(a: VersiuneSursa, b: VersiuneSursa): boolean {
-  if (a.intervalDe && a.intervalLa && b.intervalDe && b.intervalLa) {
-    return a.intervalDe <= b.intervalLa && b.intervalDe <= a.intervalLa;
-  }
-  return a.perioada !== null && a.perioada === b.perioada;
-}
-
 /** Cheia de duplicat pe rând, pe variantă internă. */
 function cheieRand(intern: TipImport, r: Record<string, unknown>, map: Record<string, string>): string | null {
   const v = (c: string) => (map[c] !== undefined ? String(r[map[c]] ?? '').trim() : '');
@@ -725,6 +720,12 @@ function cheieRand(intern: TipImport, r: Record<string, unknown>, map: Record<st
 export function pregatesteImport(state: AppState, cerere: CerereImport): PregatireImport {
   const acum = cerere.acum ?? new Date().toISOString();
   const actor = cerere.actor?.trim() || ACTOR_SISTEM;
+  // fereastra declarată se normalizează la ISO înainte de orice (parseData acceptă și
+  // dd.mm.yyyy): un șir brut ar ajunge în amprentă și în rândurile 2.9 nenormalizat
+  const intervalBrut = cerere.interval;
+  const intervalNorm = intervalBrut && parseData(intervalBrut.de) && parseData(intervalBrut.la)
+    ? { de: parseData(intervalBrut.de)!, la: parseData(intervalBrut.la)! } : intervalBrut;
+  cerere = intervalNorm ? { ...cerere, interval: intervalNorm } : cerere;
   const p = cerere.parsat;
   const detectie = detecteazaSursa(p.antete, cerere.fisier);
   const tip = cerere.tip ?? (detectie.stare === 'SIGUR' ? detectie.tip : null);
@@ -738,7 +739,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       perioada: null, perioade: [], intervalDe: null, intervalLa: null, dataEfectiva: acum.slice(0, 10),
       granularitate: 'FARA', scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE',
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
-      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta, necunoscute: [],
+      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta, necunoscute: [], amprentaContinut: amprenta,
       versiune: null, activat: false, stare, importatLa: acum, actor,
       diagnostice: col.diag, schimbari: null, nemapateDePastrat: 0,
       audit: {
@@ -761,6 +762,10 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const amprenta = amprentaSursa(tip, p, {
     dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
     mapare: cerere.mapare, interval: cerere.interval,
+  });
+  // conținutul fără fereastra declarată: același conținut pe altă fereastră = fișier corectat
+  const amprentaContinut = amprentaSursa(tip, p, {
+    dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni, mapare: cerere.mapare,
   });
   // varianta fixată de ecran are prioritate, dar numai dacă aparține chiar tipului cerut:
   // un `internPreferat` străin ar muta importul în alt raport, tăcut
@@ -961,8 +966,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   //    reimportul celui vechi ar rescrie corecția cu cifrele vechi;
   //  · o identitate mapată atunci e necunoscută acum (produs șters) → rândurile ei ar ajunge
   //    în coadă, cu vânzările vechi încă în stare: aceiași bani de două ori.
-  const maiNoua = ultimaCuAmprenta ? acelasiFisier.find(w => w.nr > ultimaCuAmprenta.nr
-    && (w.fisier === ultimaCuAmprenta.fisier || seSuprapun(w, ultimaCuAmprenta))) : undefined;
+  const maiNoua = ultimaCuAmprenta ? acelasiFisier.find(w => w.nr > ultimaCuAmprenta.nr && inlocuieste(w, ultimaCuAmprenta)) : undefined;
   const motivPreRulare = !ultimaCuAmprenta || !mapateIntreTimp.length ? null
     : ultimaCuAmprenta.fisier !== cerere.fisier
       ? `conținutul e identic cu ${ultimaCuAmprenta.id} („${ultimaCuAmprenta.fisier}"), dar sub alt nume de fișier — `
@@ -986,8 +990,14 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const optiuni: OpteImport = {
     ...cerere.optiuni,
     ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
-    // 2.9 își poartă fereastra reală și proveniența pe fiecare rând
-    ...(eSursa29(intern) && per.intervalDe && per.intervalLa ? { fereastra: { de: per.intervalDe, la: per.intervalLa } } : {}),
+    // 2.9 își poartă fereastra reală și proveniența pe fiecare rând; un fișier fără coloana
+    // de lună își ia luna din fereastra declarată, nu rămâne fără perioadă
+    ...(eSursa29(intern) && per.intervalDe && per.intervalLa
+      ? { fereastra: { de: per.intervalDe, la: per.intervalLa }, ...(cerere.dataValabil ? {} : { dataValabil: per.intervalDe }) } : {}),
+    // același conținut declarat înainte pe altă fereastră: acele versiuni sunt înlocuite
+    amprenteInlocuite: (state.versiuniImport ?? [])
+      .filter(v => v.tip === tip && v.amprentaContinut === amprentaContinut && v.amprenta !== amprenta)
+      .map(v => v.amprenta),
     amprenta,
     // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
@@ -1086,7 +1096,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
     avertismente, erori,
     acoperire: asteptate !== null && asteptate > 0 ? Math.min(100, (importate / asteptate) * 100) : null,
-    duplicat, amprenta, necunoscute: rulat.necunoscute ?? [],
+    duplicat, amprenta, amprentaContinut, necunoscute: rulat.necunoscute ?? [],
     versiune: null, activat: false,
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
@@ -1202,21 +1212,27 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   const alePipului = versiuni.filter(v => v.tip === r.tip);
   const nr = alePipului.length + 1;
   const dataEfectiva = r.dataEfectiva;
-  const activaCurenta = alePipului.find(v => v.activa);
-  // o versiune mai veche decât cea activă rămâne istoric, dar nu preia rolul de curentă
-  const devineActiva = !activaCurenta || dataEfectiva >= activaCurenta.dataEfectiva;
   const versiune: VersiuneSursa = {
     id: `${r.tip}#${nr}`, tip: r.tip, nr,
     fisier: r.fisier, amprenta: r.amprenta,
     dataEfectiva, importatLa: r.importatLa,
-    activa: devineActiva, scop: r.scop, restaurante: r.restaurante,
+    activa: true, scop: r.scop, restaurante: r.restaurante,
     perioada: r.perioada,
     ...(r.intervalDe && r.intervalLa ? { intervalDe: r.intervalDe, intervalLa: r.intervalLa } : {}),
+    granularitate: r.granularitate,
+    amprentaContinut: r.amprentaContinut,
     randuri: r.randuri,
     // ce a lăsat nemapat: exact lista după care un reimport al aceluiași fișier se judecă
     ...(r.necunoscute.length ? { nemapate: [...r.necunoscute] } : {}),
   };
-  const versiuniNoi = versiuni.map(v => (v.tip === r.tip && devineActiva ? { ...v, activa: false } : v));
+  // „În vigoare" înseamnă: nicio versiune mai nouă pe ACEEAȘI fereastră. Versiunea nouă
+  // scoate din vigoare doar ce înlocuiește (aceeași fereastră, sau același fișier redeclarat
+  // pe o fereastră care o atinge); un săptămânal și un lunar rămân amândouă în vigoare.
+  // O versiune mai veche (dataEfectiva) decât cea pe care ar înlocui-o rămâne istoric.
+  const inlocuite = alePipului.filter(v => v.activa && inlocuieste(versiune, v));
+  const devineActiva = inlocuite.every(v => dataEfectiva >= v.dataEfectiva);
+  versiune.activa = devineActiva;
+  const versiuniNoi = versiuni.map(v => (devineActiva && inlocuite.includes(v) ? { ...v, activa: false } : v));
   versiuniNoi.push(versiune);
 
   const audit: IntrareAudit = {

@@ -347,9 +347,9 @@ export function bridgeFC(
   // deci pe o vedere pe canal ar compara actualul unui canal cu teoreticul amândurora.
   const eTotal = cerere.canal === 'TOTAL';
   const teoreticPeIngredient = nboDisponibil && eTotal
-    ? teoreticDinRetete(state, ctx, luni, loc) : new Map<string, number>();
+    ? teoreticDinRetete(state, ctx, sel.ferestre, loc) : new Map<string, number>();
   const teoreticRand = nboDisponibil && eTotal
-    ? teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]) : new Map<string, number>();
+    ? teoreticPeRand(state, ctx, sel.ferestre, [...new Set(inScop.map(m => m.locatie))]) : new Map<string, number>();
   const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator)
     .map(r => {
       const categorie = categorieEfectiva(r);
@@ -406,8 +406,9 @@ export function bridgeFC(
   const diagnostice = nboDisponibil ? diagnosticeMaterial(randuri, ctx, teoreticPeIngredient, loc) : [];
 
   if (nboDisponibil) {
-    // luni cerute fără niciun rând 2.9 — puntea pe ele nu există, nu se interpolează
-    const luniFara = luni.filter(l => !inScop.some(m => m.perioada === l));
+    // luni cerute fără raport 2.9 lunar — puntea pe ele nu există, nu se interpolează
+    // (pe o cerere săptămânală selectorul nu declară luni lipsă: fereastra e a săptămânii)
+    const luniFara = sel.luniLipsa;
     if (luniFara.length) {
       diagnostice.push({
         cod: 'LUNA_FARA_29', nivel: 'BLOCANT',

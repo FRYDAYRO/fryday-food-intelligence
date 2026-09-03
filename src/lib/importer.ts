@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { AppState, Canal, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, PretIstoric, Produs, Reteta, Sursa29, SursaPret, UMCod, VanzareFapt, WasteFapt } from './types';
-import { clasificaCategorie29 } from './fc-clasificare';
+import { clasificaCategorie29, esteFC } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent, sorteazaPreturi } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
 import { cheieDenumire, parseSalesMix } from './salesmix';
@@ -459,6 +459,8 @@ export interface OpteImport {
   fereastra?: { de: string; la: string };
   /** Amprenta fișierului, ca rândurile să-și poarte proveniența până la versiune. */
   amprenta?: string;
+  /** Amprentele versiunilor pe care acest import le înlocuiește (același conținut redeclarat pe altă fereastră): rândurile lor pleacă. */
+  amprenteInlocuite?: string[];
 }
 
 /** Fereastra unui rând 2.9: cea declarată pentru tot fișierul, altfel luna rândului (raport lunar). */
@@ -1095,11 +1097,16 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         if (clasificaCategorie29(categorie).neclasificat) neclasificate.add(categorie || '(fără categorie)');
         if (identificaIngredient(state.ingrediente, material, denumire) === null) {
           nemapate.add(`${denumire} (${material})`);
-          const identitate = material || denumire;
-          const n = necunoscute.get(identitate) ?? { denumire, cant: 0, valoare: 0 };
-          n.cant += map.cant !== undefined ? (parseNumar(g(r, 'cant')) ?? 0) : 0;
-          n.valoare += costActual;
-          necunoscute.set(identitate, n);
+          // în coada de aprobare intră doar ce trebuie mapat: Food și Paper; uniformele,
+          // birotica și restul operațional nu au ce căuta în nomenclatorul de ingrediente,
+          // iar categoriile nerecunoscute se semnalează separat, nu se ghicesc
+          if (esteFC(clasificaCategorie29(categorie).categorie)) {
+            const identitate = material || denumire;
+            const n = necunoscute.get(identitate) ?? { denumire, cant: 0, valoare: 0 };
+            n.cant += map.cant !== undefined ? (parseNumar(g(r, 'cant')) ?? 0) : 0;
+            n.valoare += costActual;
+            necunoscute.set(identitate, n);
+          }
         }
 
         const costTeoretic = map.costTeoretic !== undefined ? parseNumar(g(r, 'costTeoretic')) : null;
@@ -1132,10 +1139,14 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       });
 
       // reimportul aceleiași (ferestre × locații) înlocuiește, nu adaugă; alte ferestre
-      // (săptămânile lunii, sau luna săptămânilor) rămân neatinse
+      // (săptămânile lunii, sau luna săptămânilor) rămân neatinse. Același FIȘIER redeclarat
+      // pe o fereastră care o atinge pe cea veche își ia rândurile vechi cu el: o fereastră
+      // declarată greșit nu rămâne în urmă ca un raport-fantomă
       const cheia = (m: { perioada: string; locatie: string | null; fereastra?: Fereastra29 }) => cheieFereastra(fereastraRand(m), m.locatie);
       const chei = new Set(noi.map(cheia));
-      const materiale29 = [...(state.materiale29 ?? []).filter(m => !chei.has(cheia(m))), ...noi];
+      const inlocuite = new Set(opt?.amprenteInlocuite ?? []);
+      const redeclarat = (m: { sursa?: Sursa29 }) => !!m.sursa?.amprenta && inlocuite.has(m.sursa.amprenta);
+      const materiale29 = [...(state.materiale29 ?? []).filter(m => !chei.has(cheia(m)) && !redeclarat(m)), ...noi];
 
       // rollup pe categorie → linii29, ca FC Curat pe categorie să vină din același import.
       // Liniile fără restaurant nu pot intra în rollup (Linie29 cere locația): rămân doar
@@ -1150,7 +1161,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           fereastra: fereastraRand(m), sursa: sursa29(numeFisier, opt) });
       }
       const perechi29 = new Set([...rollup.values()].map(l => cheieFereastra(fereastraRand(l), l.locatie)));
-      const linii29 = [...state.linii29.filter(l => !perechi29.has(cheieFereastra(fereastraRand(l), l.locatie))), ...rollup.values()];
+      const linii29 = [...state.linii29.filter(l => !perechi29.has(cheieFereastra(fereastraRand(l), l.locatie)) && !redeclarat(l)), ...rollup.values()];
 
       // ——— raportarea onestă a ce s-a importat și a ce lipsește
       avert.push(`${noi.length} linii de material, ${fmtNr(Math.round(totalActual))} lei consum actual, `

@@ -11,7 +11,7 @@
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
 import { UMS, areCostMasurabil, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
-import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
+import { COMBINATIE_FC, intervaleSursePentru, verdictCombinare, type VerdictSurse } from './perioade-surse';
 import { selecteaza29 } from './surse-29';
 import type { AppState, Canal } from './types';
 import {
@@ -54,6 +54,25 @@ export function numitorFC(state: AppState, cerere: CerereFC, netPmix: number): N
       net: netPmix, sursa: 'PMIX',
       nota: 'Sales Report-ul acoperă altă perioadă decât vânzările pe produs — numitorul rămâne PMIX-ul, din aceeași fereastră cu costul',
       motivIncompatibil: v.motiv,
+    };
+  }
+  // fereastra declarată a lui 4.1 poate conține cererea și totuși să aibă goluri înăuntru:
+  // zile cu vânzări pe produs fără niciun rând de Sales Report. Un numitor de 3 zile la un
+  // cost de 7 ar da un procent plauzibil și fals — numitorul rămâne atunci PMIX-ul.
+  // regula golurilor se aplică doar când un 4.1 cu rânduri pe zi DECLARĂ că acoperă cererea:
+  // fără fereastră declarată, Sales Report-ul rămâne numitorul, ca până acum
+  const zilnic41 = (state.versiuniImport ?? []).some(v => v.tip === 'NBO_41' && v.granularitate === 'ZI');
+  const declaraAcoperire = zilnic41 && intervaleSursePentru(state, ['NBO_41'], cerere.perioada)
+    .some(i => i.declarat && i.de <= cerere.perioada.de && i.la >= cerere.perioada.la);
+  const zileSR = new Set(linii.map(r => r.data));
+  const zileFara = !declaraAcoperire ? [] : [...new Set(state.vanzari
+    .filter(x => contineData(cerere.perioada, x.data) && (!loc || x.locatie === loc) && canale.includes(x.canal) && !zileSR.has(x.data))
+    .map(x => x.data))].sort();
+  if (zileFara.length) {
+    return {
+      net: netPmix, sursa: 'PMIX',
+      nota: `Sales Report-ul nu are rânduri pe ${zileFara.length} zile cu vânzări din perioadă — numitorul rămâne PMIX-ul, din aceeași fereastră cu costul`,
+      motivIncompatibil: `Sales Report incomplet pe perioadă: lipsesc ${zileFara.slice(0, 5).join(', ')}${zileFara.length > 5 ? '…' : ''}.`,
     };
   }
   return { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO` };

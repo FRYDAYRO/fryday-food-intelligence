@@ -246,6 +246,18 @@ export interface VersiuneSursa {
    */
   intervalDe?: string;
   intervalLa?: string;
+  /**
+   * Cum își poartă rândurile data: `ZI` = fiecare rând are ziua lui, deci sursa servește orice
+   * cerere cuprinsă în fereastră; altfel raportul e un agregat pe fereastra lui și servește
+   * doar cererea cu exact acea fereastră. Absent = versiune veche: se tratează ca agregat.
+   */
+  granularitate?: 'ZI' | 'LUNA' | 'INTERVAL' | 'FARA';
+  /**
+   * Amprenta CONȚINUTULUI, fără fereastra declarată. Același conținut redeclarat pe altă
+   * fereastră e același fișier corectat, nu un raport nou: versiunea veche iese din vigoare
+   * și rândurile ei pleacă odată cu ea.
+   */
+  amprentaContinut?: string;
   randuri: number;
   /**
    * Identitățile din raport (coduri sau denumiri POS) pe care această versiune le-a lăsat
