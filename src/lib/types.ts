@@ -13,6 +13,8 @@ export interface SursaPret {
   perioada?: string;
   material?: string;
   rand?: number;
+  /** Restaurantul al cărui raport 2.9 a dat prețul: costul FIFO e al lui, nu al rețelei. */
+  restaurant?: string;
 }
 
 export interface PretIstoric { validDeLa: string; pret: number; sursa?: SursaPret; }
@@ -129,6 +131,14 @@ export interface Material29 {
   /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
   fereastra?: Fereastra29;
   sursa?: Sursa29;
+  /** „Cost per Unit" din 2.9: lei pe unitatea de inventar — sursa canonică a prețului efectiv (D4). */
+  costPeUnitate?: number;
+  /** Unitatea de inventar EXACT cum o tipărește raportul („EA", „KG", „Liter", „Gram", „pair"). */
+  umInventar?: string;
+  /** Consumul teoretic în unități („Usage in Units: Theory"), când raportul îl dă. */
+  cantTeoretic?: number | null;
+  /** Grupul părinte al categoriei, când raportul imbrică subgrupuri („Paper" pentru „ACCESORII"). */
+  grup?: string;
 }
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';

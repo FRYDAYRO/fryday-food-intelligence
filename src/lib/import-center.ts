@@ -252,7 +252,9 @@ export function amprentaSursa(
   // fereastra declarată face parte din identitate: același conținut declarat pe altă fereastră
   // e alt raport (săptămâna 32 și săptămâna 33 pot avea, teoretic, aceleași cifre)
   const interval = opt?.interval ? `${opt.interval.de}|${opt.interval.la}` : '';
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare, interval,
+  // fereastra pe care o declară fișierul însuși e conținut, nu declarație a omului
+  const fereastraFisier = p.fereastra ? `${p.fereastra.de}|${p.fereastra.la}` : '';
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare, interval, fereastraFisier,
     ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
   return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
@@ -590,7 +592,10 @@ function cuRestaurantDeclarat(p: Parsat, intern: TipImport, locatie: string): Pa
 
 interface Scop { scop: ScopSursa; restaurante: string[]; mixt: boolean; cuLocatie: number; faraLocatie: number; }
 
-function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string): Scop {
+function determinaScop(
+  tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string,
+  locatii: { cod: string; nume: string }[] = [],
+): Scop {
   if (eComuna(tip)) return { scop: 'COMUN', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: 0 };
   const camp = CAMP_LOCATIE[intern];
   const antet = camp ? map[camp] : undefined;
@@ -601,7 +606,10 @@ function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Recor
       : { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: p.randuri.length };
   }
   // rândurile complet goale (linii de total, separatoare) nu sunt „fără restaurant"
-  const valori = p.randuri.filter(r => !randGol(r)).map(r => String(r[antet] ?? '').trim());
+  // restaurantul din fișier poate fi codul sau numele lui (antetul PDF-ului 2.9 tipărește numele):
+  // versiunea îl reține pe codul din nomenclator, același pe care îl poartă rândurile importate
+  const rezolva = (v: string) => locatii.find(l => l.cod === v || norm(l.nume) === norm(v))?.cod ?? v;
+  const valori = p.randuri.filter(r => !randGol(r)).map(r => rezolva(String(r[antet] ?? '').trim()));
   const cu = valori.filter(v => v.length > 0);
   const fara = valori.length - cu.length;
   const restaurante = [...new Set(cu)].sort();
@@ -721,12 +729,13 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const acum = cerere.acum ?? new Date().toISOString();
   const actor = cerere.actor?.trim() || ACTOR_SISTEM;
   // fereastra declarată se normalizează la ISO înainte de orice (parseData acceptă și
-  // dd.mm.yyyy): un șir brut ar ajunge în amprentă și în rândurile 2.9 nenormalizat
-  const intervalBrut = cerere.interval;
+  // dd.mm.yyyy): un șir brut ar ajunge în amprentă și în rândurile 2.9 nenormalizat.
+  // Un fișier care își declară singur fereastra (PDF-ul 2.9) o aduce când omul n-a declarat alta.
+  const p = cerere.parsat;
+  const intervalBrut = cerere.interval ?? p.fereastra;
   const intervalNorm = intervalBrut && parseData(intervalBrut.de) && parseData(intervalBrut.la)
     ? { de: parseData(intervalBrut.de)!, la: parseData(intervalBrut.la)! } : intervalBrut;
   cerere = intervalNorm ? { ...cerere, interval: intervalNorm } : cerere;
-  const p = cerere.parsat;
   const detectie = detecteazaSursa(p.antete, cerere.fisier);
   const tip = cerere.tip ?? (detectie.stare === 'SIGUR' ? detectie.tip : null);
   const col: Colector = { diag: [] };
@@ -813,7 +822,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     p.antete.filter(a => !folosite.has(a) && a.trim() !== ''));
 
   // — scopul: companie vs restaurant, niciodată amestecate
-  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie);
+  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie, state.locatii);
   if (eComuna(tip)) {
     const coloanaLoc = p.antete.filter(a => /locatie|restaurant|unitate|magazin|store/.test(norm(a)));
     adaugaDiag(col, 'LOCATIE_LIPSA', 'ATENTIE', 'Date comune cu coloană de restaurant',

@@ -8,6 +8,7 @@ import { analizeaza47 } from './adaptor-47';
 import { LOCATIE_RETEA } from './fc-domeniu';
 import { cheieFereastra, fereastraDin, fereastraRand } from './surse-29';
 import { identificaIngredient } from './fc-material';
+import { PRAG_CONSISTENTA_29, aplicaPreturi29, preturiDin29, type CostMaterial29 } from './actualizare-29';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
 export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
@@ -68,6 +69,12 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     costTeoretic: ['cost teoretic', 'valoare teoretica', 'teoretic', 'theoretical', 'ideal'],
     normalizat: ['normalizat', 'normalized', 'material normalizat'],
     canal: ['canal', 'channel', 'canal vanzare'],
+    // raportul 2.9 real (grila NBO): prețul pe unitatea de inventar, consumul teoretic în
+    // unități, grupul părinte al categoriei și rândul sursă din PDF
+    costPeUnitate: ['cost per unit', 'cost pe unitate', 'cost unitar', 'pret unitar', 'unit cost'],
+    cantTeoretic: ['cantitate teoretica', 'consum teoretic cantitate', 'theory units', 'usage theory units'],
+    grup: ['grup raport', 'parent group', 'grup parinte'],
+    randSursa: ['rand sursa', 'linie sursa', 'source row'],
   },
   COST_INGREDIENTE: {
     cod: ['cod ingredient', 'cod', 'cod articol', 'cod material', 'cod materie prima', 'cod nbo',
@@ -162,6 +169,8 @@ export interface Parsat {
   foaie: string;
   matrice?: unknown[][];      // rândurile brute, necesare pentru layouturile cu antet + grilă (NBO)
   foi?: Record<string, unknown[][]>;   // toate foile, pentru fișierele care se citesc integral (baza FC)
+  /** Fereastra pe care o DECLARĂ fișierul însuși în antet (raportul 2.9 din PDF) — nu una presupusă. */
+  fereastra?: { de: string; la: string };
 }
 
 export async function citesteFisier(file: File): Promise<Parsat> {
@@ -1064,6 +1073,9 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     else {
       const lunaImplicita = opt?.dataValabil?.slice(0, 7);
       const DA = new Set(['da', 'yes', 'true', '1', 'x', 'normalizat']);
+      // fereastra declarată de fișierul însuși (PDF-ul 2.9 își tipărește perioada) intră când
+      // omul n-a declarat alta: rândurile ei nu sunt „luna", ci exact zilele raportului
+      const optF: OpteImport | undefined = opt?.fereastra || !p.fereastra ? opt : { ...opt, fereastra: p.fereastra };
 
       const noi: Material29[] = [];
       const neclasificate = new Set<string>();
@@ -1111,6 +1123,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
 
         const costTeoretic = map.costTeoretic !== undefined ? parseNumar(g(r, 'costTeoretic')) : null;
         if (costTeoretic != null) cuTeoretic++;
+        const costPeUnitate = map.costPeUnitate !== undefined ? parseNumar(g(r, 'costPeUnitate')) : null;
+        const umInventar = map.um !== undefined ? String(g(r, 'um') ?? '').trim() : '';
+        const cantTeoretic = map.cantTeoretic !== undefined ? parseNumar(g(r, 'cantTeoretic')) : null;
+        const grup = map.grup !== undefined ? String(g(r, 'grup') ?? '').trim() : '';
+        const randSursa = map.randSursa !== undefined ? parseNumar(g(r, 'randSursa')) : null;
         const normalizat = map.normalizat !== undefined
           && DA.has(norm(String(g(r, 'normalizat'))));
 
@@ -1131,7 +1148,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           costActual, costTeoretic,
           ...(normalizat ? { normalizat: true } : {}),
           ...(canal ? { canal } : {}),
-          fereastra: fereastra29(opt, perioada), sursa: sursa29(numeFisier, opt, i + 2),
+          ...(costPeUnitate != null ? { costPeUnitate } : {}),
+          ...(umInventar ? { umInventar } : {}),
+          ...(map.cantTeoretic !== undefined ? { cantTeoretic } : {}),
+          ...(grup ? { grup } : {}),
+          fereastra: fereastra29(optF, perioada), sursa: sursa29(numeFisier, optF, randSursa ?? i + 2),
         });
         totalActual += costActual;
         perioade.add(perioada);
@@ -1221,6 +1242,52 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       }
 
       stateNou = { ...state, materiale29, linii29, nemapate: nemapateNoi29 };
+
+      // ——— D4: Cost per Unit → preț efectiv datat în nomenclator, pentru materialele mapate.
+      // Se scrie pe fereastra fiecărui rând (săptămâna sau luna raportului), ca intrare nouă
+      // datată — istoricul nu se rescrie, prețul identic nu adaugă nimic (aplicaPreturi29).
+      if (map.costPeUnitate !== undefined && noi.length) {
+        const preturi = preturiDin29(state.ingrediente, noi);
+        const peData = new Map<string, CostMaterial29[]>();
+        for (const c of preturi.costuri) {
+          const k = c.validDeLa ?? `${c.perioada}-01`;
+          if (!peData.has(k)) peData.set(k, []);
+          peData.get(k)!.push(c);
+        }
+        let ingrediente = stateNou.ingrediente;
+        let scrise = 0, sarite = 0;
+        const altRestaurant: string[] = [];
+        for (const [validDeLa, lista] of [...peData.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+          const r = aplicaPreturi29({ ...stateNou, ingrediente }, null, lista, validDeLa,
+            { fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}) });
+          ingrediente = r.stareNoua.ingrediente;
+          scrise += r.scrise; sarite += r.sarite;
+          altRestaurant.push(...r.inlocuiteAltRestaurant);
+        }
+        stateNou = { ...stateNou, ingrediente };
+        const n = preturi.numar;
+        const date = [...peData.keys()].sort();
+        avert.push(`Prețuri din 2.9 (Cost per Unit): ${scrise} intrări datate noi în nomenclator`
+          + (date.length ? ` (valabile de la ${date.join(', ')})` : '')
+          + `, ${sarite} identice cu prețul în vigoare (fără intrare nouă); rețetele nu primesc versiune, costul lor se recalculează la dată`);
+        const neeligibile = preturi.diagnostice.filter(d => d.fel === 'ZERO_SAU_NEGATIV' || d.fel === 'UM_NECUNOSCUTA' || d.fel === 'UM_INCOMPATIBILA');
+        if (neeligibile.length) {
+          avert.push(`${neeligibile.length} materiale mapate FĂRĂ preț valid — nomenclatorul nu se atinge pentru ele `
+            + `(zero/negativ: ${n.ZERO_SAU_NEGATIV}, UM necunoscută: ${n.UM_NECUNOSCUTA}, UM incompatibilă: ${n.UM_INCOMPATIBILA}): `
+            + neeligibile.slice(0, 5).map(d => `${d.denumire} (${d.material}${d.costPeUnitate !== null ? `, ${d.costPeUnitate} lei/${d.umInventar ?? '?'}` : ''})`).join(', ')
+            + (neeligibile.length > 5 ? '…' : ''));
+        }
+        if (preturi.consistenta.length) {
+          avert.push(`${preturi.consistenta.length} avertismente de consistență — Usage lei ÷ Usage unități diferă de Cost per Unit cu peste ${Math.round(PRAG_CONSISTENTA_29 * 100)}%; `
+            + 'Cost per Unit rămâne prețul sursă, nu se corectează din consum: '
+            + preturi.consistenta.slice(0, 5).join('; ') + (preturi.consistenta.length > 5 ? '…' : ''));
+        }
+        if (n.NEMAPAT) avert.push(`${n.NEMAPAT} materiale nemapate nu primesc preț până la aprobarea din coadă`);
+        if (altRestaurant.length) {
+          avert.push(`ATENȚIE: nomenclatorul are un singur preț pe ingredient — prețul 2.9 al altui restaurant, de la aceeași dată, a fost înlocuit pentru: `
+            + altRestaurant.slice(0, 5).join(', ') + (altRestaurant.length > 5 ? '…' : ''));
+        }
+      }
     }
   } else if (tip === 'COST_INGREDIENTE') {
     // prețul e opțional: un nomenclator pur (cod + denumire + UM) creează ingredientele

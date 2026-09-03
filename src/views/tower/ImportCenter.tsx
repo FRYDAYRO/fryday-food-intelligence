@@ -5,6 +5,8 @@
  */
 import { useRef, useState } from 'react';
 import { citesteFisier, type Parsat } from '../../lib/importer';
+import { textDinPdf } from '../../lib/pdf';
+import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from '../../lib/nbo-29';
 import {
   activeazaImport, pregatesteImport, ETICHETA_SURSA,
   type CerereImport, type PregatireImport, type TipSursaFC,
@@ -58,6 +60,25 @@ export default function ImportCenter() {
 
   const alege = async (f: File) => {
     setMesaj(null);
+    if (/\.pdf$/i.test(f.name)) {
+      // PDF-ul acceptat aici e raportul NBO 2.9 în formatul lui real: fereastra și restaurantul
+      // vin din antetul raportului, nu din câmpurile de mai jos
+      let text: string;
+      try { text = await textDinPdf(await f.arrayBuffer()); }
+      catch { setMesaj('Citirea PDF nu e disponibilă în varianta fișier-unic deschisă de pe disc. Folosește versiunea online.'); return; }
+      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
+      const raport = parseRaport29(text);
+      if (!raport.randuri.length) { setMesaj(`Raportul 2.9 nu conține rânduri de material lizibile. ${raport.avertismente.join(' ')}`); return; }
+      const p = parsatDin29(raport);
+      setParsat(p); setFisier(f.name); setTip('NBO_29');
+      if (raport.de && raport.la) { setFereastraDe(raport.de); setFereastraLa(raport.la); }
+      setMesaj(descrie29(raport));
+      setPregatire(pregatesteImport(state, {
+        ...cerere(p, f.name), tip: 'NBO_29',
+        ...(raport.de && raport.la ? { interval: { de: raport.de, la: raport.la } } : {}),
+      }));
+      return;
+    }
     const p = await citesteFisier(f);
     setParsat(p); setFisier(f.name);
     setPregatire(pregatesteImport(state, cerere(p, f.name)));
@@ -94,7 +115,7 @@ export default function ImportCenter() {
       <Sectiune titlu="Fișier nou" sub="tipul se detectează din nume și din structură; ambiguitatea cere confirmare">
         <div className="grid gap-3 rounded-md border bg-card p-4 lg:grid-cols-4" data-zona="import-formular">
           <Camp eticheta="Fișier">
-            <input ref={input} type="file" accept=".xlsx,.xls,.csv" data-camp="fisier"
+            <input ref={input} type="file" accept=".xlsx,.xls,.csv,.pdf" data-camp="fisier"
               onChange={e => { const f = e.target.files?.[0]; if (f) void alege(f); }}
               className="block w-full text-sm file:mr-2 file:rounded-md file:border file:bg-card file:px-2 file:py-1 file:text-sm" />
           </Camp>

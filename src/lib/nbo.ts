@@ -36,7 +36,8 @@ const UM_NBO: Record<string, UMCod> = {
   gm: 'g', gr: 'g', g: 'g', gram: 'g', grame: 'g',
   kg: 'kg', kilo: 'kg',
   ml: 'ml', mls: 'ml',
-  lt: 'l', l: 'l', litru: 'l', liter: 'l',
+  lt: 'l', l: 'l', litru: 'l', liter: 'l', litre: 'l', ltr: 'l',
+  pair: 'buc', pairs: 'buc', pereche: 'buc', perechi: 'buc',
 };
 
 export function umNBO(v: unknown): UMCod | null {
