@@ -321,7 +321,25 @@ function activaDupaData(r: Reteta): number {
   return r.versiuni.reduce((a, b) => (b.data > a.data || (b.data === a.data && b.nr > a.nr) ? b : a), r.versiuni[0]).nr;
 }
 
-export interface RezultatImport { stateNou: AppState; batch: ImportBatch; }
+export interface RezultatImport {
+  stateNou: AppState;
+  batch: ImportBatch;
+  /** Identitățile din raport rămase fără produs în ACEASTĂ rulare (coduri la PMIX, denumiri la 4.7). */
+  necunoscute?: string[];
+}
+
+/**
+ * Se rezolvă acum această identitate din raport la un produs? Aceeași regulă ca la import:
+ * pe coduri (PMIX) — codul intern, numărul POS sau un alias, exact; pe denumiri (4.7 Sales
+ * Mix) — denumirea produsului sau un alias, pe cheia de potrivire a denumirilor.
+ */
+export function identitateSeRezolva(produse: Produs[], identitate: string, tip: 'PMIX' | 'SALES_MIX'): boolean {
+  if (tip === 'PMIX') {
+    return produse.some(p => p.cod === identitate || p.codPos === identitate || (p.aliasuri ?? []).includes(identitate));
+  }
+  const k = cheieDenumire(identitate);
+  return produse.some(p => cheieDenumire(p.denumire) === k || (p.aliasuri ?? []).some(a => cheieDenumire(a) === k));
+}
 
 const fmtNr = (n: number) => n.toLocaleString('ro-RO');
 
@@ -438,6 +456,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
   const g = (r: Record<string, unknown>, c: string) => (map[c] !== undefined ? r[map[c]] : '');
   let importate = 0;
   let stateNou = state;
+  let necunoscuteRulare: string[] = [];
 
   const lipsesc = (obligatorii: string[]) =>
     obligatorii.filter(c => map[c] === undefined);
@@ -875,6 +894,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         })),
       ].sort((a, b) => b.valoare - a.valoare);
 
+      necunoscuteRulare = [...nepotrivite.keys()];
       stateNou = { ...state, produse, locatii, vanzari, nemapate: nemapateNoi };
       perioade.add(data.slice(0, 7));
     }
@@ -961,6 +981,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           fisier: numeFisier, sursa: 'PMIX' as const,
         })),
       ].sort((a, b) => b.valoare - a.valoare);
+      necunoscuteRulare = [...necunoscute.keys()];
       stateNou = { ...state, vanzari: [...pastrate, ...agg.values()], nemapate: nemapateP };
     }
   } else if (tip === 'SALES') {
@@ -1512,5 +1533,5 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     status: erori.length ? 'ESUAT' : 'IMPORTAT',
   };
   if (erori.length) stateNou = state;
-  return { stateNou: { ...stateNou, importuri: [batch, ...stateNou.importuri] }, batch };
+  return { stateNou: { ...stateNou, importuri: [batch, ...stateNou.importuri] }, batch, necunoscute: necunoscuteRulare };
 }
