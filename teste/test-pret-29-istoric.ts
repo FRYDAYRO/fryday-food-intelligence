@@ -97,7 +97,13 @@ console.log('\n— C. Săptămânalul câștigă în fereastra lui; lunarul scri
 const c1 = aplicaPreturi29(S, CTX, [{ cod: 'IA', costPeUnitate: 12, perioada: '2026-08' }], '2026-08-01', { fisier: '2.9 aug.xlsx', amprenta: 'fp_l' });
 const c2 = aplicaPreturi29(c1.stareNoua, CTX, [{ cod: 'IA', costPeUnitate: 12.5, perioada: '2026-S32' }], '2026-08-03', { fisier: '2.9 S32.xlsx', amprenta: 'fp_s32' });
 const c3 = aplicaPreturi29(c2.stareNoua, CTX, [{ cod: 'IA', costPeUnitate: 12.5, perioada: '2026-S33' }], '2026-08-10', { fisier: '2.9 S33.xlsx', amprenta: 'fp_s33' });
-t('S33 cu același preț ca S32 nu adaugă nimic', c3.scrise === 0 && c3.sarite === 1);
+// panel PR #22: fereastra are identitate — S33 își scrie propria intrare chiar dacă prețul e egal
+// cu al lui S32; altfel corectarea lui S32 ar schimba prețul cu care s-a calculat S33
+t('S33 cu același preț ca S32 își scrie totuși intrarea ei (fereastra are identitate)', c3.scrise === 1 && c3.sarite === 0 && pIA(c3.stareNoua).preturi.some(p => p.validDeLa === '2026-08-10' && p.pret === 12.5));
+const c3b = aplicaPreturi29(c3.stareNoua, CTX, [{ cod: 'IA', costPeUnitate: 12.1, perioada: '2026-S32' }], '2026-08-03', { fisier: '2.9 S32.xlsx', amprenta: 'fp_s32b' });
+t('… iar S32 corectată (12,1) nu schimbă prețul lui S33 (12 aug rămâne 12,5)', pretLa(pIA(c3b.stareNoua), '2026-08-05') === 12.1 && pretLa(pIA(c3b.stareNoua), '2026-08-12') === 12.5);
+const c3c = aplicaPreturi29(c3.stareNoua, CTX, [{ cod: 'IA', costPeUnitate: 12.5, perioada: '2026-S33' }], '2026-08-10', { fisier: '2.9 S33.xlsx', amprenta: 'fp_s33' });
+t('reimportul identic al ACELEIAȘI ferestre nu adaugă nimic', c3c.scrise === 0 && c3c.sarite === 1);
 t('1–2 august: prețul lunar (12)', pretLa(pIA(c3.stareNoua), '2026-08-02') === 12);
 t('3 august încolo: prețul săptămânii (12,5)', pretLa(pIA(c3.stareNoua), '2026-08-05') === 12.5 && pretLa(pIA(c3.stareNoua), '2026-08-20') === 12.5);
 const c4 = aplicaPreturi29(c3.stareNoua, CTX, [{ cod: 'IA', costPeUnitate: 12.2, perioada: '2026-08' }], '2026-08-01', { fisier: '2.9 aug.xlsx', amprenta: 'fp_l2' });

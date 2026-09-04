@@ -40,6 +40,8 @@ export interface CostMaterial29 {
   restaurant?: string;
   /** Începutul ferestrei raportului: data de la care se aplică prețul. */
   validDeLa?: string;
+  /** Sfârșitul ferestrei raportului: face parte din identitatea intrării (luna ≠ săptămâna care începe în aceeași zi). */
+  validPanaLa?: string;
 }
 
 // ————————————————————————————————————————————— D4: prețul efectiv din „Cost per Unit"
@@ -67,6 +69,8 @@ export interface DiagnosticPret29 {
   um: string | null;
   /** Diagnosticul de consistență: prețul implicit Usage lei ÷ unități, abaterea față de Cost per Unit. */
   consistenta?: { implicit: number; abatere: number; avertisment: boolean };
+  /** Cost per Unit e tipărit cu două zecimale: sub 0,10 lei rotunjirea la ban depășește 5 % din preț. */
+  precizieLimitata?: boolean;
   motiv?: string;
   perioada: string;
   validDeLa: string;
@@ -78,8 +82,15 @@ export interface RezultatPreturi29 {
   diagnostice: DiagnosticPret29[];
   /** Avertismentele de consistență, gata de afișat: material, Cost per Unit, prețul implicit, abaterea. */
   consistenta: string[];
+  /** Materialele al căror Cost per Unit tipărit (2 zecimale) e sub 0,10 lei: preț cu precizie limitată. */
+  precizieLimitata: string[];
+  /** Rândurile sărite pentru că un alt rând al aceleiași ferestre dăduse deja prețul ingredientului. */
+  dubluri: string[];
   numar: Record<FelPret29, number>;
 }
+
+/** Sub acest Cost per Unit, rotunjirea la ban a coloanei tipărite e ≥ 5 % din preț. */
+export const PRAG_PRECIZIE_29 = 0.1;
 
 const rotund6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -96,11 +107,15 @@ export function preturiDin29(ingrediente: Ingredient[], materiale: Material29[])
   const costuri: CostMaterial29[] = [];
   const diagnostice: DiagnosticPret29[] = [];
   const consistenta: string[] = [];
+  const precizieLimitata: string[] = [];
+  const dubluri: string[] = [];
   const numar: Record<FelPret29, number> = { ELIGIBIL: 0, NEMAPAT: 0, FARA_COST: 0, ZERO_SAU_NEGATIV: 0, UM_NECUNOSCUTA: 0, UM_INCOMPATIBILA: 0 };
+  // un preț pe (ingredient, fereastră): un fișier cu două luni dă două prețuri datate, nu unul
   const vazute = new Set<string>();
 
   for (const m of materiale) {
-    const validDeLa = fereastraRand(m).de;
+    const fer = fereastraRand(m);
+    const validDeLa = fer.de;
     const baza = { material: m.material, denumire: m.denumire, perioada: m.perioada, validDeLa, ...(m.sursa?.rand !== undefined ? { rand: m.sursa.rand } : {}) };
     const cost = m.costPeUnitate;
     const umInventar = m.umInventar ?? null;
@@ -117,31 +132,38 @@ export function preturiDin29(ingrediente: Ingredient[], materiale: Material29[])
     // lei pe unitatea de inventar → lei pe UM-ul de bază al ingredientului (0,04 lei/g = 40 lei/kg)
     const pret = rotund6(cost / UMS[umCod].f);
 
-    // diagnosticul de consistență: prețul implicit din consum, pe aceeași unitate de inventar
+    // diagnosticul de consistență: prețul implicit din consum, pe aceeași unitate de inventar.
+    // Raportul rotunjește unitățile la 0,1 și leii la 1: abaterea pe care rotunjirea singură
+    // o poate produce (0,05 ÷ unități + 0,5 ÷ lei) nu e inconsistență, ci zgomot de tipar
     let cons: DiagnosticPret29['consistenta'];
     if (m.cant !== null && m.cant !== undefined && m.cant !== 0 && Math.abs(m.costActual) >= MIN_LEI_CONSISTENTA_29) {
       const implicit = m.costActual / m.cant;
       // rotunjit înainte de comparație: 0,021 față de 0,02 e exact 5 %, nu 5,000000000002 %
       const abatere = rotund6(Math.abs(implicit - cost) / cost);
-      cons = { implicit: rotund6(implicit), abatere, avertisment: abatere > PRAG_CONSISTENTA_29 };
+      const marjaRotunjire = 0.05 / Math.abs(m.cant) + 0.5 / Math.abs(m.costActual);
+      cons = { implicit: rotund6(implicit), abatere, avertisment: abatere > PRAG_CONSISTENTA_29 + marjaRotunjire };
       if (cons.avertisment) {
         consistenta.push(`${m.denumire} (${m.material}): Cost per Unit ${cost} lei/${umInventar}, din consum ${cons.implicit} lei/${umInventar} (${Math.round(abatere * 100)}%)`);
       }
     }
-    if (vazute.has(codIng)) {
-      pune({ ingredient: codIng, fel: 'ELIGIBIL', costPeUnitate: cost, umInventar, pret, um: ing.um, ...(cons ? { consistenta: cons } : {}), motiv: 'Un alt rând al raportului a dat deja prețul acestui ingredient — se păstrează primul.' });
+    const precizie = cost < PRAG_PRECIZIE_29;
+    if (precizie) precizieLimitata.push(`${m.denumire} (${m.material}): ${cost} lei/${umInventar}`);
+    const cheie = `${codIng}|${validDeLa}|${fer.la}`;
+    if (vazute.has(cheie)) {
+      dubluri.push(`${m.denumire} (${m.material}) → ${codIng}, ${validDeLa}`);
+      pune({ ingredient: codIng, fel: 'ELIGIBIL', costPeUnitate: cost, umInventar, pret, um: ing.um, ...(cons ? { consistenta: cons } : {}), ...(precizie ? { precizieLimitata: true } : {}), motiv: 'Un alt rând al aceleiași ferestre a dat deja prețul acestui ingredient — se păstrează primul.' });
       continue;
     }
-    vazute.add(codIng);
-    pune({ ingredient: codIng, fel: 'ELIGIBIL', costPeUnitate: cost, umInventar, pret, um: ing.um, ...(cons ? { consistenta: cons } : {}) });
+    vazute.add(cheie);
+    pune({ ingredient: codIng, fel: 'ELIGIBIL', costPeUnitate: cost, umInventar, pret, um: ing.um, ...(cons ? { consistenta: cons } : {}), ...(precizie ? { precizieLimitata: true } : {}) });
     costuri.push({
-      cod: codIng, denumire: ing.denumire, costPeUnitate: pret, perioada: m.perioada, validDeLa,
+      cod: codIng, denumire: ing.denumire, costPeUnitate: pret, perioada: m.perioada, validDeLa, validPanaLa: fer.la,
       ...(m.sursa?.rand !== undefined ? { rand: m.sursa.rand } : {}),
       ...(m.material !== codIng ? { material: m.material } : {}),
       ...(m.locatie ? { restaurant: m.locatie } : {}),
     });
   }
-  return { costuri, diagnostice, consistenta, numar };
+  return { costuri, diagnostice, consistenta, precizieLimitata, dubluri, numar };
 }
 
 export type FelSchimbare = 'CRESTERE' | 'SCADERE' | 'NESCHIMBAT' | 'NOU' | 'NEFOLOSIT';
@@ -250,8 +272,12 @@ export function impactPreturi29(
 
 /**
  * Scrie prețurile noi ca intrări DATATE. Istoricul nu se rescrie: costul perioadelor
- * anterioare rămâne calculat cu prețurile lor. Un preț identic cu cel curent nu adaugă
- * nimic — altfel un import săptămânal ar umple istoricul cu intrări care nu spun nimic.
+ * anterioare rămâne calculat cu prețurile lor.
+ *
+ * „Identic" înseamnă identic cu un preț CHIAR în vigoare la acea dată (nu cu retro-umplerea
+ * unui preț viitor) și care e o referință (listă, manual) sau propria fereastră 2.9: atunci nu
+ * se adaugă nimic. O măsurătoare 2.9 egală cu cea a ALTEI ferestre se scrie totuși — fiecare
+ * fereastră își ține propria intrare, altfel corectarea uneia ar schimba prețul celeilalte.
  */
 export function aplicaPreturi29(
   state: AppState, ctx: Ctx | null, costuri: CostMaterial29[], validDeLa: string,
@@ -262,13 +288,17 @@ export function aplicaPreturi29(
   const ingrediente = state.ingrediente.map(ing => {
     const c = costuri.find(x => x.cod === ing.cod);
     if (!c) return ing;
-    const curent = ing.preturi.length ? pretLa(ing, validDeLa) : null;
-    if (curent !== null && curent === c.costPeUnitate) { sarite++; return ing; }
+    // se înlocuiește DOAR propria intrare 2.9 — aceeași dată ȘI același sfârșit de fereastră
+    // (corecția aceleiași ferestre); lista de prețuri sau intrarea manuală de la aceeași dată
+    // rămân în istoric (D2); luna și săptămâna care încep în aceeași zi sunt intrări diferite
+    const proprie = (p: { validDeLa: string; sursa?: { tip: string; fereastraLa?: string } }) =>
+      p.validDeLa === validDeLa && p.sursa?.tip === 'NBO_29'
+      && (p.sursa.fereastraLa ?? null) === (c.validPanaLa ?? null);
+    const inVigoare = [...sorteazaPreturi(ing.preturi)].reverse().find(p => p.validDeLa <= validDeLa) ?? null;
+    const identic = inVigoare !== null && inVigoare.pret === c.costPeUnitate
+      && (inVigoare.sursa?.tip !== 'NBO_29' || proprie(inVigoare));
+    if (identic) { sarite++; return ing; }
     scrise++;
-    // se înlocuiește DOAR propria intrare 2.9 de la aceeași dată (corecția aceleiași ferestre);
-    // lista de prețuri sau intrarea manuală de la aceeași dată rămân în istoric (D2), iar
-    // intrările săptămânilor sau ale lunii de alături nu sunt atinse — validDeLa e altul
-    const proprie = (p: { validDeLa: string; sursa?: { tip: string } }) => p.validDeLa === validDeLa && p.sursa?.tip === 'NBO_29';
     // nomenclatorul are un singur preț pe ingredient: un 2.9 al altui restaurant, pe aceeași
     // dată, e înlocuit — și spus, nu ascuns
     for (const p of ing.preturi) {
@@ -285,6 +315,7 @@ export function aplicaPreturi29(
           ...(sursa ? { fisier: sursa.fisier } : {}), ...(sursa?.amprenta ? { amprenta: sursa.amprenta } : {}),
           ...(c.perioada ? { perioada: c.perioada } : {}), ...(c.rand !== undefined ? { rand: c.rand } : {}),
           ...(c.restaurant ? { restaurant: c.restaurant } : {}),
+          ...(c.validPanaLa ? { fereastraLa: c.validPanaLa } : {}),
         },
       }]),
     };

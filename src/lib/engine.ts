@@ -53,9 +53,15 @@ export function buildCtx(s: Pick<AppState, 'ingrediente' | 'retete' | 'produse'>
  */
 export const prioritatePret = (p: PretIstoric): number => (p.sursa?.tip === 'NBO_29' ? 1 : 0);
 
-/** Istoricul în ordinea în care se citește: după dată, iar la aceeași dată după precedență. */
+/**
+ * Istoricul în ordinea în care se citește: după dată, la aceeași dată după precedență, iar
+ * între două măsurători 2.9 de la aceeași dată câștigă fereastra mai fină (săptămâna înaintea
+ * lunii care începe în aceeași zi) — ultima din listă e cea care intră în calcul.
+ */
+const capatFereastra = (p: PretIstoric): string => p.sursa?.fereastraLa ?? '9999-12-31';
 export const sorteazaPreturi = (preturi: PretIstoric[]): PretIstoric[] =>
-  [...preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa) || prioritatePret(a) - prioritatePret(b));
+  [...preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa) || prioritatePret(a) - prioritatePret(b)
+    || capatFereastra(b).localeCompare(capatFereastra(a)));
 
 export function pretLa(ing: Ingredient, data: string): number {
   let p = 0; let gasit = false;

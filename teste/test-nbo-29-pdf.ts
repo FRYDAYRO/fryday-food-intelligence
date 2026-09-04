@@ -301,5 +301,94 @@ t('fără „valabil de la", importul nu are ce perioadă să folosească: nu se
 const rf2 = imp(BAZA, { fisier: '2.9 fara perioada.pdf', parsat: pf, acum: ACUM(14), dataValabil: '2026-08-01' });
 t('cu „valabil de la" declarat de om, intră ca raport lunar al lunii declarate, fără interval de versiune', rf2.rezultat.stare === 'ACTIVAT' && rf2.stareNoua.materiale29!.every(m => m.perioada === '2026-08' && m.fereastra?.granularitate === 'LUNA') && !rf2.stareNoua.versiuniImport!.find(v => v.tip === 'NBO_29')!.intervalDe, rf2.rezultat.erori.join(' | '));
 
+// ————————————————————————————————— 8. constatările panelului adversarial
+console.log('\n— 8. Constatările panelului: ID-uri scurte, linii necitite, antete rupte, celule negative rupte, identitatea ferestrei —');
+// (a) Item ID de 2 cifre (real: „Sos Truffle Mayo BIB 75 Liter", „Manusi Grill 80 Each") nu e înghițit în denumirea precedentă
+const SCURT = [...ANTET, 'Food 11%', 'Food 11%',
+  'Sos Samurai BIB 4067 Liter 1,0 0,0 0,0 0,0 0,5 40,00 lei 20,00 lei 10,0 0,5 0,5 0,0 20 lei 20 lei 0 lei 0,00% 0,00% 0,00%',
+  'Sos Truffle Mayo BIB 75 Liter 0,0 0,0 0,0 0,0 0,0 43,09 lei 0,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'ACCUSHAKER 2 G 702382 EA 0,0 0,0 0,0 0,0 0,0 445,00 lei 0,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Capac Inox Galeata 10 L 702420 EA 1,0 0,0 0,0 0,0 1,0 50,00 lei 50,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Total: Food 11% 70,00 lei 20 lei 20 lei 0 lei 0,00% 0,00% 0,00%', 'Totals: Sales: 1.000,00 lei 70,00 lei 20 lei 20 lei 0 lei 2,00% 2,00% 0,00%'].join('\n');
+const rs = parseRaport29(SCURT);
+t('(a) ID-urile de 2 cifre dau rânduri proprii; perechile false din denumire („2 G", „10 L") nu câștigă', rs.randuri.length === 4 && rs.randuri.map(x => x.itemId).join() === '4067,75,702382,702420' && rs.randuri[0].item === 'Sos Samurai BIB' && rs.randuri[2].item === 'ACCUSHAKER 2 G' && rs.randuri[3].item === 'Capac Inox Galeata 10 L', rs.randuri.map(x => `${x.itemId}:${x.item}`).join(' | '));
+t('(a) și nicio denumire nu conține cifre de grilă', !rs.randuri.some(x => /lei|%/.test(x.item)) && rs.verificari.every(v => v.ok));
+// (b) o linie cu forma grilei, dar cu unitate necunoscută, e raportată ca necitită — nu devine denumire, nici antet
+const NECUNOSCUT = [...ANTET, 'Food 11%', 'Food 11%',
+  'Chifla 7000133 EA 1,0 0,0 0,0 0,0 1,0 2,00 lei 2,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Cutie Pizza 7000500 Case 1,0 0,0 0,0 0,0 1,0 9,00 lei 9,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Sos casei 7000501 KG 1,0 0,0 0,0 0,0 1,0 5,00 lei 5,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Total: Food 11% 16,00 lei 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%'].join('\n');
+const rn = parseRaport29(NECUNOSCUT);
+t('(b) unitatea „Case" nu se citește: rândul e în nerecunoscute, cu avertisment; celelalte două rânduri rămân în categoria lor', rn.randuri.length === 2 && rn.nerecunoscute.length === 1 && /Cutie Pizza/.test(rn.nerecunoscute[0].text) && rn.randuri.every(x => x.categorie === 'Food 11%') && rn.randuri[0].item === 'Chifla' && rn.avertismente.some(a => /nu s-au putut citi/.test(a)), `${rn.randuri.map(x => x.item).join('|')} nerec=${rn.nerecunoscute.length}`);
+t('(b) fără linia „Totals:" raportul o spune', rn.totalGeneral === null && rn.avertismente.some(a => /Totals/.test(a)));
+// (c) părinte la capătul paginii, subgrup pe pagina următoare: părintele nu se pierde
+const RUPT_PAG = [...ANTET, 'Paper', SUBSOL(1), ...ANTET, 'ACCESORII',
+  'Cos cartofi 7000600 EA 1,0 0,0 0,0 0,0 1,0 3,00 lei 3,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Total: ACCESORII 3,00 lei 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%', 'Paper',
+  'Capac 7000601 EA 1,0 0,0 0,0 0,0 1,0 1,00 lei 1,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%',
+  'Total: Paper 4,00 lei 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%', 'ACCESORII',
+  'Sita 7000602 EA 1,0 0,0 0,0 0,0 1,0 2,00 lei 2,00 lei 0 0,0 0,0 0,0 0 lei 0 lei 0 lei 0,00% 0,00% 0,00%'].join('\n');
+const rp2 = parseRaport29(RUPT_PAG);
+t('(c) „Paper" + cadrul paginii + „ACCESORII" → subgrup al lui Paper; „ACCESORII" retipărit singur își amintește părintele', rp2.randuri.length === 3 && rp2.randuri[0].grup === 'Paper' && rp2.randuri[0].categorie === 'ACCESORII' && rp2.randuri[1].grup === null && rp2.randuri[1].categorie === 'Paper' && rp2.randuri[2].grup === 'Paper' && rp2.randuri[2].categorie === 'ACCESORII', rp2.randuri.map(x => `${x.grup}/${x.categorie}`).join(' '));
+// (d) celulă negativă ruptă ÎNAINTEA virgulei: „(1.316" + „,0)" → −1316, nu +1316
+const NEG = [...ANTET, 'Food 11%', 'Food 11%',
+  'BURGER VITA 7000268 EA 2.582,0 18.810,0 76,0 7.068,0 5.327,0 3,58 lei 19.049,35 lei 7,2 23.057,0 24.373,0 (1.316 82.574 lei 87.287 lei (4.713 lei) 12,22% 12,92% (0,70%)',
+  ',0)',
+  'Total: Food 11% 19.049,35 lei 82.574 lei 87.287 lei (4.713 lei) 12,22% 12,92% (0,70%)'].join('\n');
+const rneg = parseRaport29(NEG);
+t('(d) paranteza deschisă fără închidere e celulă ruptă: varianța = −1.316, denumirea rămâne curată', rneg.randuri.length === 1 && rneg.randuri[0].consumUnitati.varianta === -1316 && rneg.randuri[0].item === 'BURGER VITA' && rneg.nerecunoscute.length === 0, JSON.stringify(rneg.randuri[0]?.consumUnitati) + ' ' + rneg.randuri[0]?.item);
+// (e) raportul real de referință: identitatea actual − teoretic = varianță pe fiecare rând al fixturii
+t('(e) identitate pe fiecare rând: Usage Actual − Theory = Variance (unități și lei)', R.randuri.every(x => aprox(x.consumUnitati.actual - x.consumUnitati.teoretic, x.consumUnitati.varianta) && Math.abs(x.consumLei.actual - x.consumLei.teoretic - x.consumLei.varianta) <= 1));
+
+console.log('\n— 9. Constatările panelului: „identic" nu șterge identitatea ferestrei; retro-umplerea nu e preț în vigoare —');
+const W33 = TEXT.replace(/01\.08\.2026 - 31\.08\.2026/g, '10.08.2026 - 16.08.2026').replace(/Period: 8/g, 'Week: 33').replace('1.777,0 0,63 lei', '1.777,0 0,65 lei');
+// (f) S32 = 0,65 și S33 = 0,65: S33 își scrie propria intrare; corectarea lui S32 nu schimbă prețul lui S33
+const f1 = imp(S3, { fisier: 'S32.pdf', parsat: parsatDin29(parseRaport29(SAPT)), acum: ACUM(20) }).stareNoua;
+const f2 = imp(f1, { fisier: 'S33.pdf', parsat: parsatDin29(parseRaport29(W33)), acum: ACUM(21) }).stareNoua;
+t('(f) o săptămână cu același preț ca precedenta își scrie totuși intrarea (fereastra are identitate)', pret(f2, 'CHED').preturi.some(p => p.validDeLa === '2026-08-10' && p.pret === 0.65 && p.sursa?.fereastraLa === '2026-08-16'), pret(f2, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}`).join(','));
+const f3 = imp(f2, { fisier: 'S32.pdf', parsat: parsatDin29(parseRaport29(SAPT.replace('1.777,0 0,65 lei', '1.777,0 0,60 lei'))), acum: ACUM(22) }).stareNoua;
+t('(f) S32 corectată la 0,60 nu schimbă prețul lui S33 (12 aug rămâne 0,65)', pretLa(pret(f3, 'CHED'), '2026-08-05') === 0.6 && pretLa(pret(f3, 'CHED'), '2026-08-12') === 0.65, `${pretLa(pret(f3, 'CHED'), '2026-08-05')} ${pretLa(pret(f3, 'CHED'), '2026-08-12')}`);
+t('(f) dar prețul identic cu o REFERINȚĂ (lista) tot nu creează intrare: Burger 3,58 rămâne cu o singură intrare', pret(f3, '7000268').preturi.length === 1);
+// (g) fără preț în vigoare la data raportului: retro-umplerea unui preț viitor nu e „identic"
+const gS: AppState = { ...BAZA, ingrediente: BAZA.ingrediente.map(i => i.cod === 'CHED' ? { ...i, preturi: [] } : i) };
+const g1 = imp(gS, { fisier: 'sept.pdf', parsat: parsatDin29(parseRaport29(SEPT.replace('1.777,0 0,70 lei', '1.777,0 0,63 lei'))), acum: ACUM(23) }).stareNoua;
+const g2 = imp(g1, { fisier: 'aug.pdf', parsat: P, acum: ACUM(24) }).stareNoua;
+t('(g) septembrie 0,63 apoi august 0,63: august primește intrarea lui (nu e „identic" cu retro-umplerea)', pret(g2, 'CHED').preturi.map(p => p.validDeLa).join() === '2026-08-01,2026-09-01', pret(g2, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}`).join(','));
+const g3 = imp(g2, { fisier: 'sept.pdf', parsat: parsatDin29(parseRaport29(SEPT)), acum: ACUM(25) }).stareNoua;
+t('(g) corecția lui septembrie (0,70) nu schimbă costul lui august', pretLa(pret(g3, 'CHED'), '2026-08-20') === 0.63 && pretLa(pret(g3, 'CHED'), '2026-09-15') === 0.7);
+const g4S: AppState = { ...BAZA, ingrediente: BAZA.ingrediente.map(i => i.cod === 'CHED' ? { ...i, preturi: [{ validDeLa: '2026-09-01', pret: 0.63 }] } : i) };
+const g4 = imp(g4S, { fisier: 'aug.pdf', parsat: P, acum: ACUM(32) }).stareNoua;
+t('(g) o listă de prețuri VIITOARE (1 sept, 0,63) nu e „preț în vigoare" în august: 2.9 august își scrie intrarea', pret(g4, 'CHED').preturi.map(p => p.validDeLa).join() === '2026-08-01,2026-09-01', pret(g4, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}`).join(','));
+// (h) luna și săptămâna care încep în aceeași zi (iunie 2026 începe luni) sunt intrări diferite; săptămâna câștigă în ziua comună
+const IUN = TEXT.replace(/01\.08\.2026 - 31\.08\.2026/g, '01.06.2026 - 30.06.2026').replace(/Period: 8/g, 'Period: 6');
+const W23 = TEXT.replace(/01\.08\.2026 - 31\.08\.2026/g, '01.06.2026 - 07.06.2026').replace(/Period: 8/g, 'Week: 23').replace('1.777,0 0,63 lei', '1.777,0 0,65 lei');
+const hS: AppState = { ...BAZA, ingrediente: BAZA.ingrediente.map(i => i.cod === 'CHED' ? { ...i, preturi: [{ validDeLa: '2026-05-01', pret: 0.6 }] } : i) };
+const h1 = imp(hS, { fisier: 'iunie.pdf', parsat: parsatDin29(parseRaport29(IUN)), acum: ACUM(26) }).stareNoua;
+const h2 = imp(h1, { fisier: 'W23.pdf', parsat: parsatDin29(parseRaport29(W23)), acum: ACUM(27) }).stareNoua;
+t('(h) luna (0,63) și săptămâna (0,65) de la 1 iunie coexistă ca intrări; săptămâna câștigă pe 3 iunie', pret(h2, 'CHED').preturi.filter(p => p.validDeLa === '2026-06-01').length === 2 && pretLa(pret(h2, 'CHED'), '2026-06-03') === 0.65, pret(h2, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}:${p.sursa?.fereastraLa ?? '-'}`).join(','));
+const h3 = imp(h2, { fisier: 'iunie.pdf', parsat: parsatDin29(parseRaport29(IUN.replace('1.777,0 0,63 lei', '1.777,0 0,64 lei'))), acum: ACUM(28) }).stareNoua;
+t('(h) luna corectată (0,64) își înlocuiește doar propria intrare; săptămâna rămâne 0,65', pret(h3, 'CHED').preturi.filter(p => p.validDeLa === '2026-06-01').map(p => p.pret).sort().join() === '0.64,0.65' && pretLa(pret(h3, 'CHED'), '2026-06-03') === 0.65);
+// (i) fișier xlsx 2.9 cu două luni: fiecare lună primește prețul ei
+const XL = { foaie: 'S', antete: ['Perioada', 'Locatie', 'Cod material', 'Denumire material', 'Categorie', 'Cantitate', 'UM', 'Cost actual', 'Cost per unit'],
+  randuri: [
+    { Perioada: '2026-07', Locatie: 'L01', 'Cod material': '7000123', 'Denumire material': 'Branza cheddar felii 2026', Categorie: 'Food', Cantitate: 100, UM: 'EA', 'Cost actual': 63, 'Cost per unit': 0.63 },
+    { Perioada: '2026-08', Locatie: 'L01', 'Cod material': '7000123', 'Denumire material': 'Branza cheddar felii 2026', Categorie: 'Food', Cantitate: 100, UM: 'EA', 'Cost actual': 70, 'Cost per unit': 0.7 },
+  ] };
+const i1 = imp(BAZA, { fisier: '2.9 doua luni.xlsx', parsat: XL, acum: ACUM(29) });
+t('(i) două luni în același fișier → două prețuri datate (iulie 0,63, august 0,70)', i1.rezultat.stare === 'ACTIVAT' && pretLa(pret(i1.stareNoua, 'CHED'), '2026-07-15') === 0.63 && pretLa(pret(i1.stareNoua, 'CHED'), '2026-08-15') === 0.7, `${i1.rezultat.stare} ${pret(i1.stareNoua, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}`).join(',')} ${i1.rezultat.erori.join('|')}`);
+// (j) același fișier redeclarat pe altă fereastră: prețurile versiunii înlocuite pleacă odată cu rândurile ei
+const j1 = imp(BAZA, { fisier: '2.9 luna.xlsx', parsat: { ...XL, randuri: [XL.randuri[1]] }, acum: ACUM(30), interval: { de: '2026-08-01', la: '2026-08-31' } }).stareNoua;
+const j2r = imp(j1, { fisier: '2.9 luna.xlsx', parsat: { ...XL, randuri: [XL.randuri[1]] }, acum: ACUM(31), interval: { de: '2026-08-03', la: '2026-08-09' } });
+const j2 = j2r.stareNoua;
+t('(j) versiunea redeclarată își retrage prețul (08-01) și scrie prețul noii ferestre (08-03)', j2r.rezultat.stare === 'ACTIVAT' && pret(j2, 'CHED').preturi.map(p => p.validDeLa).join() === '2026-07-01,2026-08-03' && j2r.rezultat.avertismente.some(a => /retrase din nomenclator/.test(a)), `${j2r.rezultat.stare} ${pret(j2, 'CHED').preturi.map(p => `${p.validDeLa}:${p.pret}`).join(',')}`);
+// (k) consistența ține cont de rotunjirea unităților (0,1) și a leilor (1): 23 lei ÷ 0,4 L față de 65,21 nu e inconsistență
+const k = preturiDin29([ing('MON', 'Monin', 'l', 60)], [mat('MON', 'Monin', 65.21, 'Liter', 0.4, 23)]);
+t('(k) 23 lei pe 0,4 L (rotunjit) față de 65,21 lei/L nu dă avertisment', k.consistenta.length === 0 && k.costuri[0]?.costPeUnitate === 65.21, k.consistenta.join(' | '));
+const k2 = preturiDin29([ing('MON', 'Monin', 'l', 60)], [mat('MON', 'Monin', 65.21, 'Liter', 40, 2300)]);
+t('(k) … dar 2.300 lei pe 40 L (57,5) față de 65,21 dă', k2.consistenta.length === 1);
+// (l) Cost per Unit sub 0,10 lei: precizie limitată, semnalată
+t('(l) Sare 0,05 lei/Each e semnalată ca preț cu precizie limitată, dar tot se scrie', r3.rezultat.avertismente.some(a => /precizie limitată/.test(a) && /Sare FRYDAY 2G/.test(a)) && pretLa(pret(S3, '2002'), '2026-08-15') === 0.05);
+
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

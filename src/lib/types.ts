@@ -15,6 +15,8 @@ export interface SursaPret {
   rand?: number;
   /** Restaurantul al cărui raport 2.9 a dat prețul: costul FIFO e al lui, nu al rețelei. */
   restaurant?: string;
+  /** Sfârșitul ferestrei raportului 2.9: luna și săptămâna care încep în aceeași zi sunt intrări diferite. */
+  fereastraLa?: string;
 }
 
 export interface PretIstoric { validDeLa: string; pret: number; sursa?: SursaPret; }

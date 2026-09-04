@@ -82,11 +82,14 @@ export interface Raport29 {
   avertismente: string[];
 }
 
-const NUM = /^\(?-?[\d.]*\d(?:,\d+)?\)?$/;
-const LEI = /^\(?-?[\d.]*\d(?:,\d+)? lei\)?$/;
-const PCT = /^\(?-?[\d.]*\d(?:,\d+)?%\)?$/;
+// parantezele trebuie să fie echilibrate: „(1.316" e o celulă RUPTĂ, nu un număr pozitiv
+const NUM = /^(?:\(-?[\d.]*\d(?:,\d+)?\)|-?[\d.]*\d(?:,\d+)?)$/;
+const LEI = /^(?:\(-?[\d.]*\d(?:,\d+)? lei\)|-?[\d.]*\d(?:,\d+)? lei)$/;
+const PCT = /^(?:\(-?[\d.]*\d(?:,\d+)?%\)|-?[\d.]*\d(?:,\d+)?%)$/;
 const UM_INVENTAR = /^(ea|each|kg|liter|litre|ltr|lt|l|ml|gram|grams|gr|g|pair|pairs|buc|pcs|pc)$/i;
-const ITEM_ID = /^\d{3,8}$/;
+// ID-urile reale au între 2 și 7 cifre („75", „2002", „7000247"); o pereche falsă din denumire
+// („ACCUSHAKER 2 G", „Galeata 10 L") nu are exact 17 câmpuri după ea, deci nu câștigă
+const ITEM_ID = /^\d{1,8}$/;
 
 /** Ordinea coloanelor numerice ale grilei, după „Inv Unit": ce fel de valoare stă în fiecare. */
 const COLOANE: ('NUM' | 'LEI' | 'PCT')[] = [
@@ -119,6 +122,14 @@ const STRUCTURA = [
   /^\d{2}\.\d{2}\.\d{4}\s-\s\d{2}\.\d{2}\.\d{4}$/, /^Usage in Units/i, /^Raw Material/i, /^Item Name/i, /copyright/i,
 ];
 const eStructura = (l: string) => STRUCTURA.some(re => re.test(l));
+/** Cadrul paginii (subsol + antetul repetat): nu e un total, deci nu încheie un grup început. */
+const eCadruPagina = (l: string) => !/^Totals?:\s/.test(l);
+/** O linie care arată a rând de grilă (cifre, lei, procente), dar nu s-a putut citi ca atare. */
+const pareGrila = (l: string) => {
+  const t = l.split(' ');
+  const numerice = t.filter(x => NUM.test(x) || PCT.test(x)).length;
+  return numerice >= 6 || (/\blei\b/i.test(l) && /%/.test(l));
+};
 
 /** Textul e raportul 2.9 al NBO? Se decide din titlul tipărit pe fiecare pagină, nu din numele fișierului. */
 export function esteRaport29(text: string): boolean {
@@ -180,6 +191,9 @@ export function parseRaport29(text: string): Raport29 {
   let categorie: string | null = null;
   let precedent: 'DATE' | 'STRUCTURA' | 'ANTET' | 'CONTINUARE' | null = null;
   let antetPrecedent: string | null = null;
+  // subgrupurile văzute cu părintele lor: un subgrup retipărit singur (după cadrul paginii sau
+  // după totalul unui frate) își păstrează părintele, nu devine grup de nivel 1
+  const parinti = new Map<string, string>();
   // rândul în curs de completare: bucățile de celulă rupte și continuarea denumirii
   let inCurs: { rand: Rand29 | null; nume: string; itemId: string; um: string; campuri: string[]; deschise: Deschis[]; linie: number; text: string } | null = null;
   const perioadeVazute = new Set<string>();
@@ -208,7 +222,9 @@ export function parseRaport29(text: string): Raport29 {
 
     if (eStructura(l)) {
       inchide();
-      precedent = 'STRUCTURA';
+      // cadrul paginii nu rupe un antet de grup început la capătul paginii precedente
+      // („Paper" ultima linie, „ACCESORII" prima de sub antetul paginii următoare)
+      precedent = precedent === 'ANTET' && eCadruPagina(l) ? 'ANTET' : 'STRUCTURA';
       let m: RegExpExecArray | null;
       if ((m = /^(.*?)\s*Fiscal Year:\s*(\d{4})/i.exec(l))) {
         if (m[1] && !r.restaurant) r.restaurant = m[1].trim();
@@ -250,6 +266,15 @@ export function parseRaport29(text: string): Raport29 {
       return;
     }
 
+    // o linie cu forma grilei pe care candidat() n-o recunoaște (unitate de inventar necunoscută,
+    // un câmp în plus sau în minus) NU e o denumire și nici un antet: rămâne raportată ca necitită
+    if (pareGrila(l) && !(inCurs && inCurs.deschise.length && l.split(' ').length <= inCurs.deschise.length + 6)) {
+      inchide();
+      r.nerecunoscute.push({ rand: nr, text: l });
+      precedent = 'STRUCTURA';
+      return;
+    }
+
     // linie fără cifre după un rând de material: bucățile celulelor rupte, apoi continuarea denumirii
     if ((precedent === 'DATE' || precedent === 'CONTINUARE') && inCurs) {
       const tokens = l.split(' ');
@@ -270,8 +295,8 @@ export function parseRaport29(text: string): Raport29 {
     // antet de grup: tipărit de două ori; un antet diferit imediat după altul e un subgrup
     inchide();
     if (precedent === 'ANTET' && antetPrecedent === l) { /* a doua tipărire */ }
-    else if (precedent === 'ANTET' && antetPrecedent !== null) { grup = antetPrecedent; categorie = l; }
-    else { grup = null; categorie = l; }
+    else if (precedent === 'ANTET' && antetPrecedent !== null) { grup = antetPrecedent; categorie = l; parinti.set(l, antetPrecedent); }
+    else { grup = parinti.get(l) ?? null; categorie = l; }
     antetPrecedent = l;
     precedent = 'ANTET';
   });
@@ -313,6 +338,8 @@ export function parseRaport29(text: string): Raport29 {
     if (Math.abs(suma - r.totalGeneral.consumLei.actual) > toleranta) {
       r.avertismente.push(`Totalul general: rândurile însumează ${suma} lei, raportul declară ${r.totalGeneral.consumLei.actual} lei.`);
     }
+  } else if (r.randuri.length) {
+    r.avertismente.push('Raportul nu declară totalul general (linia „Totals:") — rândurile nu s-au putut verifica pe total.');
   }
   return r;
 }

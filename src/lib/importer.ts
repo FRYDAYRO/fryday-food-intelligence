@@ -1247,7 +1247,19 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       // Se scrie pe fereastra fiecărui rând (săptămâna sau luna raportului), ca intrare nouă
       // datată — istoricul nu se rescrie, prețul identic nu adaugă nimic (aplicaPreturi29).
       if (map.costPeUnitate !== undefined && noi.length) {
-        const preturi = preturiDin29(state.ingrediente, noi);
+        // versiunile pe care acest import le înlocuiește (același fișier redeclarat pe altă
+        // fereastră) își retrag și prețurile din nomenclator, odată cu rândurile lor: prețul
+        // noii ferestre se judecă față de istoricul real, nu față de o intrare orfană
+        let retrase = 0;
+        const ingredienteCurate = inlocuite.size
+          ? stateNou.ingrediente.map(ing => {
+            const ramase = ing.preturi.filter(p => !(p.sursa?.tip === 'NBO_29' && p.sursa.amprenta && inlocuite.has(p.sursa.amprenta)));
+            retrase += ing.preturi.length - ramase.length;
+            return ramase.length === ing.preturi.length ? ing : { ...ing, preturi: ramase };
+          })
+          : stateNou.ingrediente;
+        stateNou = { ...stateNou, ingrediente: ingredienteCurate };
+        const preturi = preturiDin29(ingredienteCurate, noi);
         const peData = new Map<string, CostMaterial29[]>();
         for (const c of preturi.costuri) {
           const k = c.validDeLa ?? `${c.perioada}-01`;
@@ -1282,6 +1294,16 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
             + 'Cost per Unit rămâne prețul sursă, nu se corectează din consum: '
             + preturi.consistenta.slice(0, 5).join('; ') + (preturi.consistenta.length > 5 ? '…' : ''));
         }
+        if (preturi.precizieLimitata.length) {
+          avert.push(`${preturi.precizieLimitata.length} materiale cu Cost per Unit sub 0,10 lei — coloana tipărită are două zecimale, `
+            + 'deci prețul scris are precizie limitată (rotunjirea la ban e ≥ 5 %): '
+            + preturi.precizieLimitata.slice(0, 5).join(', ') + (preturi.precizieLimitata.length > 5 ? '…' : ''));
+        }
+        if (preturi.dubluri.length) {
+          avert.push(`${preturi.dubluri.length} rânduri sărite: același ingredient primise deja preț din alt rând al aceleiași ferestre — `
+            + preturi.dubluri.slice(0, 5).join(', ') + (preturi.dubluri.length > 5 ? '…' : ''));
+        }
+        if (retrase) avert.push(`${retrase} intrări de preț ale versiunii înlocuite (același fișier, redeclarat pe altă fereastră) au fost retrase din nomenclator`);
         if (n.NEMAPAT) avert.push(`${n.NEMAPAT} materiale nemapate nu primesc preț până la aprobarea din coadă`);
         if (altRestaurant.length) {
           avert.push(`ATENȚIE: nomenclatorul are un singur preț pe ingredient — prețul 2.9 al altui restaurant, de la aceeași dată, a fost înlocuit pentru: `

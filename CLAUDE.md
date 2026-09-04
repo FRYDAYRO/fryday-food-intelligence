@@ -69,3 +69,9 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
 - FC operațional / Curat / Paper doar pe Total: raportul 2.9 nu conține canalul.
 - Proiecția de profit este o regresie liniară pe istoric, fără sezonalitate — și e declarată ca atare în UI.
 - Aplicația e mono-utilizator; starea trăiește în `localStorage` (local) sau `window.storage` (artifact).
+- Prețurile din 2.9 sunt intrări „valabil de la": o măsurătoare săptămânală rămâne în vigoare până la
+  următoarea intrare datată (săptămâna următoare sau luna), nu doar în fereastra ei.
+- Nomenclatorul ține un singur preț pe ingredient: raportul 2.9 al altui restaurant pe aceeași
+  fereastră înlocuiește prețul (și o spune în raportul importului); reimportul primului e duplicat.
+- „Cost per Unit" e tipărit cu două zecimale: sub 0,10 lei/unitate prețul scris are precizie
+  limitată (semnalat la import); nu se „corectează" din Usage lei ÷ unități (D4).
