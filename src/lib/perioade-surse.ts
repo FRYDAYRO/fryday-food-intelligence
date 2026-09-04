@@ -22,6 +22,8 @@
  */
 import { compatibilitate, type Compatibilitate, type IntervalRaport } from './compatibilitate';
 import type { AppState, VersiuneSursa } from './types';
+import type { FCPeriod } from './fc-domeniu';
+import { inlocuieste } from './surse-29';
 
 // ————————————————————————————————————————————————————————— sursele care se pot combina
 
@@ -98,10 +100,117 @@ const MOTIV_NEDECLARAT = (lipsa: SursaCombinabila[]) =>
  * Poate fi combinată cifra celor două (sau mai multe) surse? Verdictul se dă pe intervalele
  * DECLARATE; ce nu e declarat rămâne necunoscut, nu presupus greșit.
  */
+/** Sursele agregate PE FEREASTRĂ (un rând = tot raportul): nu se taie la cerere, se aleg pe granularitate. */
+const PE_FEREASTRA = new Set<SursaCombinabila>(['NBO_29']);
+
+const ziUrmatoare = (d: string) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
+const marginiLunii = (luna: string) => {
+  const [an, l] = luna.split('-').map(Number);
+  return { de: `${luna}-01`, la: new Date(Date.UTC(an, l, 0)).toISOString().slice(0, 10) };
+};
+const luniCererii = (p: FCPeriod): string[] => {
+  const rez: string[] = [];
+  for (let l = p.de.slice(0, 7); l <= p.la.slice(0, 7);) {
+    rez.push(l);
+    const [an, ll] = l.split('-').map(Number);
+    l = ll === 12 ? `${an + 1}-01` : `${an}-${String(ll + 1).padStart(2, '0')}`;
+  }
+  return rez;
+};
+
+/**
+ * Intervalele surselor PENTRU O CERERE — ce fereastră servește efectiv cererea, pe fiecare tip,
+ * dintre TOATE versiunile (nu doar cea activă: un săptămânal și un lunar coexistă).
+ *
+ *  · sursele cu rânduri DATATE (4.7, 4.1) servesc orice cerere cuprinsă în fereastra lor:
+ *    fereastra efectivă e cererea însăși; mai multe ferestre care o acoperă fără goluri
+ *    se compun; o acoperire parțială rămâne parțială și se judecă ca atare (BLOCK explicit);
+ *  · sursele agregate pe fereastră (2.9) se aleg pe granularitate: raportul lunar pentru o
+ *    lună, cel săptămânal cu exact fereastra cerută pentru o săptămână — niciodată tăiate;
+ *  · un tip cu ferestre declarate, dar niciuna pe cerere, intră cu cea mai recentă: e
+ *    DEMONSTRAT pe altă fereastră, nu absent — garda de azi nu se relaxează;
+ *  · versiunile fără fereastră rămân „necunoscute" (INSUFFICIENT_DATA), ca azi.
+ */
+export function intervaleSursePentru(
+  state: AppState, tipuri: SursaCombinabila[], perioada: FCPeriod,
+): IntervalSursa[] {
+  const rez: IntervalSursa[] = [];
+  const toate = state.versiuniImport ?? [];
+  for (const tip of tipuri) {
+    // versiunile ÎN VIGOARE ale tipului: nu cele înlocuite de una mai nouă pe aceeași fereastră
+    const ale = toate.filter(v => v.tip === tip && !toate.some(w => w.tip === tip && w.nr > v.nr && inlocuieste(w, v)));
+    if (!ale.length) continue;
+    const declarate = ale.filter(v => v.intervalDe && v.intervalLa).sort((a, b) => a.intervalDe!.localeCompare(b.intervalDe!));
+    const ultima = [...ale].sort((a, b) => b.nr - a.nr)[0];
+    const nedeclarata = ale.find(v => !(v.intervalDe && v.intervalLa));
+    const ca = (v: VersiuneSursa, de = v.intervalDe!, la = v.intervalLa!): IntervalSursa =>
+      ({ tip, raport: ETICHETA_RAPORT[tip], fisier: v.fisier, de, la, declarat: true });
+    const necunoscuta = (v: VersiuneSursa): IntervalSursa =>
+      ({ tip, raport: ETICHETA_RAPORT[tip], fisier: v.fisier, de: '', la: '', declarat: false });
+    // nicio fereastră declarată nu servește cererea: dacă ultima versiune a tipului nu declară
+    // fereastra, sursa e „necunoscută" (INSUFFICIENT_DATA, ca azi); altfel cea mai recentă
+    // fereastră declarată intră în judecată — DEMONSTRAT pe altă fereastră, nu absent
+    const altaFereastra = () => {
+      if (!(ultima.intervalDe && ultima.intervalLa) && nedeclarata) { rez.push(necunoscuta(nedeclarata)); return; }
+      const ult = [...declarate].sort((a, b) => b.nr - a.nr)[0];
+      if (ult) rez.push(ca(ult)); else if (nedeclarata) rez.push(necunoscuta(nedeclarata));
+    };
+    // sursele agregate pe fereastră (2.9, sau orice raport ale cărui rânduri nu poartă ziua)
+    // se aleg pe granularitate și nu se taie la cerere
+    const agregate = PE_FEREASTRA.has(tip) || declarate.every(v => v.granularitate !== 'ZI');
+    const exactPe = (de: string, la: string) => declarate.find(v => v.intervalDe === de && v.intervalLa === la);
+
+    if (agregate) {
+      if (perioada.tip === 'SAPTAMANA') {
+        const exact = exactPe(perioada.de, perioada.la);
+        if (exact) rez.push(ca(exact)); else altaFereastra();
+      } else {
+        // luna cerută: raportul lunar al fiecărei luni; mai multe luni prezente și contigue se
+        // compun într-o singură fereastră — sunt aceeași sursă, nu două rapoarte concurente
+        const luni = luniCererii(perioada);
+        const gasite = luni.map(l => { const { de, la } = marginiLunii(l); return exactPe(de, la); });
+        if (gasite.every(Boolean)) {
+          const v = gasite as VersiuneSursa[];
+          rez.push(v.length === 1 ? ca(v[0]) : { tip, raport: ETICHETA_RAPORT[tip], fisier: v.map(x => x.fisier).join(' + '), de: perioada.de, la: perioada.la, declarat: true });
+        } else if (gasite.some(Boolean)) {
+          rez.push(...(gasite.filter(Boolean) as VersiuneSursa[]).map(v => ca(v)));
+        } else if (nedeclarata) {
+          rez.push(necunoscuta(nedeclarata));
+        } else {
+          altaFereastra();
+        }
+      }
+      continue;
+    }
+
+    // sursele cu rânduri datate (4.7, 4.1 cu zi pe rând) servesc orice cerere cuprinsă în
+    // fereastra lor: se taie la cerere sau se compun când o acoperă fără goluri
+    const zilnice = declarate.filter(v => v.granularitate === 'ZI');
+    const ating = zilnice.filter(v => v.intervalDe! <= perioada.la && v.intervalLa! >= perioada.de);
+    const exact = declarate.find(v => v.intervalDe === perioada.de && v.intervalLa === perioada.la);
+    if (exact) { rez.push(ca(exact)); continue; }
+    // ultima versiune a tipului nu declară fereastra: necunoscutul rămâne necunoscut — o
+    // fereastră veche, tăiată la cerere, nu dictează verdictul în locul ei
+    if (!(ultima.intervalDe && ultima.intervalLa)) { rez.push(necunoscuta(ultima)); continue; }
+    if (!ating.length) { altaFereastra(); continue; }
+    const contine = ating.find(v => v.intervalDe! <= perioada.de && v.intervalLa! >= perioada.la);
+    if (contine) { rez.push(ca(contine, perioada.de, perioada.la)); continue; }
+    const taiate = ating.map(v => ({ v, de: v.intervalDe! < perioada.de ? perioada.de : v.intervalDe!, la: v.intervalLa! > perioada.la ? perioada.la : v.intervalLa! }));
+    const acopera = taiate[0].de === perioada.de && taiate[taiate.length - 1].la === perioada.la
+      && taiate.every((x, i) => i === 0 || ziUrmatoare(taiate[i - 1].la) === x.de);
+    if (acopera) {
+      rez.push({ tip, raport: ETICHETA_RAPORT[tip], fisier: taiate.map(x => x.v.fisier).join(' + '), de: perioada.de, la: perioada.la, declarat: true });
+    } else {
+      rez.push(...taiate.map(x => ca(x.v, x.de, x.la)));
+    }
+  }
+  return rez.sort((a, b) => a.tip.localeCompare(b.tip) || a.de.localeCompare(b.de));
+}
+
 export function verdictCombinare(
-  state: AppState, tipuri: SursaCombinabila[] = COMBINATIE_FC,
+  state: AppState, tipuri: SursaCombinabila[] = COMBINATIE_FC, perioada?: FCPeriod,
 ): VerdictSurse {
-  const intervale = intervaleSurse(state, tipuri);
+  const intervale = perioada ? intervaleSursePentru(state, tipuri, perioada) : intervaleSurse(state, tipuri);
   const nedeclarate = intervale.filter(i => !i.declarat).map(i => i.tip);
   const declarate = intervale.filter(i => i.declarat);
 
@@ -168,7 +277,7 @@ const TITLU: Record<StatusBanda, string> = {
  * import — nu rulează `bridgeFC` și nicio agregare grea — și întoarce EXACT verdictele pe
  * care le folosesc motoarele, prin aceeași funcție. Nu pot diverge, pentru că nu sunt două.
  */
-export function bandaPerioade(state: AppState): BandaPerioade {
+export function bandaPerioade(state: AppState, perioada?: FCPeriod): BandaPerioade {
   const intervale = intervaleSurse(state, ['PMIX_47', 'NBO_29', 'NBO_41']);
   const are = (t: SursaCombinabila) => intervale.some(i => i.tip === t);
 
@@ -179,7 +288,7 @@ export function bandaPerioade(state: AppState): BandaPerioade {
       eticheta: 'Food Cost (2.9 × 4.7)',
       consecinta: 'consumul real, variance-ul și FC-ul actual',
       tipuri: COMBINATIE_FC,
-      verdict: verdictCombinare(state, COMBINATIE_FC),
+      verdict: verdictCombinare(state, COMBINATIE_FC, perioada),
     });
   }
   if (are('NBO_41')) {
@@ -188,7 +297,7 @@ export function bandaPerioade(state: AppState): BandaPerioade {
       eticheta: 'Numitor (4.1 × 4.7)',
       consecinta: 'vânzările nete ca numitor — rămâne PMIX-ul, din aceeași fereastră cu costul',
       tipuri: ['NBO_41', 'PMIX_47'],
-      verdict: verdictCombinare(state, ['NBO_41', 'PMIX_47']),
+      verdict: verdictCombinare(state, ['NBO_41', 'PMIX_47'], perioada),
     });
   }
 

@@ -20,7 +20,7 @@
 //  · compania = Σ restaurante prin construcție: aceeași trecere acumulează și pe
 //    magazin, și global, ca sume — nu există o a doua formulă pentru companie.
 import { AZI_ISO, UMS, cantBruta, pretLa, versiuneLa } from './engine';
-import type { AppState, Canal, Reteta, UMCod } from './types';
+import type { AppState, Canal, IntrarePretIstoric, Reteta, UMCod } from './types';
 import {
   canalePentru, contineData, eLunaIntreaga, locatieDin, luniAtinse, perioadaAnterioara, perioadaDin,
   type CerereFC, type CtxFC, type FCChannelSursa, type FCPeriod, type SursaFC,
@@ -164,6 +164,13 @@ export interface RandIngredient {
 
   /** `null` când prețul lipsește — efectele nu se pot calcula fără să presupunem zero. */
   efecte: EfecteIngredient | null;
+
+  /**
+   * Schimbările de preț înregistrate în fereastra (finele perioadei precedente, finele celei
+   * curente], cu proveniența lor. Un ingredient cu preț schimbat apare și fără consum: impactul
+   * lui e zero acum, dar schimbarea e un fapt care se arată, nu se ascunde.
+   */
+  schimbariPret: IntrarePretIstoric[];
 
   produse: ImpactProdus[];
   magazine: ImpactMagazin[];
@@ -486,8 +493,16 @@ export function analizaIngrediente(
   calitate.ingredientLipsa = [...new Set([...cur.componenteLipsa, ...prec.componenteLipsa])].sort();
   calitate.retetaRetroumpluta = [...new Set([...cur.reteteRetro, ...prec.reteteRetro])].sort();
 
-  const coduri = [...new Set([...cur.peIngredient.keys(), ...prec.peIngredient.keys()])].sort();
+  // rândurile: ingredientele consumate în oricare perioadă PLUS cele al căror preț de la finele
+  // perioadei diferă de cel de la finele perioadei precedente, chiar fără consum
+  const cuPretSchimbat = [...ctx.ingrediente.values()]
+    .filter(i => i.preturi.length > 0 && pretLa(i, per.la) !== pretLa(i, perPrec.la))
+    .map(i => i.cod);
+  const coduri = [...new Set([...cur.peIngredient.keys(), ...prec.peIngredient.keys(), ...cuPretSchimbat])].sort();
   const randuri: RandIngredient[] = [];
+  const evenimente = (cod: string): IntrarePretIstoric[] => (state.istoricPreturi ?? [])
+    .filter(e => e.ingredient === cod && e.dataEfectiva > perPrec.la && e.dataEfectiva <= per.la)
+    .sort((a, b) => a.dataEfectiva.localeCompare(b.dataEfectiva));
 
   for (const cod of coduri) {
     const ing = ctx.ingrediente.get(cod);
@@ -601,6 +616,7 @@ export function analizaIngrediente(
       contributiePpCurent: contribCur, contributiePpPrecedent: contribPrec,
       fcImpactPp: contribCur !== null && contribPrec !== null ? contribCur - contribPrec : null,
       efecte,
+      schimbariPret: evenimente(cod),
       produse, magazine,
       canale: [...new Set([...(aCur?.canale ?? []), ...(aPrec?.canale ?? [])])].sort() as FCChannelSursa[],
       perioade: [...new Set([...(aCur?.luni ?? []), ...(aPrec?.luni ?? [])])].sort(),

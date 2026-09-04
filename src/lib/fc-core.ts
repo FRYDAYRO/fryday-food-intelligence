@@ -11,10 +11,11 @@
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
 import { UMS, areCostMasurabil, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
-import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
+import { COMBINATIE_FC, intervaleSursePentru, verdictCombinare, type VerdictSurse } from './perioade-surse';
+import { selecteaza29 } from './surse-29';
 import type { AppState, Canal } from './types';
 import {
-  canalePentru, componentaDin29, contineData, descrieCerere, eLunaIntreaga, locatieDin, luniAtinse,
+  canalePentru, componentaDin29, contineData, descrieCerere, locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCComponent, type SursaFC,
 } from './fc-domeniu';
 
@@ -47,12 +48,31 @@ export function numitorFC(state: AppState, cerere: CerereFC, netPmix: number): N
   // 4.1 și 4.7 pot cădea în aceeași lună acoperind ferestre diferite. Costul vine din 4.7;
   // împărțit la vânzările altei ferestre ar da un procent plauzibil și fals. Când
   // incompatibilitatea e DEMONSTRATĂ, numitorul rămâne cel din aceeași sursă cu costul.
-  const v = verdictCombinare(state, ['NBO_41', 'PMIX_47']);
+  const v = verdictCombinare(state, ['NBO_41', 'PMIX_47'], cerere.perioada);
   if (v.blocheaza) {
     return {
       net: netPmix, sursa: 'PMIX',
       nota: 'Sales Report-ul acoperă altă perioadă decât vânzările pe produs — numitorul rămâne PMIX-ul, din aceeași fereastră cu costul',
       motivIncompatibil: v.motiv,
+    };
+  }
+  // fereastra declarată a lui 4.1 poate conține cererea și totuși să aibă goluri înăuntru:
+  // zile cu vânzări pe produs fără niciun rând de Sales Report. Un numitor de 3 zile la un
+  // cost de 7 ar da un procent plauzibil și fals — numitorul rămâne atunci PMIX-ul.
+  // regula golurilor se aplică doar când un 4.1 cu rânduri pe zi DECLARĂ că acoperă cererea:
+  // fără fereastră declarată, Sales Report-ul rămâne numitorul, ca până acum
+  const zilnic41 = (state.versiuniImport ?? []).some(v => v.tip === 'NBO_41' && v.granularitate === 'ZI');
+  const declaraAcoperire = zilnic41 && intervaleSursePentru(state, ['NBO_41'], cerere.perioada)
+    .some(i => i.declarat && i.de <= cerere.perioada.de && i.la >= cerere.perioada.la);
+  const zileSR = new Set(linii.map(r => r.data));
+  const zileFara = !declaraAcoperire ? [] : [...new Set(state.vanzari
+    .filter(x => contineData(cerere.perioada, x.data) && (!loc || x.locatie === loc) && canale.includes(x.canal) && !zileSR.has(x.data))
+    .map(x => x.data))].sort();
+  if (zileFara.length) {
+    return {
+      net: netPmix, sursa: 'PMIX',
+      nota: `Sales Report-ul nu are rânduri pe ${zileFara.length} zile cu vânzări din perioadă — numitorul rămâne PMIX-ul, din aceeași fereastră cu costul`,
+      motivIncompatibil: `Sales Report incomplet pe perioadă: lipsesc ${zileFara.slice(0, 5).join(', ')}${zileFara.length > 5 ? '…' : ''}.`,
     };
   }
   return { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO` };
@@ -176,22 +196,17 @@ export function nboFC(state: AppState, cerere: CerereFC): NBOFC {
     categoriiNeclasificate: [], surse: [],
   });
 
-  if (!eLunaIntreaga(cerere.perioada)) {
-    return indisponibil(`Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} nu acoperă luni întregi, `
-      + 'deci consumul real nu i se poate atribui fără a inventa o repartiție pe zile.');
-  }
-  const vCombinare = verdictCombinare(state, COMBINATIE_FC);
+  // sursa 2.9 potrivită cererii: lunarul pe lună, săptămânalul pe săptămână, niciodată însumate
+  const sel = selecteaza29(state.linii29, cerere.perioada, loc);
+  if (!sel.disponibil) return indisponibil(sel.motiv ?? 'Raportul 2.9 nu e disponibil pe această cerere.');
+  const vCombinare = verdictCombinare(state, COMBINATIE_FC, cerere.perioada);
   if (vCombinare.blocheaza) return indisponibil(vCombinare.motiv);
   if (cerere.canal !== 'TOTAL') {
     return indisponibil('Raportul 2.9 nu conține canalul: consumul real există doar pe Total, '
       + 'nu separat pe InStore și Delivery.');
   }
-
-  const linii = state.linii29.filter(l => luni.includes(l.perioada) && (!loc || l.locatie === loc));
-  if (!linii.length) {
-    return indisponibil(`Nu există raport 2.9 importat pentru ${luni.join(', ')}`
-      + (loc ? ` la restaurantul ${loc}.` : ' la nivel de rețea.'));
-  }
+  const linii = sel.randuri;
+  const intervalSursa = sel.ferestre.map(f => `${f.de} → ${f.la}`).join(', ') || interval;
 
   const peComponenta = componenteGoale();
   const neclasificate = new Set<string>();
@@ -210,7 +225,7 @@ export function nboFC(state: AppState, cerere: CerereFC): NBOFC {
     peComponenta,
     categoriiNeclasificate: [...neclasificate],
     surse: [{
-      raport: 'NBO_29', randuri: linii.length, interval,
+      raport: 'NBO_29', randuri: linii.length, interval: intervalSursa,
       nota: `${luni.join(', ')} · ${neclasificate.size ? `${neclasificate.size} categorii fără regulă, tratate implicit FOOD` : 'toate categoriile clasificate'}`,
     }],
   };
@@ -278,7 +293,7 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
   const fcOperationalPct = nbo.disponibil && numitor.net > 0 ? (nbo.consumTotal / numitor.net) * 100 : null;
 
   const surse: SursaFC[] = [...recipe.surse, ...nbo.surse];
-  const verdictPerioade = verdictCombinare(state, COMBINATIE_FC);
+  const verdictPerioade = verdictCombinare(state, COMBINATIE_FC, cerere.perioada);
 
   if (!nbo.disponibil) {
     return {

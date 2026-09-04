@@ -1,4 +1,5 @@
 import type {
+  PretIstoric,
   AppState, Canal, Ingredient, LinieReteta, Produs, RegulaClasificare,
   Reteta, Schimbare, UMCod, VanzareFapt, Vedere, VersiuneReteta,
 } from './types';
@@ -46,15 +47,39 @@ export function buildCtx(s: Pick<AppState, 'ingrediente' | 'retete' | 'produse'>
 }
 
 // §3.1 — prețul valabil la o dată
+/**
+ * Precedența la ACEEAȘI dată efectivă: prețul efectiv din 2.9 e cost măsurat și bate lista de
+ * prețuri sau intrarea manuală. Nimic nu se șterge — ordinea decide doar ce intră în calcul.
+ */
+export const prioritatePret = (p: PretIstoric): number => (p.sursa?.tip === 'NBO_29' ? 1 : 0);
+
+/**
+ * Istoricul în ordinea în care se citește: după dată, la aceeași dată după precedență, iar
+ * între două măsurători 2.9 de la aceeași dată câștigă fereastra mai fină (săptămâna înaintea
+ * lunii care începe în aceeași zi) — ultima din listă e cea care intră în calcul.
+ */
+const capatFereastra = (p: PretIstoric): string => p.sursa?.fereastraLa ?? '9999-12-31';
+export const sorteazaPreturi = (preturi: PretIstoric[]): PretIstoric[] =>
+  [...preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa) || prioritatePret(a) - prioritatePret(b)
+    || capatFereastra(b).localeCompare(capatFereastra(a)));
+
 export function pretLa(ing: Ingredient, data: string): number {
   let p = 0; let gasit = false;
-  const sorted = [...ing.preturi].sort((a, b) => a.validDeLa.localeCompare(b.validDeLa));
+  const sorted = sorteazaPreturi(ing.preturi);
   for (const pr of sorted) if (pr.validDeLa <= data) { p = pr.pret; gasit = true; }
   if (!gasit && sorted.length) p = sorted[0].pret;
   return p;
 }
 
 export const pretCurent = (ing: Ingredient) => pretLa(ing, '9999-12-31');
+
+/**
+ * Rândul 2.9 aparține raportului LUNAR al lunii date? Rândurile săptămânale ale aceleiași
+ * luni nu intră: sunt altă observație a aceleiași realități, nu o parte de adunat. Un rând
+ * fără fereastră (importat înainte de contract) e lunar prin definiție.
+ */
+export const eLinie29Lunara = (l: { perioada: string; fereastra?: { de: string; granularitate: string } }, luna: string): boolean =>
+  (l.fereastra ? l.fereastra.granularitate === 'LUNA' && l.fereastra.de.slice(0, 7) === luna : l.perioada === luna);
 
 export function versiuneActiva(r: Reteta): VersiuneReteta {
   return r.versiuni.find(v => v.nr === r.activa) ?? r.versiuni[r.versiuni.length - 1];
@@ -482,7 +507,7 @@ export function fcPerioada(state: AppState, ctx: Ctx, lunaSel: string, locatie: 
   const net = srNet > 0 ? srNet : ag.net;
   const numitor = srNet > 0 ? 'Sales Report' as const : 'PMIX' as const;
 
-  const linii = state.linii29.filter(l => l.perioada === lunaSel && (!loc || l.locatie === loc));
+  const linii = state.linii29.filter(l => eLinie29Lunara(l, lunaSel) && (!loc || l.locatie === loc));
   const are29 = linii.length > 0;
   let consumOp = 0, consumCurat = 0, paper29 = 0;
   for (const l of linii) {
@@ -927,9 +952,19 @@ export function consumLunarIngredient(codIng: string, state: AppState, ctx: CtxC
 
 // cheltuiala lunară pe fiecare ingredient (consum brut × preț curent), pentru Achiziții
 export function consumuriLuna(state: AppState, ctx: CtxCost, lunaRef: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
+  const [an, l] = lunaRef.split('-').map(Number);
+  const ultima = new Date(Date.UTC(an, l, 0)).toISOString().slice(0, 10);
+  return consumuriInterval(state, ctx, `${lunaRef}-01`, ultima, locatie);
+}
+
+/**
+ * Consumul teoretic (rețete × vânzări) pe o fereastră de zile [de, la] — aceeași aritmetică
+ * ca pe lună, ca teoreticul unui raport 2.9 săptămânal să fie al săptămânii lui, nu al lunii.
+ */
+export function consumuriInterval(state: AppState, ctx: CtxCost, de: string, la: string, locatie?: string): Map<string, { cant: number; valoare: number; um: string }> {
   const vol = new Map<string, number>();
   for (const v of state.vanzari) {
-    if (luna(v.data) !== lunaRef) continue;
+    if (v.data < de || v.data > la) continue;
     if (locatie && v.locatie !== locatie) continue;
     const k = `${v.produs}|${v.canal}`;
     vol.set(k, (vol.get(k) ?? 0) + v.cant);

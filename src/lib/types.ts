@@ -2,7 +2,24 @@ export type Canal = 'INSTORE' | 'DELIVERY';
 export type Vedere = 'TOTAL' | Canal;
 export type UMCod = 'g' | 'kg' | 'ml' | 'l' | 'buc';
 
-export interface PretIstoric { validDeLa: string; pret: number; }
+/**
+ * De unde vine o intrare de preț — până la fișier, amprentă (= versiunea din Import Center),
+ * perioada raportului, materialul și rândul sursă. Absent = intrare moștenită sau manuală.
+ */
+export interface SursaPret {
+  tip: 'NBO_29' | 'LISTA_PRETURI' | 'RETETAR' | 'MANUAL' | 'SIMULARE';
+  fisier?: string;
+  amprenta?: string;
+  perioada?: string;
+  material?: string;
+  rand?: number;
+  /** Restaurantul al cărui raport 2.9 a dat prețul: costul FIFO e al lui, nu al rețelei. */
+  restaurant?: string;
+  /** Sfârșitul ferestrei raportului 2.9: luna și săptămâna care încep în aceeași zi sunt intrări diferite. */
+  fereastraLa?: string;
+}
+
+export interface PretIstoric { validDeLa: string; pret: number; sursa?: SursaPret; }
 
 export interface Ingredient {
   cod: string; denumire: string; categorie: string;
@@ -11,6 +28,8 @@ export interface Ingredient {
   furnizor?: string;
   preturi: PretIstoric[];
   activ: boolean;
+  /** Identitățile din 2.9 (cod de material sau denumire) pe care omul le-a legat de acest ingredient în coada de aprobare. */
+  aliasuri?: string[];
 }
 
 export interface Furnizor { cod: string; nume: string; contact?: string; }
@@ -68,7 +87,24 @@ export interface SalesReportRand {
   net: number; brut?: number; bonuri?: number;
 }
 
-export interface Linie29 { perioada: string; locatie: string; categorie: string; valoare: number; }
+export type Granularitate29 = 'SAPTAMANA' | 'LUNA' | 'INTERVAL';
+
+/**
+ * Fereastra REALĂ a raportului 2.9 din care vine un rând, cu precizie de zi. Un săptămânal și
+ * un lunar sunt observații diferite ale aceleiași realități: nu se adună și nu se șterg
+ * reciproc, deci identitatea unui rând e (fereastră, restaurant), nu (lună, restaurant).
+ */
+export interface Fereastra29 { de: string; la: string; granularitate: Granularitate29; }
+
+/** Proveniența unui rând 2.9: fișierul, amprenta lui (= versiunea) și rândul din fișier. */
+export interface Sursa29 { fisier: string; amprenta?: string; rand?: number; }
+
+export interface Linie29 {
+  perioada: string; locatie: string; categorie: string; valoare: number;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
+}
 
 /**
  * O linie din raportul 2.9 la nivel de MATERIAL, nu de categorie.
@@ -94,6 +130,17 @@ export interface Material29 {
   normalizat?: boolean;
   /** Canalul, DOAR când exportul îl precizează explicit. Lipsă = necunoscut, nu Total. */
   canal?: Canal;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
+  /** „Cost per Unit" din 2.9: lei pe unitatea de inventar — sursa canonică a prețului efectiv (D4). */
+  costPeUnitate?: number;
+  /** Unitatea de inventar EXACT cum o tipărește raportul („EA", „KG", „Liter", „Gram", „pair"). */
+  umInventar?: string;
+  /** Consumul teoretic în unități („Usage in Units: Theory"), când raportul îl dă. */
+  cantTeoretic?: number | null;
+  /** Grupul părinte al categoriei, când raportul imbrică subgrupuri („Paper" pentru „ACCESORII"). */
+  grup?: string;
 }
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';
@@ -183,7 +230,7 @@ export interface Nemapat {
   valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
   /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
-  sursa?: 'SALES_MIX' | 'PMIX';
+  sursa?: 'SALES_MIX' | 'PMIX' | 'NBO_29';
 }
 
 /**
@@ -211,6 +258,18 @@ export interface VersiuneSursa {
    */
   intervalDe?: string;
   intervalLa?: string;
+  /**
+   * Cum își poartă rândurile data: `ZI` = fiecare rând are ziua lui, deci sursa servește orice
+   * cerere cuprinsă în fereastră; altfel raportul e un agregat pe fereastra lui și servește
+   * doar cererea cu exact acea fereastră. Absent = versiune veche: se tratează ca agregat.
+   */
+  granularitate?: 'ZI' | 'LUNA' | 'INTERVAL' | 'FARA';
+  /**
+   * Amprenta CONȚINUTULUI, fără fereastra declarată. Același conținut redeclarat pe altă
+   * fereastră e același fișier corectat, nu un raport nou: versiunea veche iese din vigoare
+   * și rândurile ei pleacă odată cu ea.
+   */
+  amprentaContinut?: string;
   randuri: number;
   /**
    * Identitățile din raport (coduri sau denumiri POS) pe care această versiune le-a lăsat
@@ -231,6 +290,7 @@ export interface IntrarePretIstoric {
   deltaPct: number | null;
   fisier: string;
   amprenta: string;
+  sursa?: SursaPret;
 }
 
 /** Urma de audit a unui import: cine, când, ce, pe ce scop, cu ce rezultat. */

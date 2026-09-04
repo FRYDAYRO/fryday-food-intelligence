@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../../lib/store';
 import type { AppState } from '../../lib/types';
 import { fmtInt } from '../../lib/engine';
-import { codProdusPentru, coadaAprobare, rezumaCoada } from '../../lib/aprobare';
+import { codIngredientPentru, codProdusPentru, coadaAprobare, felNemapat, rezumaCoada } from '../../lib/aprobare';
 import type { IntrareAprobare, SugestieAprobare } from '../../lib/aprobare';
 import { Btn, Insigna, Sel, T, Td, Th, Titlu, cx } from '../../lib/ui';
 
@@ -38,16 +38,18 @@ function Sugestie({ s, activ, onAlege }: {
  * Ecranul propriu-zis, cu starea primită ca parametru — randabil și în teste, fără store.
  * `Nemapate` de mai jos e doar firul care îl leagă de aplicație.
  */
-export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
+export function CoadaAprobare({ state, atribuieAlias, atribuieAliasIngredient, renuntaNemapat }: {
   state: AppState;
   atribuieAlias: (denumire: string, codProdus: string) => void;
-  renuntaNemapat: (denumire: string) => void;
+  /** Materialele 2.9 se leagă de un ingredient; fără această acțiune rândul lor nu are „Alocă". */
+  atribuieAliasIngredient?: (identitate: string, codIngredient: string) => void;
+  renuntaNemapat: (denumire: string, fel?: 'PRODUS' | 'MATERIAL') => void;
 }) {
   const [alegeri, setAlegeri] = useState<Record<string, string>>({});
   const [doarCuValoare, setDoarCuValoare] = useState(true);
 
   // coada canonică: ordonată după lei, cu sugestiile deja calculate de motor
-  const coada = useMemo(() => coadaAprobare(state), [state.nemapate, state.produse]);
+  const coada = useMemo(() => coadaAprobare(state), [state.nemapate, state.produse, state.ingrediente]);
   const lista = useMemo(
     () => coada.filter(x => !doarCuValoare || x.greutate > 0),
     [coada, doarCuValoare],
@@ -56,12 +58,15 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
 
   const produseSortate = useMemo(
     () => [...state.produse].sort((a, b) => a.denumire.localeCompare(b.denumire)), [state.produse]);
+  const ingredienteSortate = useMemo(
+    () => [...state.ingrediente].sort((a, b) => a.denumire.localeCompare(b.denumire)), [state.ingrediente]);
   const totalCant = lista.reduce((s, x) => s + (state.nemapate.find(n => n.denumire === x.valoareSursa)?.cant ?? 0), 0);
 
   if (!coada.length) return null;
 
-  /** Sugestia → codul produsului. Traducerea e a motorului; ecranul doar o folosește. */
-  const codPentru = (s: SugestieAprobare) => codProdusPentru(s.tinta, state);
+  /** Sugestia → codul produsului sau al ingredientului. Traducerea e a motorului; ecranul doar o folosește. */
+  const codPentru = (x: IntrareAprobare, s: SugestieAprobare) =>
+    (x.fel === 'MATERIAL' ? codIngredientPentru(s.tinta, state) : codProdusPentru(s.tinta, state));
 
   return (
     <div className="mt-5" data-zona="coada-aprobare">
@@ -71,15 +76,16 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
           doar cele cu venit (ascunde componentele de meniu)
         </label>
       }>
-        Denumiri POS nealocate — {rezumat.total} poziții, {fmtInt(totalCant)} buc, {fmtInt(rezumat.greutateRON)} lei
+        Nealocate — {rezumat.total} poziții ({rezumat.peFel.PRODUS} denumiri POS, {rezumat.peFel.MATERIAL} materiale 2.9),
+        {' '}{fmtInt(totalCant)} buc, {fmtInt(rezumat.greutateRON)} lei
       </Titlu>
 
       <p className="mb-2 text-sm text-muted-foreground">
-        Acestea sunt denumirile din raportul POS care nu s-au potrivit cu niciun produs din nomenclator, deci
-        vânzările lor nu intră în Food Cost. Lista e ordonată după lei — primul rând e cel care doare.
-        Alege produsul corect și apasă <b>Alocă</b>: denumirea se salvează ca alias, iar la următorul import se
-        potrivește automat. Pentru ca vânzările deja importate să fie atribuite, reimportă raportul după ce
-        termini alocările.
+        Denumirile din POS care nu s-au potrivit cu niciun produs și materialele din 2.9 fără corespondent în
+        nomenclatorul de ingrediente. Lista e ordonată după lei — primul rând e cel care doare.
+        Alege produsul sau ingredientul corect și apasă <b>Alocă</b>: identitatea se salvează ca alias, iar la
+        următorul import se potrivește automat. Pentru ca datele deja importate să fie atribuite, reimportă
+        raportul după ce termini alocările.
         {rezumat.cuSugestii < rezumat.total && (
           <> <b>{rezumat.total - rezumat.cuSugestii}</b> poziții nu au nicio sugestie — cer o decizie de la zero.</>
         )}
@@ -87,18 +93,22 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
 
       <T dens>
         <thead><tr>
-          <Th>#</Th><Th>Denumire din POS</Th><Th>Categorie</Th><Th>Din fișierul</Th>
-          <Th dr>Bucăți</Th><Th dr>Valoare</Th><Th>Sugestii</Th><Th>Produs din nomenclator</Th><Th />
+          <Th>#</Th><Th>Denumire din POS / material 2.9</Th><Th>Categorie</Th><Th>Din fișierul</Th>
+          <Th dr>Bucăți</Th><Th dr>Valoare</Th><Th>Sugestii</Th><Th>Produs sau ingredient din nomenclator</Th><Th />
         </tr></thead>
         <tbody>
           {lista.map((x: IntrareAprobare, i) => {
             // NIMIC preselectat: selectorul e gol până când omul alege, din listă sau dintr-o sugestie
             const ales = alegeri[x.id] ?? '';
-            const brut = state.nemapate.find(n => n.denumire === x.valoareSursa);
+            const brut = state.nemapate.find(n => n.denumire === x.valoareSursa && felNemapat(n) === x.fel);
+            const eMaterial = x.fel === 'MATERIAL';
             return (
-              <tr key={x.id} data-intrare={x.id}>
+              <tr key={x.id} data-intrare={x.id} data-fel={x.fel}>
                 <Td className="num text-muted-foreground">{i + 1}</Td>
-                <Td className="font-semibold">{x.valoareSursa}</Td>
+                <Td className="font-semibold">
+                  {x.valoareSursa}
+                  {eMaterial && <span className="ml-1.5"><Insigna fel="info">material 2.9</Insigna></span>}
+                </Td>
                 <Td className="text-xs text-muted-foreground">{brut?.categorie ?? '—'}</Td>
                 <Td className="text-xs text-muted-foreground">
                   <span data-camp="sursa">{x.sursa || '—'}</span>
@@ -109,7 +119,7 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
                   {x.sugestii.length ? (
                     <div className="flex flex-wrap gap-1" data-zona="sugestii">
                       {x.sugestii.slice(0, 3).map(s => {
-                        const cod = codPentru(s);
+                        const cod = codPentru(x, s);
                         return cod ? (
                           <Sugestie key={s.tinta} s={s} activ={ales === cod}
                             onAlege={() => setAlegeri({ ...alegeri, [x.id]: cod })} />
@@ -124,18 +134,20 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
                   ) : <Insigna fel="warn">fără sugestii</Insigna>}
                 </Td>
                 <Td>
-                  <Sel className="h-8 w-64" data-camp="produs" value={ales}
+                  <Sel className="h-8 w-64" data-camp={eMaterial ? 'ingredient' : 'produs'} value={ales}
                     onChange={e => setAlegeri({ ...alegeri, [x.id]: e.target.value })}>
-                    <option value="">— alege produsul —</option>
-                    {produseSortate.map(p => <option key={p.cod} value={p.cod}>{p.denumire}</option>)}
+                    <option value="">{eMaterial ? '— alege ingredientul —' : '— alege produsul —'}</option>
+                    {eMaterial
+                      ? ingredienteSortate.map(p => <option key={p.cod} value={p.cod}>{p.denumire}</option>)
+                      : produseSortate.map(p => <option key={p.cod} value={p.cod}>{p.denumire}</option>)}
                   </Sel>
                 </Td>
                 <Td>
                   <div className="flex gap-1.5">
-                    <Btn className="h-8" disabled={!ales}
-                      onClick={() => atribuieAlias(x.valoareSursa, ales)}>Alocă</Btn>
+                    <Btn className="h-8" disabled={!ales || (eMaterial && !atribuieAliasIngredient)}
+                      onClick={() => (eMaterial ? atribuieAliasIngredient?.(x.valoareSursa, ales) : atribuieAlias(x.valoareSursa, ales))}>Alocă</Btn>
                     <Btn className="h-8" varianta="discret"
-                      onClick={() => renuntaNemapat(x.valoareSursa)}>Lasă nemapat</Btn>
+                      onClick={() => renuntaNemapat(x.valoareSursa, x.fel === 'MATERIAL' ? 'MATERIAL' : 'PRODUS')}>Lasă nemapat</Btn>
                   </div>
                 </Td>
               </tr>
@@ -154,6 +166,6 @@ export function CoadaAprobare({ state, atribuieAlias, renuntaNemapat }: {
 }
 
 export default function Nemapate() {
-  const { state, atribuieAlias, renuntaNemapat } = useStore();
-  return <CoadaAprobare state={state} atribuieAlias={atribuieAlias} renuntaNemapat={renuntaNemapat} />;
+  const { state, atribuieAlias, atribuieAliasIngredient, renuntaNemapat } = useStore();
+  return <CoadaAprobare state={state} atribuieAlias={atribuieAlias} atribuieAliasIngredient={atribuieAliasIngredient} renuntaNemapat={renuntaNemapat} />;
 }

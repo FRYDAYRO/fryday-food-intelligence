@@ -3,6 +3,7 @@ import type { AppState } from './types';
 import { genereazaSeed, stareGoala } from './seed';
 import { genereazaSeedNBO } from './seed-nbo';
 import { VERSIUNE_REGULI_29, imbinaReguli } from './fc-clasificare';
+import { felNemapat } from './aprobare';
 // Baza reală FRYDAY, încorporată în aplicație: nomenclator, rețete și prețuri pe canal.
 // Vânzările NU sunt incluse — se importă periodic (PMIX / Sales Mix 4.7).
 import bazaFryday from '../date/baza-fryday.json';
@@ -57,7 +58,9 @@ interface Store {
   reset: () => void;
   incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL' | 'FRYDAY') => void;
   atribuieAlias: (denumire: string, codProdus: string) => void;
-  renuntaNemapat: (denumire: string) => void;
+  /** Materialele 2.9 din coada comună se leagă de un INGREDIENT, nu de un produs. */
+  atribuieAliasIngredient: (identitate: string, codIngredient: string) => void;
+  renuntaNemapat: (denumire: string, fel?: 'PRODUS' | 'MATERIAL') => void;
   persistent: boolean;
   serverStare: { revizie: number; filtrat: boolean; eroare?: string } | null;
 }
@@ -230,8 +233,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, [update]);
 
-  const renuntaNemapat = useCallback((denumire: string) => {
-    update(s => ({ ...s, nemapate: s.nemapate.filter(n => n.denumire !== denumire) }));
+  const atribuieAliasIngredient = useCallback((identitate: string, codIngredient: string) => {
+    update(s => ({
+      ...s,
+      ingrediente: s.ingrediente.map(i => i.cod !== codIngredient ? i
+        : { ...i, aliasuri: [...new Set([...(i.aliasuri ?? []), identitate])] }),
+      nemapate: s.nemapate.filter(n => !(n.denumire === identitate && felNemapat(n) === 'MATERIAL')),
+    }));
+  }, [update]);
+
+  const renuntaNemapat = useCallback((denumire: string, fel?: 'PRODUS' | 'MATERIAL') => {
+    update(s => ({ ...s, nemapate: s.nemapate.filter(n => !(n.denumire === denumire && (fel === undefined || felNemapat(n) === fel))) }));
   }, [update]);
 
   const reset = useCallback(() => {
@@ -261,7 +273,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, atribuieAlias, renuntaNemapat, persistent, serverStare }}>{children}</StoreCtx.Provider>;
+  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, atribuieAlias, atribuieAliasIngredient, renuntaNemapat, persistent, serverStare }}>{children}</StoreCtx.Provider>;
 }
 
 export function useStore(): Store {

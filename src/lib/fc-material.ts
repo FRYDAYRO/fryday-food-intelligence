@@ -12,10 +12,11 @@
 //  · 2.9 nu are canal → canalul sursă este UNKNOWN, nu se repartizează pe InStore/Delivery;
 //  · 2.9 e lunar → nu se fabrică valori săptămânale din date lunare;
 //  · perioada sursă se păstrează pe fiecare rând.
-import { consumuriLuna, norm, pretCurent } from './engine';
+import { consumuriInterval, norm, pretCurent } from './engine';
 import type { AppState, Material29, UMCod } from './types';
+import { fereastraRand, selecteaza29, type Fereastra29 } from './surse-29';
 import {
-  eLunaIntreaga, locatieDin, luniAtinse,
+  locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCChannelSursa, type SursaFC,
 } from './fc-domeniu';
 import {
@@ -154,9 +155,28 @@ function utilizariPeIngredient(ctx: CtxFC): Map<string, number> {
   return rez;
 }
 
+/**
+ * Ingredientul din nomenclator pentru un material 2.9 — singura regulă de identificare, folosită
+ * la import, în punte și la verdictul de reimport: codul de material = codul ingredientului;
+ * altfel denumirea, normalizată; altfel un alias aprobat în coada comună (pe cod sau pe nume).
+ * Fără potrivire → `null`: materialul merge în coadă, nu se creează și nu se ghicește.
+ */
+export function identificaIngredient(
+  ingrediente: Iterable<{ cod: string; denumire: string; aliasuri?: string[] }>, material: string, denumire: string,
+): string | null {
+  const lista = [...ingrediente];
+  const direct = material ? lista.find(i => i.cod === material) : undefined;
+  if (direct) return direct.cod;
+  const k = norm(denumire);
+  const peNume = k ? lista.find(i => norm(i.denumire) === k) : undefined;
+  if (peNume) return peNume.cod;
+  const peAlias = lista.find(i => (i.aliasuri ?? []).some(a => a === material || (k !== '' && norm(a) === k)));
+  return peAlias ? peAlias.cod : null;
+}
+
 function mapeaza(material: Material29, ctx: CtxFC, utilizari: Map<string, number>, dupaNume: Map<string, string>): Mapare {
-  const direct = ctx.ingrediente.get(material.material);
-  const cod = direct ? material.material : dupaNume.get(norm(material.denumire)) ?? null;
+  void dupaNume;
+  const cod = identificaIngredient(ctx.ingrediente.values(), material.material, material.denumire);
   if (!cod) return { ingredient: null, areReteta: false, utilizari: 0, arePret: false };
   const ing = ctx.ingrediente.get(cod)!;
   const n = utilizari.get(cod) ?? 0;
@@ -166,11 +186,14 @@ function mapeaza(material: Material29, ctx: CtxFC, utilizari: Map<string, number
 // ————————————————————————————————————————————————————— piesele refolosibile ale motorului
 // (folosite și de puntea canonică din fc-bridge — aceleași rânduri, aceleași diagnostice)
 
-/** Teoreticul reconstruit din rețete × PMIX (pe Total), pe lunile și locația cerute. */
-export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], loc: string | undefined): Map<string, number> {
+/**
+ * Teoreticul reconstruit din rețete × PMIX (pe Total), pe FERESTRELE rapoartelor 2.9 alese și
+ * pe locația cerută. Fereastra, nu luna: teoreticul unui 2.9 săptămânal e al săptămânii lui.
+ */
+export function teoreticDinRetete(state: AppState, ctx: CtxFC, ferestre: Fereastra29[], loc: string | undefined): Map<string, number> {
   const rez = new Map<string, number>();
-  for (const l of luni) {
-    for (const [cod, v] of consumuriLuna(state, ctx, l, loc)) {
+  for (const f of ferestre) {
+    for (const [cod, v] of consumuriInterval(state, ctx, f.de, f.la, loc)) {
       rez.set(cod, (rez.get(cod) ?? 0) + v.valoare);
     }
   }
@@ -185,13 +208,13 @@ export function teoreticDinRetete(state: AppState, ctx: CtxFC, luni: string[], l
  * Locația `null` înseamnă rând agregat → teoreticul întregii rețele.
  */
 export function teoreticPeRand(
-  state: AppState, ctx: CtxFC, luni: string[], locatii: (string | null)[],
+  state: AppState, ctx: CtxFC, ferestre: Fereastra29[], locatii: (string | null)[],
 ): Map<string, number> {
   const rez = new Map<string, number>();
-  for (const l of luni) {
+  for (const f of ferestre) {
     for (const lc of new Set(locatii)) {
-      for (const [cod, v] of consumuriLuna(state, ctx, l, lc ?? undefined)) {
-        rez.set(`${l}|${lc ?? ''}|${cod}`, v.valoare);
+      for (const [cod, v] of consumuriInterval(state, ctx, f.de, f.la, lc ?? undefined)) {
+        rez.set(`${f.de}|${f.la}|${lc ?? ''}|${cod}`, v.valoare);
       }
     }
   }
@@ -219,8 +242,8 @@ export function randuriMaterialFC(
   const dupaNume = new Map<string, string>();
   for (const i of ctx.ingrediente.values()) dupaNume.set(norm(i.denumire), i.cod);
 
-  // câte rânduri ale aceleiași (luni, locații) se mapează pe fiecare ingredient
-  const cheiaRand = (m: Material29, ingredient: string) => `${m.perioada}|${m.locatie ?? ''}|${ingredient}`;
+  // câte rânduri ale aceleiași (ferestre, locații) se mapează pe fiecare ingredient
+  const cheiaRand = (m: Material29, ingredient: string) => { const f = fereastraRand(m); return `${f.de}|${f.la}|${m.locatie ?? ''}|${ingredient}`; };
   const mapari = materiale.map(m => mapeaza(m, ctx, utilizari, dupaNume));
   const cateOri = new Map<string, number>();
   materiale.forEach((m, i) => {
@@ -407,11 +430,6 @@ export function reconciliationMaterialFC(
     diagnostice: [], surse: recipe.surse,
   });
 
-  // 2.9 e lunar: nu se fabrică valori săptămânale din date lunare
-  if (!eLunaIntreaga(cerere.perioada)) {
-    return gol(`Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} (${interval}) nu acoperă `
-      + 'luni întregi, deci consumul pe material nu i se poate atribui fără a inventa o repartiție pe zile.');
-  }
   // 2.9 nu are canal: nu se inventează repartiția
   if (cerere.canal !== 'TOTAL') {
     return gol('Raportul 2.9 nu conține canalul. Consumul pe material există doar la nivel de Total; '
@@ -419,19 +437,20 @@ export function reconciliationMaterialFC(
   }
 
   const toate = state.materiale29 ?? [];
-  const inScop = toate.filter(m => luni.includes(m.perioada) && (!loc || m.locatie === loc));
-  if (!inScop.length) {
-    return gol(toate.length
-      ? `Nu există linii 2.9 pe material pentru ${luni.join(', ')}${loc ? ` la restaurantul ${loc}` : ''}.`
-      : 'Nu a fost importat niciun raport 2.9 la nivel de material. Structura pe categorie nu permite '
-        + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
+  if (!toate.length) {
+    return gol('Nu a fost importat niciun raport 2.9 la nivel de material. Structura pe categorie nu permite '
+      + 'puntea pe material: „ce s-a consumat și nu e în nicio rețetă" rămâne fără răspuns.');
   }
+  // sursa 2.9 potrivită cererii: lunarul pe lună, săptămânalul pe săptămână, niciodată însumate
+  const sel = selecteaza29(toate, cerere.perioada, loc);
+  if (!sel.disponibil) return gol(sel.motiv ?? `Nu există linii 2.9 pe material pentru ${luni.join(', ')}.`);
+  const inScop = sel.randuri;
 
   // ——— maparea și teoreticul, cu piesele refolosibile (aceleași pe care le folosește fc-bridge):
   // pe scop pentru diagnostice, pe (lună × locație) pentru rânduri — ca teoreticul unui
   // ingredient să nu se atribuie de mai multe ori
-  const teoreticPeIngredient = teoreticDinRetete(state, ctx, luni, loc);
-  const teoreticRand = teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]);
+  const teoreticPeIngredient = teoreticDinRetete(state, ctx, sel.ferestre, loc);
+  const teoreticRand = teoreticPeRand(state, ctx, sel.ferestre, [...new Set(inScop.map(m => m.locatie))]);
   const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator);
 
   // ——— găleata fiecărui rând

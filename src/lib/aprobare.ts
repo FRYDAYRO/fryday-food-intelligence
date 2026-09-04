@@ -17,7 +17,7 @@
  * ar arăta potrivirea. Trei restaurante se numesc „FRYDAY CLUJ …"; două milkshake-uri diferă
  * printr-un cuvânt. O potrivire automată greșită e mai rea decât una lipsă.
  */
-import type { AppState } from './types';
+import type { AppState, Nemapat } from './types';
 
 export type FelIntrare = 'PRODUS' | 'MATERIAL' | 'RESTAURANT';
 
@@ -100,11 +100,28 @@ export function coadaAprobare(
 ): IntrareAprobare[] {
   const decise = new Set(decizii.map(d => d.id));
   const numeProduse = state.produse.map(p => p.denumire);
+  const numeIngrediente = state.ingrediente.map(i => i.denumire);
 
   const intrari: IntrareAprobare[] = (state.nemapate ?? []).map(n => {
-    const id = idIntrare('PRODUS', n.denumire);
+    const fel = felNemapat(n);
+    const id = idIntrare(fel, n.denumire);
+    if (fel === 'MATERIAL') {
+      // sugestiile se caută și pe denumirea din raport (descrierea), nu doar pe cod
+      const candidati = sugereaza(n.categorie || n.denumire, numeIngrediente);
+      return {
+        id, fel,
+        valoareSursa: n.denumire,
+        sursa: n.fisier,
+        perioada: '',
+        greutate: n.valoare,
+        unitateGreutate: 'RON' as const,
+        sugestii: candidati,
+        motiv: 'Materialul din 2.9 nu corespunde niciunui ingredient din nomenclator. Consumul lui rămâne '
+          + '„Neexplicat" în punte, iar prețul lui efectiv nu ajunge în istoric, până când nu e legat de un ingredient.',
+      };
+    }
     return {
-      id, fel: 'PRODUS' as const,
+      id, fel,
       valoareSursa: n.denumire,
       sursa: n.fisier,
       perioada: '',
@@ -169,6 +186,19 @@ export function codProdusPentru(tinta: string, state: AppState): string | null {
   const dupaCod = state.produse.filter(p => p.cod === tinta);
   return dupaCod.length === 1 ? dupaCod[0].cod : null;
 }
+
+/** Ca `codProdusPentru`, pentru materialele 2.9: ținta e un ingredient din nomenclator. */
+export function codIngredientPentru(tinta: string, state: AppState): string | null {
+  const exacte = state.ingrediente.filter(i => i.denumire === tinta);
+  if (exacte.length === 1) return exacte[0].cod;
+  if (exacte.length > 1) return null;
+  const dupaCod = state.ingrediente.filter(i => i.cod === tinta);
+  return dupaCod.length === 1 ? dupaCod[0].cod : null;
+}
+
+/** Felul unei intrări din coadă: materialele vin din 2.9; tot restul sunt denumiri POS (produse). */
+export const felNemapat = (n: Pick<Nemapat, 'sursa'> & Partial<Nemapat>): 'PRODUS' | 'MATERIAL' =>
+  (n.sursa === 'NBO_29' ? 'MATERIAL' : 'PRODUS');
 
 /** O decizie e validă doar dacă ținta chiar există. Un alias către nimic ar pierde rândul altfel. */
 export function valideazaDecizie(

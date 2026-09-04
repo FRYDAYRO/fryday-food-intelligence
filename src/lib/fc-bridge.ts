@@ -23,7 +23,7 @@
 //    și ponderile expuse — nicio cifră fără explicație.
 import type { AppState, Material29 } from './types';
 import {
-  eLunaIntreaga, locatieDin, luniAtinse,
+  locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCChannel, type FCChannelSursa, type SursaFC,
 } from './fc-domeniu';
 import {
@@ -31,6 +31,7 @@ import {
   type FCCategory, type RegulaCategorie29, type SursaClasificare,
 } from './fc-clasificare';
 import { COMBINATIE_FC, verdictCombinare, type VerdictSurse } from './perioade-surse';
+import { selecteaza29 } from './surse-29';
 import { numitorFC, recipeFC, type NumitorFC, type RecipeFC } from './fc-core';
 import {
   diagnosticeMaterial, randuriMaterialFC, sorteazaDiagnostice, teoreticDinRetete, teoreticPeRand, trebuieMapat,
@@ -298,18 +299,20 @@ export function bridgeFC(
 
   // — scopul 2.9: luni întregi, locația cerută, canalul DOAR dacă sursa îl declară
   const toate = state.materiale29 ?? [];
-  // verdictul de compatibilitate a perioadelor, o singură dată pe punte
-  const verdictSurse = verdictCombinare(state, COMBINATIE_FC);
-  const peLuniSiLoc = toate.filter(m => luni.includes(m.perioada) && (!loc || m.locatie === loc));
+  // verdictul de compatibilitate a perioadelor, o singură dată pe punte, pe fereastra cererii
+  const verdictSurse = verdictCombinare(state, COMBINATIE_FC, cerere.perioada);
+  // sursa 2.9 potrivită cererii: lunarul pe lună, săptămânalul pe săptămână, niciodată însumate
+  const sel = selecteaza29(toate, cerere.perioada, loc);
+  const peLuniSiLoc = sel.randuri;
 
   let motivNbo: string | undefined;
   let inScop: Material29[] = [];
   let excluseFaraCanal: Material29[] = [];
 
-  if (!eLunaIntreaga(cerere.perioada)) {
-    motivNbo = `Raportul 2.9 este lunar. Perioada ${cerere.perioada.cheie} (${interval}) nu acoperă luni întregi, `
-      + 'deci consumul pe material nu i se poate atribui fără a inventa o repartiție pe zile. '
-      + 'Partea de rețete rămâne calculată pe perioada cerută.';
+  if (!sel.disponibil && !toate.some(m => !loc || m.locatie === loc)) {
+    motivNbo = 'Nu a fost importat niciun raport 2.9 la nivel de material.';
+  } else if (!sel.disponibil) {
+    motivNbo = `${sel.motiv} Partea de rețete rămâne calculată pe perioada cerută.`;
   } else if (verdictSurse.blocheaza) {
     // Perioadele DEMONSTRAT diferite: consumul unei ferestre împărțit la vânzările alteia
     // ar da un procent plauzibil și fals. Puntea se declară indisponibilă — partea de rețete
@@ -344,9 +347,9 @@ export function bridgeFC(
   // deci pe o vedere pe canal ar compara actualul unui canal cu teoreticul amândurora.
   const eTotal = cerere.canal === 'TOTAL';
   const teoreticPeIngredient = nboDisponibil && eTotal
-    ? teoreticDinRetete(state, ctx, luni, loc) : new Map<string, number>();
+    ? teoreticDinRetete(state, ctx, sel.ferestre, loc) : new Map<string, number>();
   const teoreticRand = nboDisponibil && eTotal
-    ? teoreticPeRand(state, ctx, luni, [...new Set(inScop.map(m => m.locatie))]) : new Map<string, number>();
+    ? teoreticPeRand(state, ctx, sel.ferestre, [...new Set(inScop.map(m => m.locatie))]) : new Map<string, number>();
   const randuri = randuriMaterialFC(ctx, inScop, teoreticRand, reguliUtilizator)
     .map(r => {
       const categorie = categorieEfectiva(r);
@@ -403,8 +406,9 @@ export function bridgeFC(
   const diagnostice = nboDisponibil ? diagnosticeMaterial(randuri, ctx, teoreticPeIngredient, loc) : [];
 
   if (nboDisponibil) {
-    // luni cerute fără niciun rând 2.9 — puntea pe ele nu există, nu se interpolează
-    const luniFara = luni.filter(l => !inScop.some(m => m.perioada === l));
+    // luni cerute fără raport 2.9 lunar — puntea pe ele nu există, nu se interpolează
+    // (pe o cerere săptămânală selectorul nu declară luni lipsă: fereastra e a săptămânii)
+    const luniFara = sel.luniLipsa;
     if (luniFara.length) {
       diagnostice.push({
         cod: 'LUNA_FARA_29', nivel: 'BLOCANT',

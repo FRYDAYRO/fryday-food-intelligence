@@ -30,6 +30,7 @@ import {
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
 import { parseSalesMix } from './salesmix';
+import { inlocuieste } from './surse-29';
 
 // ————————————————————————————————————————————————————————— tipurile canonice de sursă
 
@@ -233,7 +234,7 @@ function fnv1a(s: string): string {
  */
 export function amprentaSursa(
   tip: TipSursaFC, p: Parsat,
-  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string> },
+  opt?: { dataValabil?: string; locatie?: string; optiuni?: OpteImport; mapare?: Record<string, string>; interval?: { de: string; la: string } },
 ): string {
   // antetele se ordonează canonic, dar se păstrează ORIGINALELE: două coloane care se
   // normalizează la fel („Pret" și „Preț") rămân distincte, altfel conținut diferit ar
@@ -248,7 +249,12 @@ export function amprentaSursa(
   const optiuni = JSON.stringify(o, Object.keys(o).sort());
   const m = opt?.mapare ?? {};
   const mapare = JSON.stringify(m, Object.keys(m).sort());
-  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare,
+  // fereastra declarată face parte din identitate: același conținut declarat pe altă fereastră
+  // e alt raport (săptămâna 32 și săptămâna 33 pot avea, teoretic, aceleași cifre)
+  const interval = opt?.interval ? `${opt.interval.de}|${opt.interval.la}` : '';
+  // fereastra pe care o declară fișierul însuși e conținut, nu declarație a omului
+  const fereastraFisier = p.fereastra ? `${p.fereastra.de}|${p.fereastra.la}` : '';
+  const canonic = [tip, opt?.dataValabil ?? '', opt?.locatie ?? '', optiuni, mapare, interval, fereastraFisier,
     ordine.map(x => x.a).join('\u0001'), ...linii, '\u0002', ...matrice].join('\n');
   return `fp_${fnv1a(canonic)}_${p.randuri.length}_${(p.matrice ?? []).length}`;
 }
@@ -399,6 +405,7 @@ function schimbariPret(inainte: AppState, dupa: AppState, fisier: string, ampren
         deltaRON: pretVechi !== null ? p.pret - pretVechi : null,
         deltaPct: pretVechi !== null && pretVechi !== 0 ? ((p.pret - pretVechi) / pretVechi) * 100 : null,
         fisier, amprenta,
+        ...(p.sursa ? { sursa: p.sursa } : {}),
       });
     }
   }
@@ -439,6 +446,8 @@ export interface RezultatCentral {
   amprenta: string;
   /** Identitățile lăsate nemapate de această rulare — ajung pe versiune la activare. */
   necunoscute: string[];
+  /** Amprenta conținutului fără fereastra declarată (vezi `VersiuneSursa.amprentaContinut`). */
+  amprentaContinut: string;
   versiune: string | null;
   activat: boolean;
   stare: 'VALIDAT' | 'ACTIVAT' | 'RESPINS' | 'NECESITA_CONFIRMARE' | 'DUPLICAT';
@@ -467,6 +476,11 @@ export interface CerereImport {
   dataValabil?: string;
   /** Restaurantul declarat, când fișierul nu îl conține. */
   locatie?: string;
+  /**
+   * Fereastra reală a raportului, declarată de om când fișierul nu o poartă (un 2.9
+   * săptămânal exportat doar cu luna). Fără ea, un 2.9 cu coloană de lună e raportul lunar.
+   */
+  interval?: { de: string; la: string };
   optiuni?: OpteImport;
   /**
    * Maparea manuală de coloane, când omul a corectat-o în interfață. Fără ea, ecranul
@@ -578,7 +592,10 @@ function cuRestaurantDeclarat(p: Parsat, intern: TipImport, locatie: string): Pa
 
 interface Scop { scop: ScopSursa; restaurante: string[]; mixt: boolean; cuLocatie: number; faraLocatie: number; }
 
-function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string): Scop {
+function determinaScop(
+  tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string,
+  locatii: { cod: string; nume: string }[] = [],
+): Scop {
   if (eComuna(tip)) return { scop: 'COMUN', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: 0 };
   const camp = CAMP_LOCATIE[intern];
   const antet = camp ? map[camp] : undefined;
@@ -589,7 +606,10 @@ function determinaScop(tip: TipSursaFC, intern: TipImport, p: Parsat, map: Recor
       : { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: p.randuri.length };
   }
   // rândurile complet goale (linii de total, separatoare) nu sunt „fără restaurant"
-  const valori = p.randuri.filter(r => !randGol(r)).map(r => String(r[antet] ?? '').trim());
+  // restaurantul din fișier poate fi codul sau numele lui (antetul PDF-ului 2.9 tipărește numele):
+  // versiunea îl reține pe codul din nomenclator, același pe care îl poartă rândurile importate
+  const rezolva = (v: string) => locatii.find(l => l.cod === v || norm(l.nume) === norm(v))?.cod ?? v;
+  const valori = p.randuri.filter(r => !randGol(r)).map(r => rezolva(String(r[antet] ?? '').trim()));
   const cu = valori.filter(v => v.length > 0);
   const fara = valori.length - cu.length;
   const restaurante = [...new Set(cu)].sort();
@@ -672,12 +692,21 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   };
 }
 
-/** Două versiuni acoperă aceeași fereastră? Pe interval când îl au amândouă, altfel pe lună. */
-function seSuprapun(a: VersiuneSursa, b: VersiuneSursa): boolean {
-  if (a.intervalDe && a.intervalLa && b.intervalDe && b.intervalLa) {
-    return a.intervalDe <= b.intervalLa && b.intervalDe <= a.intervalLa;
+const eSursa29 = (intern: TipImport) => intern === 'FC29' || intern === 'FC29_MATERIAL';
+
+/**
+ * Fereastra reală a unui 2.9: cea din rândurile cu dată, altfel cea DECLARATĂ de om. Un
+ * fișier doar cu coloana de lună NU primește interval de versiune: „2026-08" poate eticheta
+ * și 1–9 august, iar regula documentată e că nedeclaratul rămâne nedeclarat
+ * (INSUFFICIENT_DATA, fără blocare). Rândurile lui se citesc ca raportul lunar al lunii lor.
+ */
+function cuFereastra29(per: Perioade, intern: TipImport, declarat?: { de: string; la: string }): Perioade {
+  if (!eSursa29(intern)) return per;
+  if (per.intervalDe && per.intervalLa) return per;
+  if (declarat && parseData(declarat.de) && parseData(declarat.la) && declarat.de <= declarat.la) {
+    return { ...per, intervalDe: declarat.de, intervalLa: declarat.la };
   }
-  return a.perioada !== null && a.perioada === b.perioada;
+  return per;
 }
 
 /** Cheia de duplicat pe rând, pe variantă internă. */
@@ -699,7 +728,14 @@ function cheieRand(intern: TipImport, r: Record<string, unknown>, map: Record<st
 export function pregatesteImport(state: AppState, cerere: CerereImport): PregatireImport {
   const acum = cerere.acum ?? new Date().toISOString();
   const actor = cerere.actor?.trim() || ACTOR_SISTEM;
+  // fereastra declarată se normalizează la ISO înainte de orice (parseData acceptă și
+  // dd.mm.yyyy): un șir brut ar ajunge în amprentă și în rândurile 2.9 nenormalizat.
+  // Un fișier care își declară singur fereastra (PDF-ul 2.9) o aduce când omul n-a declarat alta.
   const p = cerere.parsat;
+  const intervalBrut = cerere.interval ?? p.fereastra;
+  const intervalNorm = intervalBrut && parseData(intervalBrut.de) && parseData(intervalBrut.la)
+    ? { de: parseData(intervalBrut.de)!, la: parseData(intervalBrut.la)! } : intervalBrut;
+  cerere = intervalNorm ? { ...cerere, interval: intervalNorm } : cerere;
   const detectie = detecteazaSursa(p.antete, cerere.fisier);
   const tip = cerere.tip ?? (detectie.stare === 'SIGUR' ? detectie.tip : null);
   const col: Colector = { diag: [] };
@@ -712,7 +748,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       perioada: null, perioade: [], intervalDe: null, intervalLa: null, dataEfectiva: acum.slice(0, 10),
       granularitate: 'FARA', scop: tipRez && eComuna(tipRez) ? 'COMUN' : 'COMPANIE',
       restaurante: [], randuri: p.randuri.length, importate: 0, sarite: p.randuri.length,
-      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta, necunoscute: [],
+      avertismente: [], erori, acoperire: null, duplicat: 'NOU', amprenta, necunoscute: [], amprentaContinut: amprenta,
       versiune: null, activat: false, stare, importatLa: acum, actor,
       diagnostice: col.diag, schimbari: null, nemapateDePastrat: 0,
       audit: {
@@ -734,7 +770,11 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
 
   const amprenta = amprentaSursa(tip, p, {
     dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni,
-    mapare: cerere.mapare,
+    mapare: cerere.mapare, interval: cerere.interval,
+  });
+  // conținutul fără fereastra declarată: același conținut pe altă fereastră = fișier corectat
+  const amprentaContinut = amprentaSursa(tip, p, {
+    dataValabil: cerere.dataValabil, locatie: cerere.locatie, optiuni: cerere.optiuni, mapare: cerere.mapare,
   });
   // varianta fixată de ecran are prioritate, dar numai dacă aparține chiar tipului cerut:
   // un `internPreferat` străin ar muta importul în alt raport, tăcut
@@ -782,7 +822,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     p.antete.filter(a => !folosite.has(a) && a.trim() !== ''));
 
   // — scopul: companie vs restaurant, niciodată amestecate
-  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie);
+  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie, state.locatii);
   if (eComuna(tip)) {
     const coloanaLoc = p.antete.filter(a => /locatie|restaurant|unitate|magazin|store/.test(norm(a)));
     adaugaDiag(col, 'LOCATIE_LIPSA', 'ATENTIE', 'Date comune cu coloană de restaurant',
@@ -812,9 +852,14 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   }
 
   // — perioade și granularitate
-  const per = determinaPerioade(intern, pEfectiv, map, cerere.dataValabil);
+  const per = cuFereastra29(determinaPerioade(intern, pEfectiv, map, cerere.dataValabil), intern, cerere.interval);
   adaugaDiag(col, 'DATE_INVALIDE', 'ATENTIE', 'Date calendaristice necitibile',
     'Rândurile cu dată invalidă nu pot fi atribuite unei perioade.', per.dateInvalide);
+  if (cerere.interval && !(parseData(cerere.interval.de) && parseData(cerere.interval.la) && cerere.interval.de <= cerere.interval.la)) {
+    adaugaDiag(col, 'DATE_INVALIDE', 'BLOCANT', 'Fereastra declarată nu e un interval valid',
+      'Fereastra raportului trebuie declarată ca două date calendaristice, prima cel mult egală cu a doua.',
+      [`${cerere.interval.de} – ${cerere.interval.la}`]);
+  }
 
   // — numere invalide pe câmpurile numerice ale variantei
   const campuriNumerice: Partial<Record<TipImport, string[]>> = {
@@ -919,8 +964,8 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // la nesfârșit. O versiune fără listă (dinaintea acestui contract) rămâne duplicat.
   const cuAmprenta = acelasiFisier.filter(v => v.amprenta === amprenta);
   const ultimaCuAmprenta = cuAmprenta.length ? cuAmprenta.reduce((a, b) => (b.nr > a.nr ? b : a)) : null;
-  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX')
-    ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state.produse, id, intern))
+  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX' || intern === 'FC29_MATERIAL')
+    ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state, id, intern))
     : [];
   // Maparea deschide reimportul DOAR pentru același fișier, încă în vigoare, pe un nomenclator
   // care n-a pierdut nimic. Fiecare dintre cele trei condiții închide o cale reală de dublare:
@@ -930,8 +975,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   //    reimportul celui vechi ar rescrie corecția cu cifrele vechi;
   //  · o identitate mapată atunci e necunoscută acum (produs șters) → rândurile ei ar ajunge
   //    în coadă, cu vânzările vechi încă în stare: aceiași bani de două ori.
-  const maiNoua = ultimaCuAmprenta ? acelasiFisier.find(w => w.nr > ultimaCuAmprenta.nr
-    && (w.fisier === ultimaCuAmprenta.fisier || seSuprapun(w, ultimaCuAmprenta))) : undefined;
+  const maiNoua = ultimaCuAmprenta ? acelasiFisier.find(w => w.nr > ultimaCuAmprenta.nr && inlocuieste(w, ultimaCuAmprenta)) : undefined;
   const motivPreRulare = !ultimaCuAmprenta || !mapateIntreTimp.length ? null
     : ultimaCuAmprenta.fisier !== cerere.fisier
       ? `conținutul e identic cu ${ultimaCuAmprenta.id} („${ultimaCuAmprenta.fisier}"), dar sub alt nume de fișier — `
@@ -955,6 +999,15 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const optiuni: OpteImport = {
     ...cerere.optiuni,
     ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+    // 2.9 își poartă fereastra reală și proveniența pe fiecare rând; un fișier fără coloana
+    // de lună își ia luna din fereastra declarată, nu rămâne fără perioadă
+    ...(eSursa29(intern) && per.intervalDe && per.intervalLa
+      ? { fereastra: { de: per.intervalDe, la: per.intervalLa }, ...(cerere.dataValabil ? {} : { dataValabil: per.intervalDe }) } : {}),
+    // același conținut declarat înainte pe altă fereastră: acele versiuni sunt înlocuite
+    amprenteInlocuite: (state.versiuniImport ?? [])
+      .filter(v => v.tip === tip && v.amprentaContinut === amprentaContinut && v.amprenta !== amprenta)
+      .map(v => v.amprenta),
+    amprenta,
     // 4.7 își primește restaurantul prin opțiunea lui dedicată (raportul e agregat pe unitate)
     ...(cerere.locatie && intern === 'SALES_MIX' ? { locatieRaport: cerere.locatie } : {}),
   };
@@ -1052,7 +1105,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
     sarite: asteptate !== null ? Math.max(0, asteptate - importate) : null,
     avertismente, erori,
     acoperire: asteptate !== null && asteptate > 0 ? Math.min(100, (importate / asteptate) * 100) : null,
-    duplicat, amprenta, necunoscute: rulat.necunoscute ?? [],
+    duplicat, amprenta, amprentaContinut, necunoscute: rulat.necunoscute ?? [],
     versiune: null, activat: false,
     stare: duplicatExact ? 'DUPLICAT' : valid ? 'VALIDAT' : 'RESPINS',
     importatLa: acum, actor,
@@ -1168,21 +1221,27 @@ export function activeazaImport(state: AppState, pregatire: PregatireImport): Re
   const alePipului = versiuni.filter(v => v.tip === r.tip);
   const nr = alePipului.length + 1;
   const dataEfectiva = r.dataEfectiva;
-  const activaCurenta = alePipului.find(v => v.activa);
-  // o versiune mai veche decât cea activă rămâne istoric, dar nu preia rolul de curentă
-  const devineActiva = !activaCurenta || dataEfectiva >= activaCurenta.dataEfectiva;
   const versiune: VersiuneSursa = {
     id: `${r.tip}#${nr}`, tip: r.tip, nr,
     fisier: r.fisier, amprenta: r.amprenta,
     dataEfectiva, importatLa: r.importatLa,
-    activa: devineActiva, scop: r.scop, restaurante: r.restaurante,
+    activa: true, scop: r.scop, restaurante: r.restaurante,
     perioada: r.perioada,
     ...(r.intervalDe && r.intervalLa ? { intervalDe: r.intervalDe, intervalLa: r.intervalLa } : {}),
+    granularitate: r.granularitate,
+    amprentaContinut: r.amprentaContinut,
     randuri: r.randuri,
     // ce a lăsat nemapat: exact lista după care un reimport al aceluiași fișier se judecă
     ...(r.necunoscute.length ? { nemapate: [...r.necunoscute] } : {}),
   };
-  const versiuniNoi = versiuni.map(v => (v.tip === r.tip && devineActiva ? { ...v, activa: false } : v));
+  // „În vigoare" înseamnă: nicio versiune mai nouă pe ACEEAȘI fereastră. Versiunea nouă
+  // scoate din vigoare doar ce înlocuiește (aceeași fereastră, sau același fișier redeclarat
+  // pe o fereastră care o atinge); un săptămânal și un lunar rămân amândouă în vigoare.
+  // O versiune mai veche (dataEfectiva) decât cea pe care ar înlocui-o rămâne istoric.
+  const inlocuite = alePipului.filter(v => v.activa && inlocuieste(versiune, v));
+  const devineActiva = inlocuite.every(v => dataEfectiva >= v.dataEfectiva);
+  versiune.activa = devineActiva;
+  const versiuniNoi = versiuni.map(v => (devineActiva && inlocuite.includes(v) ? { ...v, activa: false } : v));
   versiuniNoi.push(versiune);
 
   const audit: IntrareAudit = {
@@ -1232,7 +1291,9 @@ function nemapateNoi(inainte: AppState, candidat: AppState | null): { numar: num
 const numeIntrari = (intern: TipImport | null | undefined, n: number): string =>
   intern === 'SALES_MIX'
     ? (n === 1 ? 'denumire necunoscută' : 'denumiri necunoscute')
-    : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
+    : intern === 'FC29_MATERIAL'
+      ? (n === 1 ? 'material necunoscut' : 'materiale necunoscute')
+      : (n === 1 ? 'cod necunoscut' : 'coduri necunoscute');
 
 const fmtNr = (n: number): string => new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 2 }).format(n);
 
@@ -1273,6 +1334,8 @@ export interface CerereUnificata {
   optiuni?: OpteImport;
   locatie?: string;
   dataValabil?: string;
+  /** 2.9: fereastra reală a raportului, când fișierul nu o poartă (săptămânal exportat cu luna). */
+  interval?: { de: string; la: string };
   actor?: string;
   acum?: string;
 }
@@ -1308,6 +1371,7 @@ export function importaUnificat(state: AppState, cerere: CerereUnificata): Rezul
       ...(cerere.optiuni ? { optiuni: cerere.optiuni } : {}),
       ...(cerere.locatie ? { locatie: cerere.locatie } : {}),
       ...(cerere.dataValabil ? { dataValabil: cerere.dataValabil } : {}),
+      ...(cerere.interval ? { interval: cerere.interval } : {}),
       actor, acum,
     });
     const { stareNoua, rezultat } = activeazaImport(state, pregatire);

@@ -349,9 +349,9 @@ t('tabelul arată toate cele unsprezece coloane cerute',
 
 console.log('\n— Ingredient Intelligence: cele cinci panouri —');
 const panouri = panouriIngrediente(ing);
-t('sunt cinci panouri', panouri.length === 5);
+t('sunt șase panouri (cu „Modificări de preț”)', panouri.length === 6);
 t('ordinea și identitatea panourilor sunt cele cerute',
-  panouri.map(p => p.id).join(',') === 'DRIVERE_FC,CRESTERI_PRET,IMPACT_COST,DEVIATII_CONSUM,OPORTUNITATI');
+  panouri.map(p => p.id).join(',') === 'DRIVERE_FC,MODIFICARI_PRET,CRESTERI_PRET,IMPACT_COST,DEVIATII_CONSUM,OPORTUNITATI');
 t('fiecare panou își declară baza de ordonare', panouri.every(p => p.baza.length > 10));
 t('fiecare rând poartă câmpurile cerute', panouri.every(p => p.randuri.every(r =>
   'deltaPretLei' in r && 'impactCostRON' in r && 'impactFcPp' in r
@@ -374,6 +374,7 @@ const randSintetic = (patch: Partial<RandIngredient>): RandIngredient => ({
   ingredient: 'X', denumire: 'X', um: 'kg', categorie: 'test',
   pretCurent: 10, pretPrecedent: 9, deltaPretLei: 1, deltaPretPct: 11.1,
   pretPrecedentEstimat: false, pretCurentEstimat: false,
+  schimbariPret: [],
   consumCurent: 5, consumPrecedent: 4, deltaConsumPct: 25,
   costCurent: 50, costPrecedent: 36, deltaCostLei: 14,
   contributiePpCurent: 1, contributiePpPrecedent: 0.8, fcImpactPp: 0.2,

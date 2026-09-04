@@ -130,7 +130,9 @@ export default function Ingrediente() {
             <thead className="bg-muted/60 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Ingredient</th>
+                <th className="px-3 py-2 text-right">Preț anterior → nou</th>
                 <th className="px-3 py-2 text-right">Δ preț</th>
+                <th className="px-3 py-2 text-right">Consum</th>
                 <th className="px-3 py-2 text-right">Impact cost</th>
                 <th className="px-3 py-2 text-right">Impact FC</th>
                 <th className="px-3 py-2 text-right">Produse</th>
@@ -145,10 +147,15 @@ export default function Ingrediente() {
                   data-rand-ingredient={r.ingredient} onClick={() => setAles(r.ingredient)}>
                   <td className="px-3 py-1.5"><b>{r.denumire}</b>
                     <span className="ml-1 text-xs text-muted-foreground">{r.ingredient}</span></td>
+                  <td className="num px-3 py-1.5 text-right" title={r.sursaPret ?? undefined}>
+                    {r.pretPrecedent === null ? '—' : fmtLei(r.pretPrecedent, 2)} → {r.pretCurent === null ? '—' : fmtLei(r.pretCurent, 2)}
+                    {r.sursaPret && <span className="ml-1 text-[10px] text-muted-foreground" data-camp="sursa-pret">2.9</span>}
+                  </td>
                   <td className="num px-3 py-1.5 text-right">
                     {r.deltaPretPct === null ? '—' : `${fmtPct(r.deltaPretPct, 1)}`}
                     {r.deltaPretLei !== null && <span className="ml-1 text-xs text-muted-foreground">{fmtLei(r.deltaPretLei, 2)}</span>}
                   </td>
+                  <td className="num px-3 py-1.5 text-right">{r.consumCurent.toFixed(2)} {r.um}</td>
                   <td className="num px-3 py-1.5 text-right"><Valoare v={r.impactCostRON} unitate="RON" /></td>
                   <td className="num px-3 py-1.5 text-right">{r.impactFcPp === null ? '—' : fmtPP(r.impactFcPp)}</td>
                   <td className="num px-3 py-1.5 text-right">{r.produseAfectate.length}</td>
@@ -158,7 +165,7 @@ export default function Ingrediente() {
                 </tr>
               ))}
               {panou.randuri.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-4 text-center text-muted-foreground">Niciun ingredient cu această metrică.</td></tr>
+                <tr><td colSpan={10} className="px-3 py-4 text-center text-muted-foreground">Niciun ingredient cu această metrică.</td></tr>
               )}
             </tbody>
           </table>

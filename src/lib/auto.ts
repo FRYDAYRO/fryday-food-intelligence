@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { mapeazaAntete, type Parsat, type TipImport } from './importer';
 import { matriceDinText, parseSalesMix } from './salesmix';
 import { textDinPdf } from './pdf';
+import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from './nbo-29';
 import { norm } from './engine';
 import { umNBO } from './nbo';
 
@@ -338,7 +339,31 @@ function analizeazaFoaie(foaie: string, matrice: unknown[][], numeFisier: string
 }
 
 /** Analizează toate foile unui fișier și spune, pentru fiecare, ce este și cum se mapează. */
-/** PDF: singurul format PDF din fluxul FRYDAY e raportul 4.7 Sales Mix — se validează pe propriile totaluri. */
+/**
+ * Textul unui PDF care e raportul NBO 2.9 (grila „Inventory With Adjustments"): se citește cu
+ * adaptorul lui și intră pe drumul 2.9 pe material, cu Cost per Unit, fereastra și restaurantul
+ * din antet. `null` când textul nu e un 2.9.
+ */
+export function foaieDin29(text: string, numeFisier: string): FoaieAnalizata | null {
+  if (!esteRaport29(text)) return null;
+  const raport = parseRaport29(text);
+  const parsat = parsatDin29(raport);
+  const note = [descrie29(raport), ...raport.avertismente];
+  if (raport.totalGeneral) {
+    note.push(`Verificat pe totalul raportului: ${raport.totalGeneral.consumLei.actual.toLocaleString('ro-RO')} lei consum actual · vânzări ${raport.totalGeneral.vanzari.toLocaleString('ro-RO')} lei`);
+  }
+  void numeFisier;
+  return {
+    foaie: `PDF · ${raport.randuri.length} materiale`, randAntet: 0, parsat,
+    tip: raport.randuri.length ? 'FC29_MATERIAL' : null,
+    mapare: mapeazaAntete(parsat.antete, 'FC29_MATERIAL'), dinContinut: [],
+    lipsa: raport.randuri.length ? [] : ['rânduri de material'],
+    incredere: raport.randuri.length ? (raport.verificari.every(v => v.ok) && !raport.nerecunoscute.length ? 100 : 70) : 0,
+    note,
+  };
+}
+
+/** PDF: rapoartele 4.7 Sales Mix și 2.9 pe material — fiecare se validează pe propriile totaluri. */
 async function analizeazaPdf(file: File): Promise<FoaieAnalizata[]> {
   let text: string;
   try {
@@ -352,6 +377,8 @@ async function analizeazaPdf(file: File): Promise<FoaieAnalizata[]> {
         + 'Folosește versiunea online (aceeași aplicație) sau exportul Excel al raportului — se importă identic.'],
     }];
   }
+  const f29 = foaieDin29(text, file.name);
+  if (f29) return [f29];
   const matrice = matriceDinText(text);
   const sm = parseSalesMix(matrice);
   const note: string[] = [];
@@ -372,7 +399,7 @@ async function analizeazaPdf(file: File): Promise<FoaieAnalizata[]> {
       foaie: 'PDF', randAntet: 0, parsat: { foaie: 'PDF', antete: [], randuri: [], matrice },
       tip: null, mapare: {}, dinContinut: [], lipsa: ['linii de vânzare'],
       incredere: 0,
-      note: ['Nicio linie de vânzare recognoscibilă — PDF-urile acceptate sunt rapoartele 4.7 Sales Mix. Pentru alte date, folosește exportul Excel/CSV.'],
+      note: ['Nicio linie de vânzare recognoscibilă — PDF-urile acceptate sunt rapoartele 4.7 Sales Mix și 2.9 pe material. Pentru alte date, folosește exportul Excel/CSV.'],
     }];
   }
   return [{

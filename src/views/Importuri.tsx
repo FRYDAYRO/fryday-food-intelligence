@@ -152,7 +152,7 @@ function TabImport() {
     setAnaliza(null);
     setJurnalAuto(null);
       setAnaliza(null);
-      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls, .csv și .pdf (raportul 4.7).');
+      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls, .csv și .pdf (rapoartele 4.7 și 2.9).');
     }
   };
 
@@ -213,7 +213,7 @@ function TabImport() {
         <Btn className="mt-2" onClick={() => fileRef.current?.click()}>Alege fișier…</Btn>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.pdf" hidden multiple
           onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length > 1) void alegeLot(fs); else if (fs[0]) void alegeFisier(fs[0]); }} />
-        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 (Excel sau PDF) · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
+        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 (Excel sau PDF) · Raport 2.9 (PDF) · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
       </div>
 
       {schimbari && (

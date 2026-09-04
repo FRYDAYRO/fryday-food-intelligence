@@ -1,7 +1,7 @@
 // Reconciliere post-import — răspunde la întrebarea „pot avea încredere în raportul ăsta?".
 import type { AppState } from './types';
 import { verdictCombinare, type VerdictSurse } from './perioade-surse';
-import { clasifica, luna as lunaDin, perProdus, fmtInt, fmtPct, type Ctx } from './engine';
+import { clasifica, eLinie29Lunara, luna as lunaDin, perProdus, fmtInt, fmtPct, type Ctx } from './engine';
 
 export interface ProblemaDate {
   nivel: 'BLOCANT' | 'ATENTIE' | 'INFO';
@@ -66,7 +66,7 @@ export function reconciliaza(state: AppState, ctx: Ctx, lunaSel: string, locatie
   const toleranta = state.setari.tolerantaReconciliere ?? 1;
   const inToleranta = diferentaPct != null ? Math.abs(diferentaPct) <= toleranta : null;
 
-  const linii29 = state.linii29.filter(l => l.perioada === lunaSel && (!locatie || l.locatie === locatie));
+  const linii29 = state.linii29.filter(l => eLinie29Lunara(l, lunaSel) && (!locatie || l.locatie === locatie));
   const total29 = linii29.reduce((s, l) => s + l.valoare, 0);
   const excluderi = linii29.filter(l => clasifica(l.categorie, state.reguli).clasa === 'EXCLUS').reduce((s, l) => s + l.valoare, 0);
   const categoriiNeclasificate = [...new Set(linii29
