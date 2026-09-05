@@ -59,7 +59,8 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
 
 ## Ce urmează (prioritizat)
 
-1. Import de **Waste** — deblochează descompunerea variance-ului și Restaurant Performance Index.
+1. **Waste**: raportul 2.8 se importă (PDF, Import Center) și se confruntă cu Inv Adj din 2.9; statutul
+   față de Usage vine din declarații. Urmează: XLSX pentru 2.8, transferurile 2.9, Restaurant Performance Index.
 2. **Inventar** — consum real vs teoretic.
 3. **AOV și bonuri** din Sales Report NBO — completează analiza promoțiilor.
 4. Portare pe server (NestJS + PostgreSQL): motorul e pur și acoperit de teste, suita devine regresia.
@@ -75,3 +76,13 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   fereastră înlocuiește prețul (și o spune în raportul importului); reimportul primului e duplicat.
 - „Cost per Unit" e tipărit cu două zecimale: sub 0,10 lei/unitate prețul scris are precizie
   limitată (semnalat la import); nu se „corectează" din Usage lei ÷ unități (D4).
+- Identitatea 2.9 (dovedită pe 582/582 rânduri): `Usage Actual = Beg + Pur + Trans − Adj − End`. Ajustările
+  (Inv Adj) NU sunt în consum, deci nu intră în nicio cifră de FC; `Adj × Cost per Unit` e o estimare
+  separată (nu evaluarea FIFO), afișată lângă FC-ul operațional. Convenția pentru Adj negativ nu e validată.
+- Waste-ul 2.8 și Inv Adj 2.9 nu se însumează. Potrivirea cantitativă (pe restaurant × fereastră × material × UM)
+  e o observație; statutul „inclus în Usage / exclus prin ajustare / nedeterminat" vine NUMAI din declarații
+  cu temei, iar doar partea inclusă reduce Neexplicatul. Rezidualul zero al punții nu dovedește atribuirea.
+- Raportul 2.8 nu are dată pe eveniment: fereastra e a raportului, deci reconcilierea săptămânală cere un 2.8
+  săptămânal; prețul datat și versiunea de rețetă pe o astfel de fereastră sunt determinabile doar fără
+  schimbare în interior și cu istoric de la începutul ei. Evaluarea 2.8 (Cost/Unit, Extension) rămâne a lui.
+- Codurile de meniu din 2.8 (DESERT*) se leagă de materia primă doar prin alias aprobat în coada comună.

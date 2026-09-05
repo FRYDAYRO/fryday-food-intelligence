@@ -150,7 +150,8 @@ export function potriveste28cu29(
     const adj = m && m.ajustari !== undefined ? m.ajustari : null;
     const cpu = m?.costPeUnitate ?? null;
     const leiEstimat29 = adj !== null && cpu !== null && cpu > 0 ? Math.abs(adj) * cpu : null;
-    const cant28 = ev.reduce((s, e) => s + e.cant, 0);
+    // suma cantităților se rotunjește la a patra zecimală doar împotriva zgomotului binar (3,82 ≠ 3,8200000000000003)
+    const cant28 = Math.round(ev.reduce((s, e) => s + e.cant, 0) * 1e4) / 1e4;
     const lei28 = rot2(ev.reduce((s, e) => s + e.lei, 0));
     const um = ev[0]?.um ?? m?.umInventar ?? '';
     const umOk = !!m?.umInventar && normUM(m.umInventar) === umNorm;
