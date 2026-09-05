@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { fmtLei, fmtPct } from '../../lib/engine';
 import { punteTower, semnaleCalitate, type GrupBridge } from '../../lib/fc-tower';
 import { useTower } from './context';
-import { useAnaliza, useIngrediente, usePunte } from './date';
+import { useAnaliza, useIngrediente, usePunte, useReconciliere } from './date';
+import { AtribuireWaste } from './AtribuireWaste';
 import { Indisponibil, MaterialeGrup, Punte, Sectiune, Semnale } from './parti';
 
 export default function Reconciliere() {
@@ -14,6 +15,7 @@ export default function Reconciliere() {
   const bridge = usePunte();
   const analiza = useAnaliza();
   const ingrediente = useIngrediente();
+  const rec = useReconciliere();
   const [grup, setGrup] = useState<GrupBridge | null>(null);
   const punte = punteTower(bridge);
 
@@ -84,6 +86,11 @@ export default function Reconciliere() {
         </Sectiune>
       )}
 
+      <Sectiune titlu="Waste 2.8 față de Usage Actual și Inv Adj"
+        sub="numai waste-ul demonstrat inclus în Usage Actual reduce Neexplicatul; potrivirea cantitativă cu Inv Adj e o observație, nu o dovadă">
+        <AtribuireWaste rec={rec} />
+      </Sectiune>
+
       {!analiza.complete && (
         <Sectiune titlu="De ce nu e completă">
           <ul className="list-inside list-disc space-y-1 rounded-md border bg-card p-3 text-sm">
@@ -109,3 +116,4 @@ export default function Reconciliere() {
     </div>
   );
 }
+

@@ -181,6 +181,7 @@ const OBLIGATORII: Record<TipImport, string[]> = {
   RETETAR_NBO: ['comp', 'cant', 'um'],
   MENIURI: ['meniu', 'componenta'],
   WASTE: ['ingredient', 'cant'],
+  WASTE_28: ['material', 'motiv', 'cant', 'valoare'],
   INVENTAR: ['ingredient', 'cant'],
   FC_BAZA: ['denumire', 'canal'],
   SALES_MIX: ['denumire', 'cant'],

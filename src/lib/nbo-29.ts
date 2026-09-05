@@ -341,13 +341,97 @@ export function parseRaport29(text: string): Raport29 {
   } else if (r.randuri.length) {
     r.avertismente.push('Raportul nu declară totalul general (linia „Totals:") — rândurile nu s-au putut verifica pe total.');
   }
+  const id = verificaIdentitate29(r);
+  if (id.inAfara.length) {
+    r.avertismente.push(`Bilanțul de stoc nu se închide pe ${id.inAfara.length} rânduri (Beg + Pur + Trans − Adj − End ≠ Usage Actual, peste ±${TOLERANTA_IDENTITATE_29}): `
+      + id.inAfara.slice(0, 5).map(x => `${x.item} (${x.itemId}, linia ${x.rand}: ${x.calculat} vs ${x.tiparit})`).join(', ') + (id.inAfara.length > 5 ? '…' : ''));
+  }
   return r;
+}
+
+// ————————————————————————————————————————————————————————— identitatea raportului
+
+/**
+ * Toleranța identității pe unități: raportul tipărește fiecare termen cu o zecimală, deci
+ * șase termeni rotunjiți pot diferi de al șaptelea cu cel mult 6 × 0,05.
+ */
+export const TOLERANTA_IDENTITATE_29 = 0.3;
+
+export interface RandIdentitate29 {
+  rand: number; itemId: string; item: string;
+  /** Beg + Pur + Trans − Adj − End, în unitatea de inventar. */
+  calculat: number;
+  /** „Usage in Units: Actual", cum e tipărit. */
+  tiparit: number;
+  diferenta: number;
+}
+
+export interface Identitate29 {
+  randuri: number;
+  exacte: number;
+  inToleranta: number;
+  inAfara: RandIdentitate29[];
+  /**
+   * Ajustările la Cost per Unit: ESTIMARE, nu evaluarea FIFO a raportului (care nu tipărește
+   * Adj în lei). Semnele nu se compensează; convenția pentru negativ nu e validată.
+   */
+  ajustari: {
+    materiale: number;
+    leiEstimatPozitiv: number;
+    leiEstimatNegativ: number;
+    materialeNegative: number;
+    /** Adj ≠ 0 pe un rând cu Cost per Unit ≤ 0: nu se poate estima, totalul e incomplet. */
+    faraCostUtilizabil: number;
+  };
+  /** „Usage in Percent: Actual" pe totalul general, cum îl tipărește raportul. */
+  fcRaportatPct: number | null;
+  /** (Usage lei Actual + Σ Adj × CPU) ÷ vânzările raportului — doar când estimarea e completă și interpretabilă. */
+  fcCuAjustariEstimatPct: number | null;
+  motivFcIndisponibil: string | null;
+}
+
+const rot1 = (x: number) => Math.round(x * 10) / 10;
+
+/**
+ * Identitatea demonstrată pe raportul real (582/582 rânduri):
+ * `Usage Actual = Beg Inv + Pur Units + Inv Trans − Inv Adj − End Inv`.
+ * Ajustările sunt EXCLUSE din Usage: de aceea estimarea lor rămâne o cifră separată.
+ */
+export function verificaIdentitate29(r: Raport29): Identitate29 {
+  let exacte = 0, inToleranta = 0;
+  const inAfara: RandIdentitate29[] = [];
+  const aj = { materiale: 0, leiEstimatPozitiv: 0, leiEstimatNegativ: 0, materialeNegative: 0, faraCostUtilizabil: 0 };
+  for (const x of r.randuri) {
+    const calculat = rot1(x.stocInitial + x.achizitii + x.transferuri - x.ajustari - x.stocFinal);
+    const diferenta = rot1(calculat - x.consumUnitati.actual);
+    if (Math.abs(diferenta) < 1e-9) exacte++;
+    else if (Math.abs(diferenta) <= TOLERANTA_IDENTITATE_29 + 1e-9) inToleranta++;
+    else inAfara.push({ rand: x.rand, itemId: x.itemId, item: x.item, calculat, tiparit: x.consumUnitati.actual, diferenta });
+    if (x.ajustari !== 0) {
+      aj.materiale++;
+      if (x.ajustari < 0) aj.materialeNegative++;
+      if (x.costPeUnitate > 0) {
+        if (x.ajustari > 0) aj.leiEstimatPozitiv += x.ajustari * x.costPeUnitate;
+        else aj.leiEstimatNegativ += -x.ajustari * x.costPeUnitate;
+      } else aj.faraCostUtilizabil++;
+    }
+  }
+  const tg = r.totalGeneral;
+  const fcRaportatPct = tg ? tg.consumPct.actual : null;
+  let fcCuAjustariEstimatPct: number | null = null;
+  let motiv: string | null = null;
+  if (!tg || !(tg.vanzari > 0)) motiv = 'Raportul nu declară totalul general și vânzările.';
+  else if (aj.materialeNegative) motiv = `${aj.materialeNegative} materiale cu ajustare negativă: convenția de semn nu e validată, FC-ul cu ajustări nu e interpretabil.`;
+  else if (aj.faraCostUtilizabil) motiv = `${aj.faraCostUtilizabil} materiale cu ajustare fără Cost per Unit utilizabil: estimarea e incompletă.`;
+  else fcCuAjustariEstimatPct = ((tg.consumLei.actual + aj.leiEstimatPozitiv) / tg.vanzari) * 100;
+  return { randuri: r.randuri.length, exacte, inToleranta, inAfara, ajustari: aj, fcRaportatPct, fcCuAjustariEstimatPct, motivFcIndisponibil: motiv };
 }
 
 /** Antetele `Parsat`-ului produs de adaptor — exact ce recunoaște importatorul 2.9 pe material. */
 export const ANTETE_29 = [
   'Perioada', 'Locatie', 'Cod material', 'Denumire material', 'Grup raport', 'Categorie',
   'Cantitate', 'UM', 'Cost actual', 'Cost teoretic', 'Cost per unit', 'Cantitate teoretica', 'Rand sursa',
+  'Ajustare inventar',
 ] as const;
 
 /**
@@ -373,6 +457,8 @@ export function parsatDin29(r: Raport29, foaie = 'PDF'): Parsat {
     'Cost per unit': x.costPeUnitate,
     'Cantitate teoretica': x.consumUnitati.teoretic,
     'Rand sursa': x.rand,
+    // „Inv Adj" exact cum e tipărit: unități, semnul raportului; nu intră în niciun consum
+    'Ajustare inventar': x.ajustari,
   }));
   return {
     foaie, antete: ANTETE_29.filter(a => perioada || a !== 'Perioada'), randuri,
@@ -386,5 +472,9 @@ export function descrie29(r: Raport29): string {
   const verif = r.verificari.length
     ? `${r.verificari.filter(v => v.ok).length}/${r.verificari.length} grupuri verificate pe total`
     : 'fără totaluri de grup';
-  return `${cap} · ${r.randuri.length} materiale · ${verif}${r.nerecunoscute.length ? ` · ${r.nerecunoscute.length} rânduri necitite` : ''}`;
+  const id = verificaIdentitate29(r);
+  const bilant = r.randuri.length
+    ? ` · bilanț de stoc: ${id.exacte}/${id.randuri} exact${id.inToleranta ? `, ${id.inToleranta} în toleranță` : ''}${id.inAfara.length ? `, ${id.inAfara.length} neînchise` : ''}`
+    : '';
+  return `${cap} · ${r.randuri.length} materiale · ${verif}${r.nerecunoscute.length ? ` · ${r.nerecunoscute.length} rânduri necitite` : ''}${bilant}`;
 }

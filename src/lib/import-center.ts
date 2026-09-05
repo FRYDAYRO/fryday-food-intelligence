@@ -39,6 +39,7 @@ export type TipSursaFC =
   | 'NOMENCLATOR'           // nomenclatorul de ingrediente (master data)
   | 'PRETURI_INGREDIENTE'   // lista de prețuri datate
   | 'NBO_29'                // raportul NBO 2.9 (consum), pe categorie sau pe material
+  | 'NBO_28'                // raportul NBO 2.8 (Spoilage and Loss), pe eveniment
   | 'NBO_41'                // raportul NBO 4.1 (vânzări nete pe zi × restaurant × canal)
   | 'PMIX_47';              // PMIX / Sales Mix 4.7 (vânzări pe produs)
 
@@ -47,6 +48,7 @@ export const ETICHETA_SURSA: Record<TipSursaFC, string> = {
   NOMENCLATOR: 'Nomenclator de ingrediente',
   PRETURI_INGREDIENTE: 'Prețuri de ingrediente',
   NBO_29: 'NBO 2.9 (consum)',
+  NBO_28: 'NBO 2.8 (pierderi declarate)',
   NBO_41: 'NBO 4.1 (vânzări nete)',
   PMIX_47: 'PMIX 4.7 (vânzări pe produs)',
 };
@@ -113,6 +115,9 @@ const numarRaport = (n: string, numar: string) =>
 /** Semnalul din numele fișierului. Ordinea contează: „sales mix" e PMIX, nu 4.1. */
 export function semnalDinNume(numeFisier: string): TipSursaFC | null {
   const n = norm(numeFisier);
+  // 2.8 e raportul de pierderi al NBO: numele lui („2.8", „spoilage") se citește ÎNAINTEA
+  // filtrului de familie, care refuză doar fișierele de waste/inventar fără număr de raport
+  if (numarRaport(n, '2.8') || /2 8|nbo 28|spoilage/.test(n)) return 'NBO_28';
   if (numeExclus(n)) return null;
   if (numarRaport(n, '2.9') || /2 9|nbo 29/.test(n)) return 'NBO_29';
   if (numarRaport(n, '4.1') || /4 1|nbo 41/.test(n)) return 'NBO_41';
@@ -135,6 +140,7 @@ interface RegulaContinut {
 const REGULI_CONTINUT: RegulaContinut[] = [
   { tip: 'NBO_29', intern: 'FC29_MATERIAL', cerute: ['material', 'denumire', 'costActual'] },
   { tip: 'NBO_29', intern: 'FC29', cerute: ['perioada', 'categorie', 'valoare'] },
+  { tip: 'NBO_28', intern: 'WASTE_28', cerute: ['material', 'motiv', 'cant', 'valoare'] },
   { tip: 'NBO_41', intern: 'SALES', cerute: ['data', 'locatie', 'net'] },
   { tip: 'PMIX_47', intern: 'PMIX', cerute: ['data', 'produs', 'cant'] },
   { tip: 'PMIX_47', intern: 'SALES_MIX', cerute: ['denumire', 'cant'], slaba: true },
@@ -180,7 +186,9 @@ export function detecteazaSursa(antete: string[], numeFisier: string): Detectie 
   const cereConfirmare = (motiv: string, incredere: number): Detectie =>
     ({ tip: null, incredere, stare: 'NECESITA_CONFIRMARE', semnalNume, semnalContinut, candidati, motiv });
 
-  if (numeExclus(numeFisier)) {
+  // un 2.8 cu structura lui completă (material, motiv, cantitate, valoare) nu e „un waste oarecare"
+  const e28 = candidati[0]?.tip === 'NBO_28' && tari.has('NBO_28');
+  if (numeExclus(numeFisier) && !e28) {
     return cereConfirmare('Numele fișierului arată a inventar / stoc / waste — rapoarte pe care acest '
       + 'centru nu le importă, dar a căror structură seamănă cu a celor importate. Confirmă explicit tipul, '
       + 'altfel cantitățile ar putea intra ca vânzări sau ca lei.', 20);
@@ -549,7 +557,7 @@ const OBLIGATORII: Partial<Record<TipImport, string[]>> = {
 
 /** Câmpul de restaurant al fiecărei variante, unde există. */
 const CAMP_LOCATIE: Partial<Record<TipImport, string>> = {
-  FC29: 'locatie', FC29_MATERIAL: 'locatie', SALES: 'locatie', PMIX: 'locatie',
+  FC29: 'locatie', FC29_MATERIAL: 'locatie', WASTE_28: 'locatie', SALES: 'locatie', PMIX: 'locatie',
 };
 
 /**
@@ -692,7 +700,7 @@ function determinaPerioade(intern: TipImport, p: Parsat, map: Record<string, str
   };
 }
 
-const eSursa29 = (intern: TipImport) => intern === 'FC29' || intern === 'FC29_MATERIAL';
+const eSursa29 = (intern: TipImport) => intern === 'FC29' || intern === 'FC29_MATERIAL' || intern === 'WASTE_28';
 
 /**
  * Fereastra reală a unui 2.9: cea din rândurile cu dată, altfel cea DECLARATĂ de om. Un
@@ -717,6 +725,7 @@ function cheieRand(intern: TipImport, r: Record<string, unknown>, map: Record<st
     case 'SALES': return `${v('data')}|${v('locatie')}|${v('canal')}`;
     case 'FC29': return `${v('perioada')}|${v('locatie')}|${v('categorie')}`;
     case 'FC29_MATERIAL': return `${v('perioada')}|${v('locatie')}|${v('material')}`;
+    case 'WASTE_28': return `${v('perioada')}|${v('locatie')}|${v('material')}|${v('randSursa')}`;
     case 'COST_INGREDIENTE': return v('cod');
     case 'RETETAR': return `${v('reteta')}|${v('comp')}`;
     default: return null;
@@ -864,7 +873,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // — numere invalide pe câmpurile numerice ale variantei
   const campuriNumerice: Partial<Record<TipImport, string[]>> = {
     PMIX: ['cant', 'net'], SALES: ['net', 'brut'], FC29: ['valoare'],
-    FC29_MATERIAL: ['costActual', 'costTeoretic'], SALES_MIX: ['cant', 'valoare'],
+    FC29_MATERIAL: ['costActual', 'costTeoretic'], WASTE_28: ['cant', 'valoare', 'costUnitar'], SALES_MIX: ['cant', 'valoare'],
     COST_INGREDIENTE: ['pret'], RETETAR: ['cant'], RETETAR_NBO: ['cant'],
   };
   const numereInvalide: string[] = [];
@@ -964,7 +973,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // la nesfârșit. O versiune fără listă (dinaintea acestui contract) rămâne duplicat.
   const cuAmprenta = acelasiFisier.filter(v => v.amprenta === amprenta);
   const ultimaCuAmprenta = cuAmprenta.length ? cuAmprenta.reduce((a, b) => (b.nr > a.nr ? b : a)) : null;
-  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX' || intern === 'FC29_MATERIAL')
+  const mapateIntreTimp = ultimaCuAmprenta && (intern === 'PMIX' || intern === 'SALES_MIX' || intern === 'FC29_MATERIAL' || intern === 'WASTE_28')
     ? (ultimaCuAmprenta.nemapate ?? []).filter(id => identitateSeRezolva(state, id, intern))
     : [];
   // Maparea deschide reimportul DOAR pentru același fișier, încă în vigoare, pe un nomenclator
