@@ -141,6 +141,13 @@ export interface Material29 {
   cantTeoretic?: number | null;
   /** Grupul părinte al categoriei, când raportul imbrică subgrupuri („Paper" pentru „ACCESORII"). */
   grup?: string;
+  /**
+   * „Inv Adj" din 2.9, în unitatea de inventar, cu semnul EXACT cum îl tipărește raportul
+   * (pozitiv = scăzut din Usage Actual: `Usage = Beg + Pur + Trans − Adj − End`).
+   * ABSENT când fișierul nu are coloana (export vechi, raport pe categorie) — necunoscut, nu zero;
+   * `0` doar când raportul tipărește 0,0. Convenția pentru valori negative nu e validată.
+   */
+  ajustari?: number;
 }
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';

@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { analizaTimeline, serieTimeline, type AnalizaTimeline, type PunctTimeline } from '../../lib/fc-timeline';
 import { bridgeFC, type FCBridge } from '../../lib/fc-bridge';
+import { ajustari29, type Ajustari29 } from '../../lib/ajustari-29';
 import { analizaIngrediente, type AnalizaIngrediente } from '../../lib/fc-ingrediente';
 import { simuleazaFC, type ScenariuFC, type SimulareFC } from '../../lib/fc-simulare';
 import { tablouVariatii, type TabloulVariatii } from '../../lib/fc-variatii';
@@ -25,6 +26,14 @@ export function usePunte(caleLocatie?: string): FCBridge {
   const { state, ctx, sel } = useTower();
   const efectiv: SelectieFC = caleLocatie ? { ...sel, scop: 'RESTAURANT', locatie: caleLocatie } : sel;
   return useMemo(() => bridgeFC(state, ctx, cerereBaza(efectiv)), [state, ctx,
+    efectiv.ancora, efectiv.granularitate, efectiv.scop, efectiv.locatie, efectiv.canal]);
+}
+
+/** Ajustările de inventar 2.9 pe aceeași cerere ca puntea — cifră separată, calculată la cerere. */
+export function useAjustari29(caleLocatie?: string): Ajustari29 {
+  const { state, ctx, sel } = useTower();
+  const efectiv: SelectieFC = caleLocatie ? { ...sel, scop: 'RESTAURANT', locatie: caleLocatie } : sel;
+  return useMemo(() => ajustari29(state, ctx, cerereBaza(efectiv)), [state, ctx,
     efectiv.ancora, efectiv.granularitate, efectiv.scop, efectiv.locatie, efectiv.canal]);
 }
 

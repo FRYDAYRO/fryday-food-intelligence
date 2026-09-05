@@ -75,6 +75,9 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     cantTeoretic: ['cantitate teoretica', 'consum teoretic cantitate', 'theory units', 'usage theory units'],
     grup: ['grup raport', 'parent group', 'grup parinte'],
     randSursa: ['rand sursa', 'linie sursa', 'source row'],
+    // „Inv Adj": ajustarea de inventar în unități, exact cum e tipărită — absentă când
+    // fișierul n-are coloana (necunoscut ≠ zero)
+    ajustari: ['ajustare inventar', 'ajustari inventar', 'inv adj', 'inventory adjustment', 'ajustari'],
   },
   COST_INGREDIENTE: {
     cod: ['cod ingredient', 'cod', 'cod articol', 'cod material', 'cod materie prima', 'cod nbo',
@@ -1128,6 +1131,8 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const cantTeoretic = map.cantTeoretic !== undefined ? parseNumar(g(r, 'cantTeoretic')) : null;
         const grup = map.grup !== undefined ? String(g(r, 'grup') ?? '').trim() : '';
         const randSursa = map.randSursa !== undefined ? parseNumar(g(r, 'randSursa')) : null;
+        // celula goală sau necitibilă rămâne ABSENTĂ (necunoscut), nu devine zero
+        const ajustari = map.ajustari !== undefined ? parseNumar(g(r, 'ajustari')) : null;
         const normalizat = map.normalizat !== undefined
           && DA.has(norm(String(g(r, 'normalizat'))));
 
@@ -1152,6 +1157,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           ...(umInventar ? { umInventar } : {}),
           ...(map.cantTeoretic !== undefined ? { cantTeoretic } : {}),
           ...(grup ? { grup } : {}),
+          ...(ajustari != null ? { ajustari } : {}),
           fereastra: fereastra29(optF, perioada), sursa: sursa29(numeFisier, optF, randSursa ?? i + 2),
         });
         totalActual += costActual;
@@ -1242,6 +1248,23 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       }
 
       stateNou = { ...state, materiale29, linii29, nemapate: nemapateNoi29 };
+
+      // ——— ajustările de inventar se PĂSTREAZĂ, nu se evaluează în consum: raportul le exclude
+      // din Usage; Adj × Cost per Unit e doar o estimare separată, semnele nu se compensează
+      if (map.ajustari !== undefined) {
+        const cuAdj = noi.filter(m => m.ajustari !== undefined && m.ajustari !== 0);
+        const faraCol = noi.filter(m => m.ajustari === undefined).length;
+        const negative = cuAdj.filter(m => m.ajustari! < 0);
+        const faraCost = cuAdj.filter(m => !(m.costPeUnitate !== undefined && m.costPeUnitate > 0));
+        const lei = (l: Material29[]) => l.reduce((s, m) => s + (m.costPeUnitate && m.costPeUnitate > 0 ? Math.abs(m.ajustari!) * m.costPeUnitate : 0), 0);
+        avert.push(`Ajustări de inventar (Inv Adj): ${cuAdj.length} materiale cu ajustare, estimate la Cost per Unit `
+          + `+${lei(cuAdj.filter(m => m.ajustari! > 0)).toFixed(2)} lei${negative.length ? ` / −${lei(negative).toFixed(2)} lei pe ${negative.length} materiale cu semn negativ (convenție nevalidată)` : ''}`
+          + (faraCost.length ? `; ${faraCost.length} fără cost utilizabil (estimare incompletă)` : '')
+          + (faraCol ? `; ${faraCol} rânduri fără valoare (ajustare necunoscută, nu zero)` : '')
+          + ' — estimare separată, NU intră în consum și nu e etichetată drept waste');
+      } else if (noi.length) {
+        avert.push('Fișierul nu are coloana de ajustări de inventar (Inv Adj): ajustările rămân necunoscute, nu zero.');
+      }
 
       // ——— D4: Cost per Unit → preț efectiv datat în nomenclator, pentru materialele mapate.
       // Se scrie pe fereastra fiecărui rând (săptămâna sau luna raportului), ca intrare nouă
