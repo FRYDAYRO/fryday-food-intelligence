@@ -138,11 +138,46 @@ t('altă versiune 2.9 (Adj 3): aceleași evenimente, potrivire diferită (direct
 const faraColoana = M29.map(m => (m.material === '4064' ? (({ ajustari: _a, ...rest }) => rest)(m) : m));
 t('material fără coloana Adj → FARA_COLOANA_ADJ, adj null (necunoscut, nu zero)', linie(potriveste28cu29(faraColoana, CHEDDAR), '4064').potrivire === 'FARA_COLOANA_ADJ' && linie(potriveste28cu29(faraColoana, CHEDDAR), '4064').adj === null);
 const alteUM = CHEDDAR.map(e => ({ ...e, um: 'Gram' }));
-t('UM diferită → cantitățile nu se compară', linie(potriveste28cu29(M29, alteUM), '4064').potrivire === 'UM_DIFERITA' && linie(potriveste28cu29(M29, alteUM), '4064').diferenta === null);
+const liniiGram = potriveste28cu29(M29, alteUM).linii.filter(l => l.material === '4064');
+t('UM diferită → cantitățile nu se compară: linia în grame e UM_DIFERITA, linia în KG rămâne fără eveniment',
+  liniiGram.find(l => l.um === 'Gram')!.potrivire === 'UM_DIFERITA' && liniiGram.find(l => l.um === 'Gram')!.diferenta === null
+  && liniiGram.find(l => l.um === 'KG')!.potrivire === 'FARA_EVENIMENT_28');
 t('„Each" și „EA" sunt aceeași unitate', linie(potriveste28cu29(M29, SAUSAGE.map(e => ({ ...e, um: 'EA' }))), '702458').potrivire === 'EXACTA');
 const altaLuna = potriveste28cu29(M29, TOATE.map(e => ({ ...e, fereastra: { de: '2026-07-01', la: '2026-07-31' } })));
 t('evenimente pe altă fereastră nu se potrivesc cu Adj-ul lui august', altaLuna.coduri.ambele === 0 && altaLuna.coduri.doarEvenimente === 7);
 t('alt restaurant: la fel', potriveste28cu29(M29, TOATE.map(e => ({ ...e, locatie: 'L02' }))).coduri.ambele === 0);
+
+console.log('\n— 4b. Regresii (remedierile pe 106825c): declarațiile nu ocolesc comparația; bani întregi, nenegativi —');
+const declInclusX = (material: string, cant: number): DeclaratieIncludere => ({ locatie: 'L01', fereastra: F8, material, includere: 'INCLUS_IN_USAGE', cant, temei: 'DECLARATIE_UTILIZATOR', sursa: 'test' });
+const faraCoresp = potriveste28cu29(M29, [ev(1, 'X9', 'Fără corespondent', 'Dropped', 'EA', 5, 10, 50)], {}, [declInclusX('X9', 5)]);
+t('R1a. fără material corespondent în 2.9: declarația NU atribuie (50 lei rămân NEDETERMINAT, declarație neaplicată)',
+  linie(faraCoresp, 'X9').potrivire === 'FARA_CORESPONDENT_29' && linie(faraCoresp, 'X9').parti.INCLUS_IN_USAGE.lei === 0
+  && aprox(linie(faraCoresp, 'X9').parti.NEDETERMINAT.lei, 50) && linie(faraCoresp, 'X9').declaratiiNeaplicate === 1);
+const mixte = [ev(1, '4064', 'Sos Cheddar BIB', 'Dropped', 'KG', 1, 10, 10), ev(2, '4064', 'Sos Cheddar BIB', 'Dropped', 'EA', 2, 10, 20)];
+const pm = potriveste28cu29(M29, mixte, {}, [declInclusX('4064', 3)]);
+const lKG = pm.linii.find(l => l.material === '4064' && l.um === 'KG')!, lEA = pm.linii.find(l => l.material === '4064' && l.um === 'EA')!;
+t('R1b. 1 KG și 2 EA pe aceeași cheie rămân două linii: cantitățile nu se însumează la 3',
+  lKG.cant28 === 1 && lEA.cant28 === 2 && !pm.linii.some(l => l.material === '4064' && l.cant28 === 3));
+t('R1b. declarația INCLUS 3 se aplică doar liniei cu UM-ul materialului (KG), plafonată la 1; linia EA e UM_DIFERITA, neatinsă',
+  lKG.parti.INCLUS_IN_USAGE.cant === 1 && aprox(lKG.parti.INCLUS_IN_USAGE.lei, 10) && lKG.declaratiiPlafonate === 1
+  && lEA.potrivire === 'UM_DIFERITA' && lEA.parti.INCLUS_IN_USAGE.cant === 0 && aprox(lEA.parti.NEDETERMINAT.lei, 20) && lEA.declaratiiNeaplicate === 1);
+const faraCol = potriveste28cu29(faraColoana, CHEDDAR, {}, [declInclusX('4064', 3.8)]);
+t('R1c. fără coloana Adj: declarația nu se aplică (comparație nevalidă)', linie(faraCol, '4064').parti.INCLUS_IN_USAGE.cant === 0 && linie(faraCol, '4064').declaratiiNeaplicate === 1);
+t('R1c. estimarea 2.9 se numără o dată pe material, nu pe fiecare linie de UM', pm.coduri.cuAdj === 6 && aprox(pm.leiEstimat29, 3.8 * 45.07 + 23 * 2.48 + 6 * 9.28 + 5 * 7.62 + 8.51 + 6 * 0.27, 0.005));
+const doua = potriveste28cu29([mat('Y1', 'Y', 'EA', 1, 1)], [ev(1, 'Y1', 'Y', 'Dropped', 'EA', 2, 50.005, 100.01)], {}, [
+  { locatie: 'L01', fereastra: F8, material: 'Y1', includere: 'EXCLUS_PRIN_AJUSTARE', cant: 1, temei: 'DECLARATIE_UTILIZATOR', sursa: 'test' },
+  { locatie: 'L01', fereastra: F8, material: 'Y1', includere: 'INCLUS_IN_USAGE', cant: 1, temei: 'DECLARATIE_UTILIZATOR', sursa: 'test' },
+]);
+const py = linie(doua, 'Y1').parti;
+t('R2. 100,01 lei pe 2 unități, 1 EXCLUS + 1 INCLUS → 50,01 + 50,00 + 0,00, nimic negativ, total exact',
+  aprox(py.EXCLUS_PRIN_AJUSTARE.lei, 50.01) && aprox(py.INCLUS_IN_USAGE.lei, 50) && py.NEDETERMINAT.lei === 0 && py.NEDETERMINAT.cant === 0
+  && aprox(py.EXCLUS_PRIN_AJUSTARE.lei + py.INCLUS_IN_USAGE.lei + py.NEDETERMINAT.lei, 100.01), JSON.stringify(py));
+t('R2. toate părțile sunt ≥ 0 pe toate liniile tuturor scenariilor',
+  [P, PD, pm, doua, faraCoresp].every(x => x.linii.every(l => l.parti.NEDETERMINAT.lei >= 0 && l.parti.EXCLUS_PRIN_AJUSTARE.lei >= 0 && l.parti.INCLUS_IN_USAGE.lei >= 0)));
+const declTrei = [declInclusX('Z1', 1), { ...declInclusX('Z1', 1), includere: 'EXCLUS_PRIN_AJUSTARE' as const }];
+const treiBani = linie(potriveste28cu29([mat('Z1', 'Z', 'EA', 1, 1)], [ev(1, 'Z1', 'Z', 'Dropped', 'EA', 3, 0.01, 0.02)], {}, declTrei), 'Z1').parti;
+t('R2. 0,02 lei pe 3 unități (1 EXCLUS, 1 INCLUS, 1 nedeterminat): banii întregi se împart fără fracțiuni și fără negativ',
+  treiBani.EXCLUS_PRIN_AJUSTARE.lei + treiBani.INCLUS_IN_USAGE.lei + treiBani.NEDETERMINAT.lei === 0.02 && [treiBani.EXCLUS_PRIN_AJUSTARE.lei, treiBani.INCLUS_IN_USAGE.lei, treiBani.NEDETERMINAT.lei].every(v => v === 0 || v === 0.01));
 
 console.log('\n— 5. Totalul tipărit și estimarea 2.9 rămân cifre separate —');
 const PT = potriveste28cu29(M29, TOATE, ALIAS, [], { totalTiparit28: 324.22 });
@@ -167,6 +202,16 @@ t('rețeta se schimbă în interiorul lunii → NEdeterminabilă, versiunile 1 �
 const retetaIdentica: Reteta = { ...retetaUna, activa: 2, versiuni: [...retetaUna.versiuni, { nr: 2, data: '2026-08-20', nota: 'redenumire', linii: linii1 }] };
 t('două versiuni cu aceleași linii → rezultatul e același, deci determinabilă', versiuneDeterminabila(retetaIdentica, F8).determinabil);
 t('versiunea nouă după fereastră nu contează', versiuneDeterminabila({ ...retetaDoua, versiuni: [retetaUna.versiuni[0], { ...retetaDoua.versiuni[1], data: '2026-09-01' }] }, F8).determinabil);
+console.log('\n— 6b. Regresii: acoperire istorică de la începutul ferestrei —');
+const pretTarziu = pretDeterminabil({ ...ingUnPret, preturi: [{ validDeLa: '2026-08-20', pret: 44 }] }, F8);
+t('R3. primul preț începe pe 20 august → 1–31 august NU e determinabilă (fără valoare din viitor)', !pretTarziu.determinabil && pretTarziu.pret === null && (pretTarziu.motiv ?? '').includes('istoricul începe'));
+t('R3. preț doar după fereastră → nedeterminabil', !pretDeterminabil({ ...ingUnPret, preturi: [{ validDeLa: '2026-09-10', pret: 44 }] }, F8).determinabil);
+t('R3. fără niciun preț → nedeterminabil', !pretDeterminabil({ ...ingUnPret, preturi: [] }, F8).determinabil);
+const retetaTarzie: Reteta = { ...retetaUna, versiuni: [{ nr: 1, data: '2026-08-20', linii: linii1 }] };
+t('R3. prima versiune de rețetă pe 20 august → NU e determinabilă pe 1–31 august', !versiuneDeterminabila(retetaTarzie, F8).determinabil && versiuneDeterminabila(retetaTarzie, F8).versiune === null);
+t('R3. versiune doar după fereastră → nedeterminabilă', !versiuneDeterminabila({ ...retetaUna, versiuni: [{ nr: 1, data: '2026-09-10', linii: linii1 }] }, F8).determinabil);
+t('R3. fereastră viitoare cu o versiune veche în vigoare → determinabilă strict din istoric', versiuneDeterminabila(retetaUna, { de: '2027-01-01', la: '2027-01-31' }).determinabil);
+t('R3. motivul nedeterminabilității e explicit', (versiuneDeterminabila(retetaDoua, F8).motiv ?? '').includes('versiunile 1, 2') && (pretDeterminabil(ingSchimbat, F8).motiv ?? '').includes('44 → 45.07'));
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 process.exit(fail ? 1 : 0);
