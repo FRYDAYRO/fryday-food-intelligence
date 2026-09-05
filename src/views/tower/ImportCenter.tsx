@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { citesteFisier, type Parsat } from '../../lib/importer';
 import { textDinPdf } from '../../lib/pdf';
 import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from '../../lib/nbo-29';
+import { descrie28, esteRaport28, parsatDin28, parseRaport28 } from '../../lib/nbo-28';
 import {
   activeazaImport, pregatesteImport, ETICHETA_SURSA,
   type CerereImport, type PregatireImport, type TipSursaFC,
@@ -18,7 +19,7 @@ import { verificaImport, verificaScriere } from '../../lib/fc-acces';
 import { useTower } from './context';
 import { Sectiune } from './parti';
 
-const TIPURI: TipSursaFC[] = ['NBO_29', 'NBO_41', 'PMIX_47', 'RETETAR', 'NOMENCLATOR', 'PRETURI_INGREDIENTE'];
+const TIPURI: TipSursaFC[] = ['NBO_29', 'NBO_28', 'NBO_41', 'PMIX_47', 'RETETAR', 'NOMENCLATOR', 'PRETURI_INGREDIENTE'];
 
 const CULOARE_STARE: Record<RandImportTower['stare'], 'ok' | 'warn' | 'EXCLUS' | 'info'> = {
   VALIDAT: 'ok', ACTIVAT: 'ok', RESPINS: 'EXCLUS', NECESITA_CONFIRMARE: 'warn', DUPLICAT: 'info',
@@ -66,7 +67,21 @@ export default function ImportCenter() {
       let text: string;
       try { text = await textDinPdf(await f.arrayBuffer()); }
       catch { setMesaj('Citirea PDF nu e disponibilă în varianta fișier-unic deschisă de pe disc. Folosește versiunea online.'); return; }
-      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
+      if (esteRaport28(text)) {
+        // raportul 2.8 „Spoilage and Loss": evenimentele nu au dată, fereastra e a raportului
+        const raport = parseRaport28(text);
+        if (!raport.randuri.length) { setMesaj(`Raportul 2.8 nu conține evenimente lizibile. ${raport.avertismente.join(' ')}`); return; }
+        const p = parsatDin28(raport);
+        setParsat(p); setFisier(f.name); setTip('NBO_28');
+        if (raport.de && raport.la) { setFereastraDe(raport.de); setFereastraLa(raport.la); }
+        setMesaj(descrie28(raport));
+        setPregatire(pregatesteImport(state, {
+          ...cerere(p, f.name), tip: 'NBO_28',
+          ...(raport.de && raport.la ? { interval: { de: raport.de, la: raport.la } } : {}),
+        }));
+        return;
+      }
+      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary") și nici 2.8 („Spoilage and Loss"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
       const raport = parseRaport29(text);
       if (!raport.randuri.length) { setMesaj(`Raportul 2.9 nu conține rânduri de material lizibile. ${raport.avertismente.join(' ')}`); return; }
       const p = parsatDin29(raport);

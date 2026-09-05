@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { AppState, Canal, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, PretIstoric, Produs, Reteta, Sursa29, SursaPret, UMCod, VanzareFapt, WasteFapt } from './types';
+import type { AppState, Canal, Eveniment28, Fereastra29, ImportBatch, Ingredient, InventarFapt, Linie29, LinieReteta, Material29, Nemapat, PretIstoric, Produs, Reteta, Sursa29, SursaPret, UMCod, VanzareFapt, WasteFapt } from './types';
 import { clasificaCategorie29, esteFC } from './fc-clasificare';
 import { UMS, buildCtx, consumuriLuna, costProdus, norm, pretCurent, sorteazaPreturi } from './engine';
 import { cardsDinMatrice, cardsDinTabel, esteAmbalaj, pretBaza, umNBO } from './nbo';
@@ -11,7 +11,7 @@ import { identificaIngredient } from './fc-material';
 import { PRAG_CONSISTENTA_29, aplicaPreturi29, preturiDin29, type CostMaterial29 } from './actualizare-29';
 import { numeBazaComercial, parseBazaFC, type LinieFC, type ProdusFC } from './fcbaza';
 
-export type TipImport = 'MENIURI' | 'WASTE' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
+export type TipImport = 'MENIURI' | 'WASTE' | 'WASTE_28' | 'INVENTAR' | 'FC_BAZA' | 'PMIX' | 'SALES_MIX' | 'SALES' | 'FC29' | 'FC29_MATERIAL' | 'COST_INGREDIENTE' | 'RETETAR' | 'RETETAR_NBO' | 'PRETURI_PRODUSE' | 'PRETURI_FURNIZORI';
 
 export const TIP_LABEL: Record<TipImport, string> = {
   PMIX: 'PMIX (vânzări pe produs)',
@@ -22,6 +22,7 @@ export const TIP_LABEL: Record<TipImport, string> = {
   RETETAR: 'Rețetar',
   MENIURI: 'Meniuri / combo (componente și cantități)',
   WASTE: 'Waste (pierderi pe ingredient)',
+  WASTE_28: 'Raport NBO 2.8 (pierderi declarate, pe eveniment)',
   INVENTAR: 'Inventar (consum real pe ingredient)',
   FC_BAZA: 'Bază FC completă (nomenclator + rețetar + food cost)',
   SALES_MIX: 'Sales Mix 4.7 (raport POS)',
@@ -120,6 +121,20 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     locatie: ['locatie', 'restaurant', 'magazin', 'store'],
     perioada: ['perioada', 'luna', 'month'],
     motiv: ['motiv', 'cauza', 'reason'],
+  },
+  WASTE_28: {
+    perioada: ['perioada', 'luna', 'month'],
+    locatie: ['locatie', 'location', 'restaurant', 'cod locatie', 'unitate', 'magazin', 'store'],
+    material: ['cod material', 'item id', 'itemid', 'cod articol', 'item code', 'cod', 'sku'],
+    denumire: ['denumire material', 'denumire', 'description', 'item name', 'nume'],
+    grup: ['grup raport', 'grup', 'group'],
+    motiv: ['motiv', 'reason', 'cauza'],
+    utilizator: ['utilizator', 'by', 'user'],
+    cant: ['cantitate', 'qty lost', 'qty. lost', 'qty', 'quantity', 'cant'],
+    um: ['um', 'inventory units', 'unitate', 'unit', 'uom'],
+    costUnitar: ['cost unitar', 'cost/unit', 'cost unit', 'unit cost'],
+    valoare: ['valoare', 'extension', 'ext', 'lei'],
+    randSursa: ['rand sursa', 'linie sursa', 'source row'],
   },
   INVENTAR: {
     ingredient: ['ingredient', 'cod', 'cod mp', 'materie prima', 'cod ingredient'],
@@ -243,6 +258,10 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
   if (nf.includes('sales')) return 'SALES';
   if (nf.includes('furnizor') || nf.includes('supplier') || nf.includes('ofert')) return 'PRETURI_FURNIZORI';
   if (/meniu|combo/.test(nf) && !/sales|pmix/.test(nf)) return 'MENIURI';
+  if (/2\.8|2 8|nbo 28|spoilage/.test(nf)) {
+    const m28 = mapeazaAntete(antete, 'WASTE_28');
+    if (m28.material !== undefined && m28.motiv !== undefined && m28.cant !== undefined && m28.valoare !== undefined) return 'WASTE_28';
+  }
   if (/waste|pierder|risipa/.test(nf)) return 'WASTE';
   if (/inventar|stoc|consum real/.test(nf)) return 'INVENTAR';
   if (nf.includes('sales mix') || nf.includes('4 7') || nf.includes('4.7')) return 'SALES_MIX';
@@ -260,6 +279,7 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
     RETETAR_NBO: ['comp', 'cant', 'um'],
     MENIURI: ['meniu', 'componenta'],
     WASTE: ['ingredient', 'cant'],
+    WASTE_28: ['material', 'motiv', 'cant', 'valoare'],
     INVENTAR: ['ingredient', 'cant'],
     FC_BAZA: ['denumire', 'canal'],
     SALES_MIX: ['denumire', 'cant'],
@@ -269,7 +289,7 @@ export function detecteazaTip(antete: string[], numeFisier: string): TipImport {
   // FC29_MATERIAL nu concurează fără semnalul „2.9" din numele fișierului: vocabularul lui
   // („consum real", „cod", „denumire") se suprapune cu al inventarului, iar un inventar
   // importat drept 2.9 ar transforma CANTITĂȚI în lei — corupere tăcută de date.
-  const scoruri = (Object.keys(CAMPURI) as TipImport[]).filter(t => t !== 'FC29_MATERIAL').map(t => {
+  const scoruri = (Object.keys(CAMPURI) as TipImport[]).filter(t => t !== 'FC29_MATERIAL' && t !== 'WASTE_28').map(t => {
     const m = mapeazaAntete(antete, t);
     const c = cerute[t];
     return { t, scor: c.filter(x => m[x] !== undefined).length / c.length + Object.keys(m).length * 0.01 };
@@ -348,9 +368,9 @@ export interface RezultatImport {
  * Mix) — denumirea produsului sau un alias, pe cheia de potrivire a denumirilor.
  */
 export function identitateSeRezolva(
-  nomenclator: { produse: Produs[]; ingrediente: Ingredient[] }, identitate: string, tip: 'PMIX' | 'SALES_MIX' | 'FC29_MATERIAL',
+  nomenclator: { produse: Produs[]; ingrediente: Ingredient[] }, identitate: string, tip: 'PMIX' | 'SALES_MIX' | 'FC29_MATERIAL' | 'WASTE_28',
 ): boolean {
-  if (tip === 'FC29_MATERIAL') return identificaIngredient(nomenclator.ingrediente, identitate, identitate) !== null;
+  if (tip === 'FC29_MATERIAL' || tip === 'WASTE_28') return identificaIngredient(nomenclator.ingrediente, identitate, identitate) !== null;
   const { produse } = nomenclator;
   if (tip === 'PMIX') {
     return produse.some(p => p.cod === identitate || p.codPos === identitate || (p.aliasuri ?? []).includes(identitate));
@@ -624,6 +644,93 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       } else {
         avert.push('Consumul real din inventar permite descompunerea variance-ului: rețetă vs waste vs neexplicat');
         stateNou = { ...state, inventar: [...inventar.filter(pastreaza), ...noiI] };
+      }
+    }
+  } else if (tip === 'WASTE_28') {
+    // Raportul 2.8 „Spoilage and Loss" pe EVENIMENT: se păstrează exact cum e tipărit (cantitate,
+    // UM, Cost/Unit și Extension ale raportului 2.8), cu proveniența până la rândul sursă.
+    // Nu se însumează cu ajustările 2.9 și nu primește niciun statut față de Usage la import.
+    const lipsa = lipsesc(['material', 'motiv', 'cant', 'valoare']);
+    if (lipsa.length) erori.push(eroareColoane(lipsa, p.antete));
+    else {
+      const optF: OpteImport | undefined = opt?.fereastra || !p.fereastra ? opt : { ...opt, fereastra: p.fereastra };
+      const lunaImplicita = optF?.fereastra?.de.slice(0, 7) ?? opt?.dataValabil?.slice(0, 7) ?? null;
+      const noi: Eveniment28[] = [];
+      const nemapate = new Set<string>();
+      const necunoscute = new Map<string, { denumire: string; cant: number; valoare: number }>();
+      const motive = new Map<string, number>();
+      let faraPerioada = 0, faraLocatie = 0, faraCifre = 0, totalLei = 0;
+
+      p.randuri.forEach((r, i) => {
+        const cod = String(g(r, 'material') ?? '').trim();
+        const denumire = String(g(r, 'denumire') ?? '').trim() || cod;
+        if (!cod || /^(total|grand total)/i.test(cod)) return;
+        const cant = parseNumar(g(r, 'cant'));
+        const lei = parseNumar(g(r, 'valoare'));
+        if (cant == null || lei == null) { faraCifre++; return; }
+        const perBrut = map.perioada !== undefined ? String(g(r, 'perioada') ?? '').trim() : '';
+        const perioada = perBrut ? (parsePerioada(perBrut) ?? null) : lunaImplicita;
+        if (!perioada) { faraPerioada++; return; }
+        const locBrut = map.locatie !== undefined ? String(g(r, 'locatie') ?? '').trim() : (opt?.locatieRaport ?? '');
+        const locatie = locBrut ? rezolvaLocatie(locBrut) : null;
+        if (!locatie) faraLocatie++;
+        const motiv = String(g(r, 'motiv') ?? '').trim();
+        const utilizator = map.utilizator !== undefined ? String(g(r, 'utilizator') ?? '').trim() : '';
+        const grup = map.grup !== undefined ? String(g(r, 'grup') ?? '').trim() : '';
+        const um = map.um !== undefined ? String(g(r, 'um') ?? '').trim() : '';
+        const costUnitar = map.costUnitar !== undefined ? parseNumar(g(r, 'costUnitar')) : null;
+        const randSursa = map.randSursa !== undefined ? parseNumar(g(r, 'randSursa')) : null;
+        const rand = randSursa ?? i + 2;
+        if (identificaIngredient(state.ingrediente, cod, denumire) === null) {
+          nemapate.add(`${denumire} (${cod})`);
+          const n = necunoscute.get(cod) ?? { denumire, cant: 0, valoare: 0 };
+          n.cant += cant; n.valoare += lei;
+          necunoscute.set(cod, n);
+        }
+        const f = optF?.fereastra ? { de: optF.fereastra.de, la: optF.fereastra.la } : (() => { const x = fereastraRand({ perioada }); return { de: x.de, la: x.la }; })();
+        noi.push({
+          locatie, fereastra: f, cod, denumire, ...(grup ? { grup } : {}), motiv, ...(utilizator ? { utilizator } : {}),
+          um, cant, costUnitar: costUnitar ?? (cant !== 0 ? Math.round((lei / cant) * 100) / 100 : 0), lei,
+          rand, sursa: sursa29(numeFisier, optF, rand),
+        });
+        motive.set(motiv, (motive.get(motiv) ?? 0) + 1);
+        totalLei += lei;
+        perioade.add(perioada);
+        importate++;
+      });
+
+      // reimportul aceleiași (ferestre × restaurant) înlocuiește; același fișier redeclarat își ia rândurile vechi
+      const cheia = (e: Eveniment28) => `${e.fereastra.de}|${e.fereastra.la}|${e.locatie ?? ''}`;
+      const chei = new Set(noi.map(cheia));
+      const inlocuite = new Set(opt?.amprenteInlocuite ?? []);
+      const evenimente28 = [
+        ...(state.evenimente28 ?? []).filter(e => !chei.has(cheia(e)) && !(e.sursa?.amprenta && inlocuite.has(e.sursa.amprenta))),
+        ...noi,
+      ];
+      // coada comună de aprobare (D1): identitățile 2.8 fără ingredient; aliasul aprobat leagă și 2.8, și 2.9
+      necunoscuteRulare = [...necunoscute.keys()];
+      const nemapateNoi28: Nemapat[] = [
+        ...state.nemapate.filter(n => n.sursa !== 'NBO_28'
+          || (identificaIngredient(state.ingrediente, n.denumire, n.categorie) === null && !necunoscute.has(n.denumire))),
+        ...[...necunoscute.entries()].map(([identitate, v]) => ({
+          denumire: identitate, categorie: v.denumire, cant: v.cant, valoare: v.valoare,
+          fisier: numeFisier, sursa: 'NBO_28' as const,
+        })),
+      ];
+      stateNou = { ...state, evenimente28, nemapate: nemapateNoi28 };
+
+      const ferestre = [...new Set(noi.map(e => `${e.fereastra.de} → ${e.fereastra.la}`))];
+      avert.push(`Raport 2.8: ${noi.length} evenimente, ${fmtNr(Math.round(totalLei * 100) / 100)} lei în evaluarea proprie a raportului (Cost/Unit × Qty), `
+        + `pe ferestrele ${ferestre.join(', ') || '—'}; motive: ${[...motive.entries()].map(([m, n]) => `${m} (${n})`).join(', ') || '—'}`);
+      avert.push('Evenimentele 2.8 nu au dată proprie: fereastra e a raportului. Nu se însumează cu ajustările 2.9 (Inv Adj) și '
+        + 'nu primesc niciun statut față de Usage Actual la import — statutul vine numai din declarații cu temei.');
+      if (faraCifre) avert.push(`${faraCifre} rânduri fără cantitate sau valoare — ignorate`);
+      if (faraPerioada) avert.push(`${faraPerioada} rânduri fără perioadă — ignorate (raportul nu declară fereastra și nu s-a ales „valabil de la")`);
+      if (faraLocatie) avert.push(`${faraLocatie} evenimente fără restaurant: nu se pot potrivi cu ajustările 2.9 ale unui restaurant`);
+      if (nemapate.size) {
+        avert.push(`${nemapate.size} materiale 2.8 fără corespondent în nomenclator: `
+          + [...nemapate].slice(0, 8).join(', ') + (nemapate.size > 8 ? '…' : '')
+          + ' — au intrat în coada de aprobare; până la alias, evenimentele lor rămân fără corespondent 2.9');
       }
     }
   } else if (tip === 'FC_BAZA') {

@@ -10,7 +10,10 @@
 //  · Total = InStore + Delivery ca SUME; procentele se recalculează din totaluri;
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
-import { UMS, areCostMasurabil, costProdus, luna as lunaDin, pretLa, clasifica } from './engine';
+import { UMS, areCostMasurabil, costProdus, luna as lunaDin, clasifica } from './engine';
+import { potriveste28cu29, pretDeterminabil, type Potrivire28cu29 } from './atribuire-waste';
+import { identificaIngredient } from './identitate';
+import { fereastraRand } from './surse-29';
 import { COMBINATIE_FC, intervaleSursePentru, verdictCombinare, type VerdictSurse } from './perioade-surse';
 import { selecteaza29 } from './surse-29';
 import type { AppState, Canal } from './types';
@@ -233,7 +236,8 @@ export function nboFC(state: AppState, cerere: CerereFC): NBOFC {
 
 // ————————————————————————————————————————————————————————— 3. puntea de reconciliere
 
-export type IdPasBridge = 'ACOPERIRE' | 'NORMALIZED' | 'WASTE' | 'UNEXPLAINED' | 'OPERATIONAL';
+export type IdPasBridge = 'ACOPERIRE' | 'NORMALIZED' | 'WASTE' | 'WASTE_NERECONCILIAT' | 'UNEXPLAINED' | 'OPERATIONAL';
+export type StatutPas = 'EXPLICAT' | 'NERECONCILIAT';
 
 export interface PasBridge {
   id: IdPasBridge;
@@ -245,6 +249,41 @@ export interface PasBridge {
   pp: number | null;
   disponibil: boolean;
   explicatie: string;
+  /** EXPLICAT = intră în punte; NERECONCILIAT = se afișează, dar nu mișcă Neexplicatul. */
+  statut?: StatutPas;
+  /** Suma informativă a unui pas nereconciliat (evaluarea sursei lui). Nu intră în punte. */
+  leiInformativ?: number;
+  nrRanduri?: number;
+}
+
+/**
+ * Atribuirea waste-ului față de Usage Actual din 2.9 (contractul PR #23):
+ *  · doar waste-ul DEMONSTRAT inclus în Usage (declarație cu temei, pe același restaurant, aceeași
+ *    fereastră, același material și UM) reduce Neexplicatul;
+ *  · waste-ul exclus prin ajustare nu se scade (nu e în Usage); cel nedeterminat rămâne afișat ca
+ *    „nereconciliat"; potrivirea cantitativă cu Inv Adj e o observație, nu o dovadă;
+ *  · rândurile vechi de waste (fără statut) sunt nereconciliate; evaluarea lor datată e posibilă
+ *    doar dacă prețul e determinabil pe fereastră.
+ */
+export interface AtribuireWasteFC {
+  /** Există 2.9 pe material pe această cerere, deci potrivirea 2.8 ↔ Inv Adj se poate face. */
+  disponibil: boolean;
+  motiv: string | null;
+  potrivire: Potrivire28cu29 | null;
+  /** Lei 2.8 (evaluarea proprie a raportului) pe statut. */
+  inclusLei: number;
+  exclusLei: number;
+  nedeterminatLei: number;
+  /** Evenimente 2.8 intrate în potrivire. */
+  evenimente: number;
+  /** Evenimente 2.8 din scop, dar pe altă fereastră decât 2.9 selectat (sau fără 2.9 pe material). */
+  inAfaraSelectiei: { evenimente: number; lei: number };
+  /** Waste importat pe vechiul drum (fără statut): nereconciliat prin definiție. */
+  vechi: { randuri: number; leiDeterminabil: number; randuriFaraPretDeterminabil: number };
+  /** Ajustări 2.9 fără niciun eveniment 2.8: nu sunt waste; apar în panoul ajustărilor. */
+  ajustariFaraEveniment: { coduri: number; leiEstimat: number };
+  /** Nimic nedeterminat, nimic în afara selecției, niciun waste vechi, fiecare Adj cu explicație. */
+  atribuireCompleta: boolean;
 }
 
 export interface ReconciliationFC {
@@ -258,8 +297,9 @@ export interface ReconciliationFC {
   /** 2.9 Curat − cost teoretic. `null` fără 2.9. */
   diferentaLei: number | null;
   pasi: PasBridge[];
-  /** Ce rămâne neexplicat după toți pașii. Zero prin construcție când puntea se închide. */
+  /** Ce rămâne după pașii DISPONIBILI. Zero prin construcție — nu dovedește atribuirea (vezi `waste.atribuireCompleta`). */
   rezidualLei: number | null;
+  waste: AtribuireWasteFC;
   /** Toți pașii sunt calculabili → puntea explică integral diferența. */
   complet: boolean;
   /** Compatibilitatea ferestrelor surselor. Blocarea propriu-zisă vine prin `nbo`. */
@@ -267,19 +307,82 @@ export interface ReconciliationFC {
   surse: SursaFC[];
 }
 
-/** Waste raportat, în lei, pe perioada și nivelul cerute. */
-function wasteLei(state: AppState, ctx: CtxFC, cerere: CerereFC): { lei: number; randuri: number } {
+const ultimaZi = (luna: string) => { const [a, l] = luna.split('-').map(Number); return `${luna}-${String(new Date(Date.UTC(a, l, 0)).getUTCDate()).padStart(2, '0')}`; };
+const seSuprapun = (a: { de: string; la: string }, b: { de: string; la: string }) => a.de <= b.la && b.de <= a.la;
+
+const wasteGol = (motiv: string): AtribuireWasteFC => ({
+  disponibil: false, motiv, potrivire: null, inclusLei: 0, exclusLei: 0, nedeterminatLei: 0, evenimente: 0,
+  inAfaraSelectiei: { evenimente: 0, lei: 0 }, vechi: { randuri: 0, leiDeterminabil: 0, randuriFaraPretDeterminabil: 0 },
+  ajustariFaraEveniment: { coduri: 0, leiEstimat: 0 }, atribuireCompleta: false,
+});
+
+/** Atribuirea waste-ului pe cererea dată — pură, recalculată din selecția 2.9, aliasuri și declarații. */
+export function atribuireWasteFC(state: AppState, cerere: CerereFC): AtribuireWasteFC {
   const loc = locatieDin(cerere.nivel);
   const luni = luniAtinse(cerere.perioada);
-  let lei = 0, randuri = 0;
+  const rot2 = (x: number) => Math.round(x * 100) / 100;
+
+  // waste-ul vechi (fără statut): nereconciliat; evaluat doar dacă prețul lunii e determinabil
+  const vechi = { randuri: 0, leiDeterminabil: 0, randuriFaraPretDeterminabil: 0 };
+  const ingrediente = new Map(state.ingrediente.map(i => [i.cod, i]));
   for (const w of state.waste) {
     if (!luni.includes(w.perioada) || (loc && w.locatie !== loc)) continue;
-    const ing = ctx.ingrediente.get(w.ingredient);
-    if (!ing) continue;
-    randuri++;
-    lei += w.cant * (UMS[w.um]?.f ?? 1) * pretLa(ing, `${w.perioada}-28`);
+    vechi.randuri++;
+    const ing = ingrediente.get(w.ingredient);
+    const pret = ing ? pretDeterminabil(ing, { de: `${w.perioada}-01`, la: ultimaZi(w.perioada) }) : null;
+    if (pret?.determinabil && pret.pret !== null) vechi.leiDeterminabil = rot2(vechi.leiDeterminabil + w.cant * (UMS[w.um]?.f ?? 1) * pret.pret);
+    else vechi.randuriFaraPretDeterminabil++;
   }
-  return { lei, randuri };
+
+  // evenimentele 2.8 din scop: restaurantul cerut, fereastra care atinge perioada cerută
+  const inScop = (state.evenimente28 ?? []).filter(e => (!loc || e.locatie === loc) && seSuprapun(e.fereastra, cerere.perioada));
+
+  const sel = selecteaza29(state.materiale29 ?? [], cerere.perioada, loc);
+  if (!sel.disponibil) {
+    const lei = rot2(inScop.reduce((s, e) => s + e.lei, 0));
+    return {
+      ...wasteGol(sel.motiv ?? 'Raportul 2.9 pe material nu e disponibil pe această cerere: waste-ul nu se poate confrunta cu Inv Adj.'),
+      nedeterminatLei: lei, inAfaraSelectiei: { evenimente: inScop.length, lei }, vechi,
+    };
+  }
+  // doar evenimentele de pe (restaurant, fereastră) ale versiunilor 2.9 selectate se potrivesc
+  const cheiSel = new Set(sel.randuri.map(m => { const f = fereastraRand(m); return `${m.locatie ?? ''}|${f.de}|${f.la}`; }));
+  const potrivibile = inScop.filter(e => cheiSel.has(`${e.locatie ?? ''}|${e.fereastra.de}|${e.fereastra.la}`));
+  const inAfara = inScop.filter(e => !cheiSel.has(`${e.locatie ?? ''}|${e.fereastra.de}|${e.fereastra.la}`));
+
+  // aliasuri APROBATE (coada comună D1): codul 2.8 → materialul 2.9 al aceluiași ingredient
+  const codMaterial29 = new Set(sel.randuri.map(m => m.material));
+  const ingredientAl = new Map<string, string | null>();
+  const ingredientMaterial = (material: string, denumire: string) => {
+    if (!ingredientAl.has(material)) ingredientAl.set(material, identificaIngredient(state.ingrediente, material, denumire));
+    return ingredientAl.get(material)!;
+  };
+  const aliasuri: Record<string, string> = {};
+  for (const e of potrivibile) {
+    if (codMaterial29.has(e.cod) || aliasuri[e.cod]) continue;
+    const ing = ingredientMaterial(e.cod, e.denumire);
+    if (!ing) continue;
+    const m = sel.randuri.find(x => x.locatie === e.locatie && ingredientMaterial(x.material, x.denumire) === ing);
+    if (m) aliasuri[e.cod] = m.material;
+  }
+
+  const materialeSel = sel.randuri.map(m => (m.fereastra ? m : { ...m, fereastra: fereastraRand(m) }));
+  const pot = potriveste28cu29(materialeSel, potrivibile, aliasuri, state.declaratiiIncludere ?? []);
+  const leiInAfara = rot2(inAfara.reduce((s, e) => s + e.lei, 0));
+  const doarAdj = pot.linii.filter(l => l.potrivire === 'FARA_EVENIMENT_28');
+  const atribuireCompleta = pot.lei28Parti.NEDETERMINAT === 0 && inAfara.length === 0 && vechi.randuri === 0
+    && pot.coduri.faraColoanaAdj === 0 && pot.coduri.doarAdj === 0 && pot.coduri.doarEvenimente === 0
+    && pot.linii.every(l => l.parti.NEDETERMINAT.cant === 0);
+  return {
+    disponibil: true, motiv: null, potrivire: pot,
+    inclusLei: pot.lei28Parti.INCLUS_IN_USAGE, exclusLei: pot.lei28Parti.EXCLUS_PRIN_AJUSTARE,
+    nedeterminatLei: rot2(pot.lei28Parti.NEDETERMINAT + leiInAfara),
+    evenimente: potrivibile.length,
+    inAfaraSelectiei: { evenimente: inAfara.length, lei: leiInAfara },
+    vechi,
+    ajustariFaraEveniment: { coduri: doarAdj.length, leiEstimat: pot.leiEstimat29FaraEvenimente },
+    atribuireCompleta,
+  };
 }
 
 export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC): ReconciliationFC {
@@ -295,18 +398,21 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
   const surse: SursaFC[] = [...recipe.surse, ...nbo.surse];
   const verdictPerioade = verdictCombinare(state, COMBINATIE_FC, cerere.perioada);
 
+  const waste = atribuireWasteFC(state, cerere);
   if (!nbo.disponibil) {
     return {
       cerere, recipe, nbo, numitor, fcRecipePct, fcCuratPct, fcOperationalPct,
-      diferentaLei: null, pasi: [], rezidualLei: null, complet: false, verdictPerioade, surse,
+      diferentaLei: null, pasi: [], rezidualLei: null, waste, complet: false, verdictPerioade, surse,
     };
   }
 
   const diferentaLei = nbo.consumFC - recipe.cost;
-  const w = wasteLei(state, ctx, cerere);
-  if (w.randuri) {
-    surse.push({ raport: 'WASTE', randuri: w.randuri, interval: `${cerere.perioada.de} → ${cerere.perioada.la}` });
-  }
+  const interval = `${cerere.perioada.de} → ${cerere.perioada.la}`;
+  if (waste.vechi.randuri) surse.push({ raport: 'WASTE', randuri: waste.vechi.randuri, interval });
+  const nr28 = waste.evenimente + waste.inAfaraSelectiei.evenimente;
+  if (nr28) surse.push({ raport: 'NBO_28', randuri: nr28, interval, nota: 'evaluarea proprie a raportului 2.8; statutul față de Usage vine din declarații' });
+  const nereconciliatLei = Math.round((waste.nedeterminatLei + waste.vechi.leiDeterminabil) * 100) / 100;
+  const nereconciliatRanduri = waste.evenimente + waste.inAfaraSelectiei.evenimente + waste.vechi.randuri;
 
   const pasi: PasBridge[] = [
     {
@@ -325,11 +431,28 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
         + 'deci materialele nereprezentate în rețete nu pot fi identificate separat; valoarea lor cade în „Neexplicat".',
     },
     {
-      id: 'WASTE', componenta: null, eticheta: 'Waste raportat',
-      lei: w.lei, pp: pp(w.lei), disponibil: w.randuri > 0,
-      explicatie: w.randuri > 0
-        ? `${w.randuri} linii de waste, evaluate la prețul ingredientului din luna respectivă.`
-        : 'Nu există waste importat pe această perioadă — partea lui rămâne în „Neexplicat".',
+      id: 'WASTE', componenta: null, eticheta: 'Waste demonstrat inclus în Usage Actual',
+      lei: waste.inclusLei, pp: pp(waste.inclusLei), disponibil: waste.inclusLei > 0, statut: 'EXPLICAT',
+      nrRanduri: waste.evenimente,
+      explicatie: waste.inclusLei > 0
+        ? `${waste.inclusLei.toFixed(2)} lei de waste 2.8 declarat inclus în Usage Actual (același restaurant, aceeași fereastră, `
+          + 'același material și UM), la evaluarea raportului 2.8. Doar această parte reduce Neexplicatul.'
+        : waste.disponibil
+          ? 'Nicio cantitate de waste nu e demonstrată ca inclusă în Usage Actual: potrivirea cu Inv Adj este o observație, nu o dovadă, '
+            + 'iar fără declarație cu temei nimic nu se scade din Neexplicat. Waste-ul exclus prin ajustare nu e în Usage și nu se scade.'
+          : `Waste-ul nu se poate confrunta cu Inv Adj: ${waste.motiv ?? 'raportul 2.9 pe material lipsește'}.`,
+    },
+    {
+      id: 'WASTE_NERECONCILIAT', componenta: null, eticheta: 'Waste nereconciliat (nu mișcă Neexplicatul)',
+      lei: 0, pp: null, disponibil: false, statut: 'NERECONCILIAT',
+      leiInformativ: nereconciliatLei, nrRanduri: nereconciliatRanduri,
+      explicatie: nereconciliatRanduri
+        ? `${nereconciliatRanduri} rânduri de waste fără statut demonstrat față de Usage Actual: `
+          + `${waste.nedeterminatLei.toFixed(2)} lei din 2.8 (nedeterminat${waste.inAfaraSelectiei.evenimente ? `, din care ${waste.inAfaraSelectiei.lei.toFixed(2)} lei pe altă fereastră decât 2.9 selectat` : ''})`
+          + (waste.vechi.randuri ? `, ${waste.vechi.randuri} rânduri vechi de waste (${waste.vechi.leiDeterminabil.toFixed(2)} lei la preț determinabil${waste.vechi.randuriFaraPretDeterminabil ? `, ${waste.vechi.randuriFaraPretDeterminabil} fără preț determinabil pe lună` : ''})` : '')
+          + (waste.exclusLei ? `; separat, ${waste.exclusLei.toFixed(2)} lei sunt excluși prin ajustare (nu sunt în Usage)` : '')
+          + '. Rămân în Neexplicat până la o declarație cu temei.'
+        : 'Nu există waste nereconciliat pe această cerere.',
     },
   ];
 
@@ -348,14 +471,15 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
       + 'diferența dintre FC Curat și FC operațional.',
   });
 
-  // puntea se închide pe pașii care duc la FC Curat; operaționalul e după linia de sosire
+  // puntea se închide pe pașii DISPONIBILI care duc la FC Curat; operaționalul e după linia de
+  // sosire; pașii nereconciliați poartă doar sume informative — rezidualul zero nu dovedește atribuirea
   const catreCurat = pasi.filter(p => p.id !== 'OPERATIONAL');
-  const rezidualLei = diferentaLei - catreCurat.reduce((s, p) => s + p.lei, 0);
+  const rezidualLei = diferentaLei - catreCurat.filter(p => p.disponibil).reduce((s, p) => s + p.lei, 0);
 
   return {
     cerere, recipe, nbo, numitor, fcRecipePct, fcCuratPct, fcOperationalPct,
-    diferentaLei, pasi, rezidualLei,
-    complet: catreCurat.every(p => p.disponibil),
+    diferentaLei, pasi, rezidualLei, waste,
+    complet: catreCurat.filter(p => p.statut !== 'NERECONCILIAT').every(p => p.disponibil) && waste.atribuireCompleta,
     verdictPerioade, surse,
   };
 }

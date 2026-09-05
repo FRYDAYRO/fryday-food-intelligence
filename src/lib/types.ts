@@ -218,6 +218,47 @@ export interface WasteFapt {
   motiv?: string;                          // expirat, ars, cădere, retur client…
 }
 
+export type Includere = 'INCLUS_IN_USAGE' | 'EXCLUS_PRIN_AJUSTARE' | 'NEDETERMINAT';
+export type TemeiIncludere = 'REGULA_NBO_CONFIRMATA' | 'LEGATURA_STOC_VERIFICATA' | 'DECLARATIE_UTILIZATOR';
+
+/**
+ * Un eveniment din raportul NBO 2.8 (Spoilage and Loss), cu coloanele dovedite pe raportul
+ * real: Description, ItemID, Reason, By, Inventory Units, Qty. Lost, Cost/Unit, Extension.
+ * Rândurile NU au dată proprie: fereastra e a raportului. Evaluarea (Cost/Unit, Extension)
+ * este a raportului 2.8, nu Cost per Unit din 2.9.
+ */
+export interface Eveniment28 {
+  locatie: string | null;
+  fereastra: { de: string; la: string };
+  cod: string;
+  denumire: string;
+  /** Grupul raportului („Food 11%", „DESERT*"), exact cum e tipărit. */
+  grup?: string;
+  motiv: string;
+  utilizator?: string;
+  um: string;
+  cant: number;
+  costUnitar: number;
+  lei: number;
+  rand?: number;
+  sursa?: Sursa29;
+}
+
+/**
+ * Declarația care dă statut unei cantități de waste față de Usage Actual: fără ea, cantitatea
+ * rămâne nedeterminată. Potrivirea cantitativă cu Inv Adj nu ține loc de declarație.
+ */
+export interface DeclaratieIncludere {
+  locatie: string | null;
+  fereastra: { de: string; la: string };
+  material: string;
+  includere: Exclude<Includere, 'NEDETERMINAT'>;
+  cant: number;
+  temei: TemeiIncludere;
+  /** Cine/ce a stabilit-o: documentul NBO, verificarea, utilizatorul — cu data. */
+  sursa: string;
+}
+
 /** Consumul real din inventar (stoc inițial + intrări − stoc final), per ingredient. */
 export interface InventarFapt {
   locatie: string; perioada: string;
@@ -237,7 +278,7 @@ export interface Nemapat {
   valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
   /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
-  sursa?: 'SALES_MIX' | 'PMIX' | 'NBO_29';
+  sursa?: 'SALES_MIX' | 'PMIX' | 'NBO_29' | 'NBO_28';
 }
 
 /**
@@ -349,6 +390,10 @@ export interface AppState {
   materiale29: Material29[];   // 2.9 la nivel de material, când exportul îl conține
   waste: WasteFapt[];
   inventar: InventarFapt[];
+  /** Evenimentele raportului 2.8, cu proveniență. Absent în instantaneele vechi. */
+  evenimente28?: Eveniment28[];
+  /** Declarațiile de includere (singura sursă de statut pentru waste). Absent = niciuna. */
+  declaratiiIncludere?: DeclaratieIncludere[];
   reguli: RegulaClasificare[];
   /** Versiunea listei implicite 2.9 deja îmbinată în `reguli` — migrarea nu se repetă. Lipsă = nemigrat. */
   reguliImplicite?: string;

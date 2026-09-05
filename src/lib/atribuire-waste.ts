@@ -21,41 +21,9 @@
  *    a mapărilor aprobate schimbă potrivirea, nu un statut memorat.
  */
 import { sorteazaPreturi } from './engine';
-import type { Ingredient, Material29, Reteta, Sursa29, VersiuneReteta } from './types';
+import type { DeclaratieIncludere, Eveniment28, Includere, Ingredient, Material29, Reteta, VersiuneReteta } from './types';
 
-export type Includere = 'INCLUS_IN_USAGE' | 'EXCLUS_PRIN_AJUSTARE' | 'NEDETERMINAT';
-export type TemeiIncludere = 'REGULA_NBO_CONFIRMATA' | 'LEGATURA_STOC_VERIFICATA' | 'DECLARATIE_UTILIZATOR';
-
-/** Un eveniment din raportul 2.8 (Spoilage and Loss), cu coloanele dovedite pe raportul real. */
-export interface Eveniment28 {
-  locatie: string | null;
-  /** Fereastra raportului 2.8 (rândurile nu au dată proprie). */
-  fereastra: { de: string; la: string };
-  cod: string;
-  denumire: string;
-  motiv: string;
-  utilizator?: string;
-  um: string;
-  cant: number;
-  /** Cost/Unit propriu al 2.8 — evaluarea raportului, nu Cost per Unit din 2.9. */
-  costUnitar: number;
-  /** Extension tipărit. */
-  lei: number;
-  rand?: number;
-  sursa?: Sursa29;
-}
-
-/** Declarația care dă statut unei cantități: fără ea, cantitatea rămâne nedeterminată. */
-export interface DeclaratieIncludere {
-  locatie: string | null;
-  fereastra: { de: string; la: string };
-  material: string;
-  includere: Exclude<Includere, 'NEDETERMINAT'>;
-  cant: number;
-  temei: TemeiIncludere;
-  /** Cine/ce a stabilit-o: documentul NBO, verificarea, utilizatorul — cu data. */
-  sursa: string;
-}
+export type { Includere, TemeiIncludere, Eveniment28, DeclaratieIncludere } from './types';
 
 export type Potrivire29 =
   | 'EXACTA'                    // Qty 2.8 = Adj 2.9
