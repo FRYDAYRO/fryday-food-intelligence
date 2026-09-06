@@ -1,5 +1,5 @@
 import { stareGoala } from '../src/lib/seed';
-import { importa, type Parsat } from '../src/lib/importer';
+import { importa } from '../src/lib/importer';
 import { buildCtx, fcPerioada, inflatiaIngredientelor, perProdus } from '../src/lib/engine';
 import type { AppState } from '../src/lib/types';
 

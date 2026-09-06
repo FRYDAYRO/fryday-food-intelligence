@@ -10,13 +10,18 @@ export default function ExecutiveCockpit() {
   const { raspunsuri, narativ } = useMemo(() => cockpit(state, ctx, sel.luna), [state, ctx, sel.luna]);
   const fc = useMemo(() => fcPerioada(state, ctx, sel.luna, 'RETEA'), [state, ctx, sel.luna]);
 
-  const inTarget = fc.tinta != null && (fc.fcCurat ?? fc.fcTeoretic ?? 0) <= fc.tinta;
+  // Fără un Food Cost măsurabil nu există nici „în target", nici „peste target": un `?? 0`
+  // ar transforma o lună fără rețetar într-un verdict de conformitate.
+  const fcRetea = fc.fcCurat ?? fc.fcTeoretic;
+  const inTarget = fc.tinta != null && fcRetea != null ? fcRetea <= fc.tinta : null;
 
   return (
     <div>
       <Titlu actiuni={
-        <span className={cx('rounded-md border px-3 py-1.5 text-sm font-semibold', inTarget ? 'border-ok/40 bg-ok/10 text-ok' : 'border-danger/40 bg-danger/10 text-danger')}>
-          {inTarget ? 'În target' : 'Peste target'} · FC {fmtPct(fc.fcCurat ?? fc.fcTeoretic)}{fc.tinta != null ? ` / ${fmtPct(fc.tinta)}` : ''}
+        <span className={cx('rounded-md border px-3 py-1.5 text-sm font-semibold',
+          inTarget == null ? 'border-border bg-muted/40 text-muted-foreground'
+            : inTarget ? 'border-ok/40 bg-ok/10 text-ok' : 'border-danger/40 bg-danger/10 text-danger')}>
+          {inTarget == null ? 'Food Cost nemăsurabil' : inTarget ? 'În target' : 'Peste target'} · FC {fmtPct(fcRetea)}{fc.tinta != null ? ` / ${fmtPct(fc.tinta)}` : ''}
         </span>
       }>Executive Cockpit — {sel.luna}</Titlu>
 

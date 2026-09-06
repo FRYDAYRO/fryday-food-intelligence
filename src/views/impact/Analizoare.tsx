@@ -38,8 +38,8 @@ export function ImpactRapid() {
     if (pDlv && Number(pDlv) > 0 && Number(pDlv) !== p.pretDelivery) schimbari.push({ tip: 'PRET_VANZARE', produs: cod, canal: 'DELIVERY', pretNou: Number(pDlv) });
     if (ret && cantNoua && Number(cantNoua) > 0 && Number(cantNoua) !== linii[linie]?.cant) schimbari.push({ tip: 'GRAMAJ', reteta: cod, linie, cantNoua: Number(cantNoua) });
     if (!schimbari.length) return null;
-    const { ctx: c1, produseNoi, preturiVanzare } = aplicaScenariu(state, schimbari);
-    const retea = impactRetea(state, ctx, c1, produseNoi, preturiVanzare, sel.luna);
+    const { ctx: c1, ctxBaza, produseNoi, preturiVanzare } = aplicaScenariu(state, schimbari, { peIstoric: true });
+    const retea = impactRetea(state, ctxBaza, c1, produseNoi, preturiVanzare, sel.luna);
     const afectate: { cod: string; denumire: string }[] = [];
     for (const [pc, pp] of c1.produse) {
       const a = kpiProdus(pc, 'INSTORE', ctx); const b = kpiProdus(pc, 'INSTORE', c1);

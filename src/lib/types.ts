@@ -2,7 +2,24 @@ export type Canal = 'INSTORE' | 'DELIVERY';
 export type Vedere = 'TOTAL' | Canal;
 export type UMCod = 'g' | 'kg' | 'ml' | 'l' | 'buc';
 
-export interface PretIstoric { validDeLa: string; pret: number; }
+/**
+ * De unde vine o intrare de preț — până la fișier, amprentă (= versiunea din Import Center),
+ * perioada raportului, materialul și rândul sursă. Absent = intrare moștenită sau manuală.
+ */
+export interface SursaPret {
+  tip: 'NBO_29' | 'LISTA_PRETURI' | 'RETETAR' | 'MANUAL' | 'SIMULARE';
+  fisier?: string;
+  amprenta?: string;
+  perioada?: string;
+  material?: string;
+  rand?: number;
+  /** Restaurantul al cărui raport 2.9 a dat prețul: costul FIFO e al lui, nu al rețelei. */
+  restaurant?: string;
+  /** Sfârșitul ferestrei raportului 2.9: luna și săptămâna care încep în aceeași zi sunt intrări diferite. */
+  fereastraLa?: string;
+}
+
+export interface PretIstoric { validDeLa: string; pret: number; sursa?: SursaPret; }
 
 export interface Ingredient {
   cod: string; denumire: string; categorie: string;
@@ -11,6 +28,8 @@ export interface Ingredient {
   furnizor?: string;
   preturi: PretIstoric[];
   activ: boolean;
+  /** Identitățile din 2.9 (cod de material sau denumire) pe care omul le-a legat de acest ingredient în coada de aprobare. */
+  aliasuri?: string[];
 }
 
 export interface Furnizor { cod: string; nume: string; contact?: string; }
@@ -68,7 +87,68 @@ export interface SalesReportRand {
   net: number; brut?: number; bonuri?: number;
 }
 
-export interface Linie29 { perioada: string; locatie: string; categorie: string; valoare: number; }
+export type Granularitate29 = 'SAPTAMANA' | 'LUNA' | 'INTERVAL';
+
+/**
+ * Fereastra REALĂ a raportului 2.9 din care vine un rând, cu precizie de zi. Un săptămânal și
+ * un lunar sunt observații diferite ale aceleiași realități: nu se adună și nu se șterg
+ * reciproc, deci identitatea unui rând e (fereastră, restaurant), nu (lună, restaurant).
+ */
+export interface Fereastra29 { de: string; la: string; granularitate: Granularitate29; }
+
+/** Proveniența unui rând 2.9: fișierul, amprenta lui (= versiunea) și rândul din fișier. */
+export interface Sursa29 { fisier: string; amprenta?: string; rand?: number; }
+
+export interface Linie29 {
+  perioada: string; locatie: string; categorie: string; valoare: number;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
+}
+
+/**
+ * O linie din raportul 2.9 la nivel de MATERIAL, nu de categorie.
+ *
+ * `Linie29` rămâne rollup-ul pe categorie și e în continuare sursa când exportul nu are
+ * detaliu pe material. Doar cu materialul se poate face puntea către rețete: fără el,
+ * „ce s-a consumat și nu e în nicio rețetă" nu se poate afla.
+ *
+ * Câmpurile opționale reflectă realitatea exportului: nu orice 2.9 dă cantitatea sau costul
+ * teoretic. Ce lipsește rămâne `null` și se raportează ca atare — nu se completează cu zero.
+ */
+export interface Material29 {
+  perioada: string;            // AAAA-LL — perioada SURSĂ, păstrată ca atare
+  locatie: string | null;      // null = raportul nu a precizat restaurantul
+  material: string;            // codul materialului din NBO
+  denumire: string;
+  categorie: string;           // categoria brută, așa cum vine în raport
+  cant: number | null;
+  um: UMCod | null;
+  costActual: number;          // lei consumați efectiv (valoarea din 2.9)
+  costTeoretic: number | null; // lei teoretici, dacă raportul îi conține
+  /** Materialul e marcat în sursă drept normalizat (porționat/reambalat intern). */
+  normalizat?: boolean;
+  /** Canalul, DOAR când exportul îl precizează explicit. Lipsă = necunoscut, nu Total. */
+  canal?: Canal;
+  /** Absent = rând importat înainte de acest contract: raport lunar al lunii `perioada`. */
+  fereastra?: Fereastra29;
+  sursa?: Sursa29;
+  /** „Cost per Unit" din 2.9: lei pe unitatea de inventar — sursa canonică a prețului efectiv (D4). */
+  costPeUnitate?: number;
+  /** Unitatea de inventar EXACT cum o tipărește raportul („EA", „KG", „Liter", „Gram", „pair"). */
+  umInventar?: string;
+  /** Consumul teoretic în unități („Usage in Units: Theory"), când raportul îl dă. */
+  cantTeoretic?: number | null;
+  /** Grupul părinte al categoriei, când raportul imbrică subgrupuri („Paper" pentru „ACCESORII"). */
+  grup?: string;
+  /**
+   * „Inv Adj" din 2.9, în unitatea de inventar, cu semnul EXACT cum îl tipărește raportul
+   * (pozitiv = scăzut din Usage Actual: `Usage = Beg + Pur + Trans − Adj − End`).
+   * ABSENT când fișierul nu are coloana (export vechi, raport pe categorie) — necunoscut, nu zero;
+   * `0` doar când raportul tipărește 0,0. Convenția pentru valori negative nu e validată.
+   */
+  ajustari?: number;
+}
 
 export type Clasa29 = 'FOOD' | 'PAPER' | 'EXCLUS';
 export interface RegulaClasificare { pattern: string; clasa: Clasa29; }
@@ -138,6 +218,47 @@ export interface WasteFapt {
   motiv?: string;                          // expirat, ars, cădere, retur client…
 }
 
+export type Includere = 'INCLUS_IN_USAGE' | 'EXCLUS_PRIN_AJUSTARE' | 'NEDETERMINAT';
+export type TemeiIncludere = 'REGULA_NBO_CONFIRMATA' | 'LEGATURA_STOC_VERIFICATA' | 'DECLARATIE_UTILIZATOR';
+
+/**
+ * Un eveniment din raportul NBO 2.8 (Spoilage and Loss), cu coloanele dovedite pe raportul
+ * real: Description, ItemID, Reason, By, Inventory Units, Qty. Lost, Cost/Unit, Extension.
+ * Rândurile NU au dată proprie: fereastra e a raportului. Evaluarea (Cost/Unit, Extension)
+ * este a raportului 2.8, nu Cost per Unit din 2.9.
+ */
+export interface Eveniment28 {
+  locatie: string | null;
+  fereastra: { de: string; la: string };
+  cod: string;
+  denumire: string;
+  /** Grupul raportului („Food 11%", „DESERT*"), exact cum e tipărit. */
+  grup?: string;
+  motiv: string;
+  utilizator?: string;
+  um: string;
+  cant: number;
+  costUnitar: number;
+  lei: number;
+  rand?: number;
+  sursa?: Sursa29;
+}
+
+/**
+ * Declarația care dă statut unei cantități de waste față de Usage Actual: fără ea, cantitatea
+ * rămâne nedeterminată. Potrivirea cantitativă cu Inv Adj nu ține loc de declarație.
+ */
+export interface DeclaratieIncludere {
+  locatie: string | null;
+  fereastra: { de: string; la: string };
+  material: string;
+  includere: Exclude<Includere, 'NEDETERMINAT'>;
+  cant: number;
+  temei: TemeiIncludere;
+  /** Cine/ce a stabilit-o: documentul NBO, verificarea, utilizatorul — cu data. */
+  sursa: string;
+}
+
 /** Consumul real din inventar (stoc inițial + intrări − stoc final), per ingredient. */
 export interface InventarFapt {
   locatie: string; perioada: string;
@@ -145,11 +266,116 @@ export interface InventarFapt {
 }
 
 export interface Nemapat {
-  denumire: string;          // denumirea POS care nu s-a potrivit cu nomenclatorul
+  /**
+   * Identitatea care NU s-a potrivit — și exact ce se leagă la aprobare: denumirea POS
+   * pentru rapoartele care listează nume (4.7 Sales Mix), codul pentru cele care listează
+   * coduri (PMIX). Ambele ajung în `Produs.aliasuri`, deci există o singură mapare.
+   */
+  denumire: string;
+  /** Descrierea din raport, ca omul să recunoască rândul: categoria la 4.7, numele la PMIX. */
   categorie: string;
   cant: number;              // din ultimul import în care a apărut
-  valoare: number;           // lei bruti — criteriul de prioritizare
+  valoare: number;           // lei — criteriul de prioritizare
   fisier: string;
+  /** Din ce raport provine, ca ecranul de aprobare să poată spune ce anume se leagă. */
+  sursa?: 'SALES_MIX' | 'PMIX' | 'NBO_29' | 'NBO_28';
+}
+
+/**
+ * O versiune de sursă importată. Versiunile NU se suprascriu: fiecare import adaugă o
+ * intrare, cea nouă devine activă de la data ei efectivă, iar cele vechi rămân în listă
+ * ca istoric — analizele pe trecut folosesc în continuare versiunea corectă atunci.
+ */
+export interface VersiuneSursa {
+  id: string;                 // `${tip}#${nr}` — determinist
+  tip: string;                // tipul canonic de sursă (TipSursaFC)
+  nr: number;                 // numerotare incrementală pe tip
+  fisier: string;
+  amprenta: string;           // amprenta deterministă a conținutului
+  dataEfectiva: string;       // de la ce dată se aplică
+  importatLa: string;
+  activa: boolean;
+  scop: string;               // COMUN | COMPANIE | RESTAURANT
+  restaurante: string[];
+  perioada: string | null;
+  /**
+   * Intervalul REAL acoperit de raport, cu precizie de zi. `perioada` de mai sus e luna,
+   * și două rapoarte din aceeași lună pot acoperi ferestre disjuncte (17–23 aug vs 1–9 aug):
+   * la granularitate de lună ar părea compatibile. De aceea intervalul se păstrează separat.
+   * Absent = sursa nu l-a declarat — nu se presupune nimic.
+   */
+  intervalDe?: string;
+  intervalLa?: string;
+  /**
+   * Cum își poartă rândurile data: `ZI` = fiecare rând are ziua lui, deci sursa servește orice
+   * cerere cuprinsă în fereastră; altfel raportul e un agregat pe fereastra lui și servește
+   * doar cererea cu exact acea fereastră. Absent = versiune veche: se tratează ca agregat.
+   */
+  granularitate?: 'ZI' | 'LUNA' | 'INTERVAL' | 'FARA';
+  /**
+   * Amprenta CONȚINUTULUI, fără fereastra declarată. Același conținut redeclarat pe altă
+   * fereastră e același fișier corectat, nu un raport nou: versiunea veche iese din vigoare
+   * și rândurile ei pleacă odată cu ea.
+   */
+  amprentaContinut?: string;
+  randuri: number;
+  /**
+   * Identitățile din raport (coduri sau denumiri POS) pe care această versiune le-a lăsat
+   * nemapate. Când una dintre ele se mapează ulterior, același fișier are ce să aducă și nu
+   * mai e duplicat. Absent = versiune activată înainte de acest contract: nu se presupune nimic.
+   */
+  nemapate?: string[];
+}
+
+/** O schimbare de preț înregistrată la import, cu sursa ei. */
+export interface IntrarePretIstoric {
+  ingredient: string;
+  denumire: string;
+  dataEfectiva: string;
+  pretVechi: number | null;   // null = ingredient nou, fără preț anterior
+  pretNou: number;
+  deltaRON: number | null;
+  deltaPct: number | null;
+  fisier: string;
+  amprenta: string;
+  sursa?: SursaPret;
+}
+
+/** Urma de audit a unui import: cine, când, ce, pe ce scop, cu ce rezultat. */
+export interface IntrareAudit {
+  id: string;
+  actor: string;              // utilizatorul, sau actorul de sistem când identitatea lipsește
+  data: string;
+  fisier: string;
+  tip: string;
+  tipIntern: string;
+  perioada: string | null;
+  scop: string;
+  restaurante: string[];
+  randuri: number;
+  importate: number;
+  validare: string;           // VALIDAT | RESPINS | NECESITA_CONFIRMARE
+  amprenta: string;
+  versiune: string | null;    // versiunea activată, când importul a fost activat
+  activat: boolean;
+}
+
+export type ActiuneAuditAcces =
+  | 'SESIUNE' | 'SCHIMBARE_SCOP' | 'IMPORT' | 'ACTIVARE' | 'SIMULARE' | 'ADVISOR' | 'ACCES_REFUZAT';
+
+/** Urma de audit a accesului: cine, ce a cerut, pe ce scop, permis sau refuzat. */
+export interface IntrareAuditAcces {
+  id: string;
+  data: string;
+  /** Identificatorul actorului — exact cel folosit deja de auditul de import. */
+  actor: string;
+  rol: 'STORE_MANAGER' | 'TOP_MANAGEMENT';
+  actiune: ActiuneAuditAcces;
+  /** Scopul asupra căruia s-a acționat. */
+  scop: string;
+  rezultat: 'PERMIS' | 'REFUZAT';
+  /** Motivul refuzului sau o descriere scurtă. Fără date personale. */
+  detaliu: string;
 }
 
 export interface AppState {
@@ -161,11 +387,26 @@ export interface AppState {
   vanzari: VanzareFapt[];
   salesReport: SalesReportRand[];
   linii29: Linie29[];
+  materiale29: Material29[];   // 2.9 la nivel de material, când exportul îl conține
   waste: WasteFapt[];
   inventar: InventarFapt[];
+  /** Evenimentele raportului 2.8, cu proveniență. Absent în instantaneele vechi. */
+  evenimente28?: Eveniment28[];
+  /** Declarațiile de includere (singura sursă de statut pentru waste). Absent = niciuna. */
+  declaratiiIncludere?: DeclaratieIncludere[];
   reguli: RegulaClasificare[];
+  /** Versiunea listei implicite 2.9 deja îmbinată în `reguli` — migrarea nu se repetă. Lipsă = nemigrat. */
+  reguliImplicite?: string;
   tinte: Tinta[];
   importuri: ImportBatch[];
+  /** Istoricul versiunilor de sursă (Import Center). Opțional: instantaneele vechi nu îl au. */
+  versiuniImport?: VersiuneSursa[];
+  /** Istoricul datat al prețurilor de ingrediente, cu fișierul sursă al fiecărei schimbări. */
+  istoricPreturi?: IntrarePretIstoric[];
+  /** Urma de audit a importurilor. */
+  auditImport?: IntrareAudit[];
+  /** Urma de audit a accesului (scop, simulări, Advisor, importuri). */
+  auditAcces?: IntrareAuditAcces[];
   scenarii: Scenariu[];
   pretFurnizori: PretFurnizor[];
   labor: CostLabor[];

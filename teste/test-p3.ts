@@ -1,5 +1,5 @@
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, analizaPromo, consumuriLuna, kpiProdus, perProdus, pretCurent, volumeLuna } from '../src/lib/engine';
+import { buildCtx, analizaPromo, consumuriLuna, kpiProdus, perProdus, volumeLuna } from '../src/lib/engine';
 import { cockpit, oportunitati } from '../src/lib/decizii';
 import { structuraIngrediente, similaritate, portofoliu, simulPromotie, intelFurnizori, deRenegociat } from '../src/lib/portofoliu';
 

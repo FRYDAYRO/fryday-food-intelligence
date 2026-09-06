@@ -53,7 +53,10 @@ export interface RezultatSimulare {
 interface Celula { buc0: number; buc1: number; net0: number; netU0: number; }
 
 export function simuleaza(state: AppState, ctx0: Ctx, cfg: ConfigSimulare): RezultatSimulare {
-  const { ctx: ctx1, produseNoi, preturiVanzare } = aplicaScenariu(state, cfg.schimbari);
+  // luna simulată e în trecut, deci scenariul se evaluează pe istoric: altfel o rețetă
+  // reîncărcată după luna analizată ar face modificarea invizibilă (§BUG-1). `ctxBaza`
+  // e baza aliniată pe aceleași versiuni, ca diferența să reflecte doar schimbarea cerută.
+  const { ctx: ctx1, ctxBaza, produseNoi, preturiVanzare } = aplicaScenariu(state, cfg.schimbari, { peIstoric: true });
   const dataRef = `${cfg.luna}-15`;
   const memo0 = new Map<string, unknown>();
   const memo1 = new Map<string, unknown>();
@@ -128,7 +131,7 @@ export function simuleaza(state: AppState, ctx0: Ctx, cfg: ConfigSimulare): Rezu
     if (cfg.tvaNou != null && p1) netU1 = netU1 * (1 + p1.tva / 100) / (1 + cfg.tvaNou / 100);
     const netU0 = c.buc0 > 0 ? c.netU0 : (p0 ? pretNet(p0, canal) ?? 0 : 0);
 
-    const cu0 = costProdus(cod, canal, ctx0, dataRef, memo0)?.total ?? 0;
+    const cu0 = costProdus(cod, canal, ctxBaza, dataRef, memo0)?.total ?? 0;
     const c1 = costProdus(cod, canal, ctx1, dataRef, memo1);
     const cu1 = c1?.total ?? 0;
 

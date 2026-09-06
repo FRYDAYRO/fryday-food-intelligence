@@ -24,8 +24,12 @@ import RnDLab from './views/RnDLab';
 import Topuri from './views/Topuri';
 import ProductImpact from './views/ProductImpact';
 import Setari from './views/Setari';
+import ControlTower from './views/tower/ControlTower';
+import Bariera from './views/shared/Bariera';
+import { etichetaVersiune } from './lib/versiune';
 
 const MODULE = [
+  { id: 'tower', nume: 'FC Control Tower', C: ControlTower },
   { id: 'cockpit', nume: 'Executive Cockpit', C: ExecutiveCockpit },
   { id: 'board', nume: 'Opportunity Board', C: OpportunityBoard },
   { id: 'dashboard', nume: 'Dashboard', C: Dashboard },
@@ -99,10 +103,34 @@ function AvertismentFiltrat() {
   );
 }
 
-function Antet() {
+/**
+ * Module care își aduc propria bară de scop. Pentru ele selecția globală nu se aplică:
+ * afișarea ei ar pune două rânduri de filtre cu aceeași denumire pe același ecran, iar
+ * cel de sus n-ar face nimic — utilizatorul schimbă perioada și nu se mișcă nicio cifră.
+ */
+const SCOP_PROPRIU = new Set<string>(['tower']);
+
+function Antet({ scopPropriu = false }: { scopPropriu?: boolean }) {
   const { state } = useStore();
   const { sel, setSel } = useSel();
   const luni = useMemo(() => [...new Set(state.vanzari.map(v => v.data.slice(0, 7)))].sort().reverse(), [state.vanzari]);
+
+  // modulul își pune singur perioada, restaurantul și canalul — aici rămâne doar identitatea
+  if (scopPropriu) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-b bg-card/70 px-4 py-2 backdrop-blur"
+        data-zona="antet-scop-propriu">
+        <span className="mr-1 hidden text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:inline">
+          Cine ești
+        </span>
+        <IndicatorServer />
+        <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">
+          Perioada, restaurantul și canalul se aleg din bara „Scop" a modulului, mai jos.
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-b bg-card/70 px-4 py-2 backdrop-blur">
       <span className="mr-1 hidden text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:inline">Context global</span>
@@ -146,7 +174,7 @@ function AliniazaSelectia() {
 }
 
 function Continut() {
-  const [modul, setModul] = useState<(typeof MODULE)[number]['id']>('cockpit');
+  const [modul, setModul] = useState<(typeof MODULE)[number]['id']>('tower');
   const Activ = MODULE.find(m => m.id === modul)!.C;
   return (
     <div className="flex min-h-screen">
@@ -177,27 +205,34 @@ function Continut() {
           </select>
         </div>
         <AliniazaSelectia />
-        <Antet />
+        <Antet scopPropriu={SCOP_PROPRIU.has(modul)} />
         <AvertismentFiltrat />
-        <main className="p-4 md:p-6">
-          <Activ />
-        </main>
+        <Bariera zona={MODULE.find(m => m.id === modul)!.nume} cheie={modul}>
+          <main className="p-4 md:p-6">
+            <Activ />
+          </main>
+        </Bariera>
       </div>
     </div>
   );
 }
 
-// Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai nou.
-export const VERSIUNE = 'RC 12.3';
-export const DATA_BUILD = '08.08.2026';
+// Marcaj de versiune, ca să se poată verifica dintr-o privire că rulează fișierul cel mai
+// nou. Ambele valori vin de la build: versiunea din `package.json`, data din ceasul
+// compilării. Nu se scriu aici — un număr copiat de mână rămâne în urmă exact când
+// contează, iar „ce versiune rulează?" e prima întrebare când ceva merge prost.
+export const VERSIUNE = etichetaVersiune(__VERSIUNE_PKG__);
+export const DATA_BUILD = __DATA_BUILD__;
 
 export default function App() {
   const [sel, setSel] = useState<Selectie>({ luna: '2026-07', locatie: 'RETEA', vedere: 'TOTAL' });
   return (
-    <StoreProvider>
-      <SelCtx.Provider value={{ sel, setSel }}>
-        <Continut />
-      </SelCtx.Provider>
-    </StoreProvider>
+    <Bariera>
+      <StoreProvider>
+        <SelCtx.Provider value={{ sel, setSel }}>
+          <Continut />
+        </SelCtx.Provider>
+      </StoreProvider>
+    </Bariera>
   );
 }

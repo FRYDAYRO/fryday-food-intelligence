@@ -1,0 +1,12 @@
+{
+  // Suitele de teste sunt cod, nu text: trec prin ACELEAȘI reguli stricte ca `src`.
+  // Fără asta, esbuild doar șterge tipurile, iar un test care citește un câmp inexistent
+  // primește `undefined` și poate trece degeaba — s-a și întâmplat.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.teste.tsbuildinfo",
+    // testele rulează în Node (`process.exit`, `require` pentru fixturi), nu în browser
+    "types": ["node", "vite/client"]
+  },
+  "include": ["src", "teste"]
+}
