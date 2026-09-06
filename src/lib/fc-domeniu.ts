@@ -203,7 +203,7 @@ export const componentaDin29 = (c: Clasa29): FCComponent =>
 
 // ————————————————————————————————————————————————————————— trasabilitate
 
-export type RaportSursa = 'PMIX' | 'SALES_REPORT' | 'NBO_29' | 'RETETAR' | 'NOMENCLATOR' | 'WASTE' | 'INVENTAR';
+export type RaportSursa = 'PMIX' | 'SALES_REPORT' | 'NBO_29' | 'NBO_28' | 'RETETAR' | 'NOMENCLATOR' | 'WASTE' | 'INVENTAR';
 
 /** De unde vine o cifră: fiecare rezultat de FC își poartă sursele, ca să fie verificabil. */
 export interface SursaFC {

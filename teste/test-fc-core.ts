@@ -13,6 +13,7 @@ import {
   type CerereFC, type FCChannel,
 } from '../src/lib/fc-domeniu';
 import { nboFC, recipeFC, reconciliationFC } from '../src/lib/fc-core';
+import { pretDeterminabil } from '../src/lib/atribuire-waste';
 import type { AppState, WasteFapt } from '../src/lib/types';
 
 let ok = 0, fail = 0;
@@ -180,22 +181,25 @@ t('operaționalul e după linia de sosire, nu în punte',
 t('fiecare pas are efect și în puncte procentuale',
   rec.pasi.filter(p => p.disponibil).every(p => p.pp !== null));
 
-console.log('\n— Waste iese din „neexplicat" exact cu valoarea lui —');
+console.log('\n— Waste-ul vechi (fără statut) NU iese din „neexplicat": e nereconciliat —');
 const ing = s0.ingrediente.find(i => i.cod === 'I001')!;
 const waste: WasteFapt[] = [{ locatie: 'L01', perioada: '2026-07', ingredient: 'I001', cant: 10, um: 'kg', motiv: 'expirat' }];
 const cuWaste: AppState = { ...s0, waste };
 const recW = reconciliationFC(cuWaste, ctx, cerere('TOTAL'));
 const pasW = recW.pasi.find(p => p.id === 'WASTE')!;
-const asteptatWaste = 10 * ing.preturi[ing.preturi.length - 1].pret;
-t('pasul de waste devine disponibil', pasW.disponibil);
-t('waste = cantitate × prețul ingredientului', aprox(pasW.lei, asteptatWaste, 0.01),
-  `${pasW.lei.toFixed(2)} vs ${asteptatWaste.toFixed(2)}`);
-t('neexplicatul scade exact cu waste-ul',
-  aprox(recW.pasi.find(p => p.id === 'UNEXPLAINED')!.lei,
-        rec.pasi.find(p => p.id === 'UNEXPLAINED')!.lei - pasW.lei, 0.01));
-t('puntea rămâne închisă după adăugarea waste-ului',
-  aprox(recW.rezidualLei!, 0, 0.01) && aprox(recW.diferentaLei!, rec.diferentaLei!, 0.01));
+const pasN = recW.pasi.find(p => p.id === 'WASTE_NERECONCILIAT')!;
+const pretIulie = pretDeterminabil(ing, { de: '2026-07-01', la: '2026-07-31' });
+t('pasul WASTE (inclus în Usage) rămâne indisponibil: nimic demonstrat', !pasW.disponibil && pasW.lei === 0 && pasW.statut === 'EXPLICAT');
+t('waste-ul vechi apare ca pas NERECONCILIAT, cu suma informativă la prețul determinabil al lunii',
+  pasN.statut === 'NERECONCILIAT' && !pasN.disponibil && pasN.lei === 0 && pasN.nrRanduri === 1
+  && (pretIulie.determinabil ? aprox(pasN.leiInformativ!, 10 * pretIulie.pret!, 0.01) : recW.waste.vechi.randuriFaraPretDeterminabil === 1),
+  `${pasN.leiInformativ?.toFixed(2)} lei · preț determinabil: ${pretIulie.determinabil}`);
+t('MUTAȚIE „orice waste scade Neexplicatul": neexplicatul NU se mișcă',
+  aprox(recW.pasi.find(p => p.id === 'UNEXPLAINED')!.lei, rec.pasi.find(p => p.id === 'UNEXPLAINED')!.lei, 0.01));
+t('puntea rămâne închisă (rezidual pe pașii disponibili), dar atribuirea nu e completă',
+  aprox(recW.rezidualLei!, 0, 0.01) && aprox(recW.diferentaLei!, rec.diferentaLei!, 0.01) && !recW.waste.atribuireCompleta && !recW.complet);
 t('sursa de waste apare în trasabilitate', recW.surse.some(s => s.raport === 'WASTE'));
+t('pasul nereconciliat e explicat în cuvinte', pasN.explicatie.includes('nereconciliat') || pasN.explicatie.includes('Neexplicat'));
 
 console.log('\n— Fără 2.9, puntea nu inventează zerouri —');
 const recFara = reconciliationFC(fara29, ctx, cerere('TOTAL'));

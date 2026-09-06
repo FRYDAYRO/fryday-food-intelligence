@@ -11,7 +11,7 @@
 //   · lanțul întreg: 2.9 → preț datat → cost rețetă la dată → FC recalculat; septembrie nu
 //     schimbă august; săptămânalul și lunarul coexistă (D3); materialele nemapate merg în coadă
 //     doar dacă sunt Food & Paper (D1, D6); reimportul identic e duplicat, fără intrări noi.
-import { esteRaport29, numar29, parsatDin29, parseRaport29, descrie29 } from '../src/lib/nbo-29';
+import { esteRaport29, numar29, parsatDin29, parseRaport29, descrie29, verificaIdentitate29 } from '../src/lib/nbo-29';
 import { preturiDin29 } from '../src/lib/actualizare-29';
 import { importaPrinCentru, type CerereImport } from '../src/lib/import-center';
 import { importa } from '../src/lib/importer';
@@ -389,6 +389,20 @@ const k2 = preturiDin29([ing('MON', 'Monin', 'l', 60)], [mat('MON', 'Monin', 65.
 t('(k) … dar 2.300 lei pe 40 L (57,5) față de 65,21 dă', k2.consistenta.length === 1);
 // (l) Cost per Unit sub 0,10 lei: precizie limitată, semnalată
 t('(l) Sare 0,05 lei/Each e semnalată ca preț cu precizie limitată, dar tot se scrie', r3.rezultat.avertismente.some(a => /precizie limitată/.test(a) && /Sare FRYDAY 2G/.test(a)) && pretLa(pret(S3, '2002'), '2026-08-15') === 0.05);
+
+console.log('\n— 10. Ajustările de inventar se păstrează exact cum sunt tipărite (PR #23, A) —');
+const adjDe = (id: string) => R.randuri.find(x => x.itemId === id)!.ajustari;
+t('Inv Adj citit pe rând: Branza 126, Burger 76, Chifla 175; Salata, Sare, Pepsi 0', adjDe('7000123') === 126 && adjDe('7000268') === 76 && adjDe('7000133') === 175
+  && adjDe('7000143') === 0 && adjDe('2002') === 0 && adjDe('702044') === 0);
+t('Parsat-ul poartă coloana „Ajustare inventar" cu valoarea tipărită', P.antete.includes('Ajustare inventar') && P.randuri.find(r => r['Cod material'] === '7000123')!['Ajustare inventar'] === 126);
+t('identitatea Beg + Pur + Trans − Adj − End = Usage se închide pe toate rândurile fixturii', verificaIdentitate29(R).exacte === R.randuri.length, `${verificaIdentitate29(R).exacte}/${R.randuri.length}`);
+t('Pepsi: transferul −600 e semnat și intră în Usage (1.788 + 396 − 600 − 926 = 658)', R.randuri.find(x => x.itemId === '702044')!.transferuri === -600 && R.randuri.find(x => x.itemId === '702044')!.consumUnitati.actual === 658);
+const S10 = importa('FC29_MATERIAL', P, '2.9_Memo_Cluj.pdf', { ...stareGoala(), locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }] }).stateNou;
+t('Material29.ajustari: 126 la Branza, 0 la Salata (tipărit), niciodată absent când coloana există',
+  S10.materiale29!.find(m => m.material === '7000123')!.ajustari === 126 && S10.materiale29!.find(m => m.material === '7000143')!.ajustari === 0 && S10.materiale29!.every(m => m.ajustari !== undefined));
+t('Σ Adj × CPU pe fixtură = 126 × 0,63 + 76 × 3,58 + 175 × 2,35 = 762,71', aprox(verificaIdentitate29(R).ajustari.leiEstimatPozitiv, 762.71, 1e-9));
+t('FC cu ajustări estimat pe raport: (149.490 + 762,71) ÷ 675.735,58 = 22,24 %, față de 22,12 % raportat',
+  aprox(verificaIdentitate29(R).fcCuAjustariEstimatPct!, ((149490 + 762.71) / 675735.58) * 100, 1e-9) && verificaIdentitate29(R).fcRaportatPct === 22.12);
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);
