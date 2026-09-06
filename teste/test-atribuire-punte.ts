@@ -40,7 +40,10 @@ const T29 = [
   'Paper', 'Paper',
   'Furculita Rosie 702092 EA 100,0 500,0 6,0 0,0 237,0 0,27 lei 63,99 lei 20,6 357,0 259,0 98,0 96 lei 70 lei 26 lei 0,01% 0,01% 0,00%',
   'Total: Paper 63,99 lei 96 lei 70 lei 26 lei 0,01% 0,01% 0,00%', 'Total: Paper 63,99 lei 96 lei 70 lei 26 lei 0,01% 0,01% 0,00%',
-  'Totals: Sales: 675.735,58 lei 1.024,00 lei 6.425 lei 5.925 lei 500 lei 0,95% 0,88% 0,07%',
+  'Materiale curatenie', 'Materiale curatenie',
+  'Detergent 9001 EA 10,0 0,0 2,0 0,0 3,0 10,00 lei 30,00 lei 18,6 5,0 4,0 1,0 50 lei 40 lei 10 lei 0,01% 0,01% 0,00%',
+  'Total: Materiale curatenie 30,00 lei 50 lei 40 lei 10 lei 0,01% 0,01% 0,00%', 'Total: Materiale curatenie 30,00 lei 50 lei 40 lei 10 lei 0,01% 0,01% 0,00%',
+  'Totals: Sales: 675.735,58 lei 1.054,00 lei 6.475 lei 5.965 lei 510 lei 0,96% 0,88% 0,08%',
   'V 21.1.126.0 - 188 - 02.09.2026 22:35 Copyright © NCR Corporation 2022 1 of 1',
 ].join('\n');
 const ANTET28 = ['FRYDAY CLUJ MEMO Fiscal Year: 2026', '2.8 Spoilage and Loss', 'Period: 8', '01.08.2026 - 31.08.2026', 'Inventory Qty. Cost/', 'Description ItemID Reason By Units Lost Unit Extension'];
@@ -61,10 +64,13 @@ const T28 = [
   'TIRAMISU FISTIC 1.2 KG 7000131 End of Day chetan.vivien EA 1,00 9,28 lei 9,28 lei',
   'TIRAMISU FISTIC 1.2 KG 7000131 End of Day alina.nasaudean EA 2,00 9,28 lei 18,55 lei',
   'Total: Food 21% 27,83 lei',
-  'Grand Total: 285,52 lei',
+  'Materiale curatenie',
+  'Detergent 9001 Dropped alina.nasaudean EA 2,00 10,00 lei 20,00 lei',
+  'Total: Materiale curatenie 20,00 lei',
+  'Grand Total: 305,52 lei',
   'V 21.1.126.0 - 15 - 02.09.2026 22:45 Copyright © NCR Corporation 2022 1 of 1',
 ].join('\n');
-const LEI28 = 28.64 + 39.52 + 17.36 + 11.72 + 11.27 + 13.52 + 135.66 + 9.28 + 18.55;   // 285,52
+const LEI28 = 28.64 + 39.52 + 17.36 + 11.72 + 11.27 + 13.52 + 135.66 + 9.28 + 18.55 + 20;   // 305,52
 
 const ingr = (cod: string, denumire: string, um: 'kg' | 'l' | 'buc', pret: number, aliasuri: string[]) =>
   ({ cod, denumire, categorie: 'MP', tip: 'FOOD' as const, um, preturi: [{ validDeLa: '2026-07-01', pret }], activ: true, aliasuri });
@@ -73,6 +79,8 @@ const BAZA: AppState = {
   locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }],
   ingrediente: [ingr('SOS-CHEDDAR', 'Sos Cheddar BIB', 'kg', 44, ['4064']), ingr('SAUSAGE', 'Sausage Patty', 'buc', 2.48, ['702458']), ingr('TIRAMISU', 'Tiramisu fistic', 'buc', 9.28, ['7000131'])],
   salesReport: [{ data: '2026-08-15', locatie: 'L01', canal: 'INSTORE', net: 675735.58 }],
+  // materialele de curățenie sunt EXCLUS din Food Cost: waste-ul lor nu poate reduce Neexplicatul FC
+  reguli: [{ pattern: 'curatenie', clasa: 'EXCLUS' }, ...stareGoala().reguli],
 };
 const LUNA = perioadaDin('2026-08-15', 'LUNA');
 const cerere = (): CerereFC => ({ perioada: LUNA, nivel: COMPANIE, canal: 'TOTAL' });
@@ -84,24 +92,25 @@ const linie = (r: ReturnType<typeof rec>, material: string) => r.waste.potrivire
 
 console.log('— 1. Fără declarații: nimic nu iese din Neexplicat —');
 const R0 = rec(S2);
-t('2.8 importat: 9 evenimente, 285,52 lei în evaluarea 2.8', (S2.evenimente28 ?? []).length === 9 && aprox(LEI28, 285.52));
-t('atribuirea e disponibilă (există 2.9 pe material) și a intrat cu toate cele 9 evenimente', R0.waste.disponibil && R0.waste.evenimente === 9);
+t('2.8 importat: 10 evenimente, 305,52 lei în evaluarea 2.8', (S2.evenimente28 ?? []).length === 10 && aprox(LEI28, 305.52));
+t('atribuirea e disponibilă (există 2.9 pe material) și a intrat cu toate cele 10 evenimente', R0.waste.disponibil && R0.waste.evenimente === 10);
+t('Detergent (categorie EXCLUS din FC) nu intră în consumFC, dar intră în potrivire', aprox(R0.nbo.consumFC, 6425, 1e-9) && aprox(R0.nbo.consumTotal, 6475, 1e-9) && linie(R0, '9001').potrivire === 'EXACTA');
 t('Sausage Patty: potrivire EXACTĂ (23 = 23), dar statutul rămâne nedeterminat', linie(R0, '702458').potrivire === 'EXACTA' && aprox(linie(R0, '702458').parti.NEDETERMINAT.lei, 56.88));
 t('Sos Cheddar: 3,82 față de 3,8 → compatibil cu precizia, 172,17 lei nedeterminați', linie(R0, '4064').potrivire === 'COMPATIBILA_CU_PRECIZIA' && aprox(linie(R0, '4064').parti.NEDETERMINAT.lei, 172.17));
 t('TIRAMISU: fără alias, 3 față de 6 (diferență reală); 910015 fără corespondent 2.9', linie(R0, '7000131').potrivire === 'DIFERENTA_REALA' && linie(R0, '910015').potrivire === 'FARA_CORESPONDENT_29');
 t('Furculita: Adj fără eveniment → 1,62 lei estimat, nu waste', linie(R0, '702092').potrivire === 'FARA_EVENIMENT_28' && aprox(R0.waste.ajustariFaraEveniment.leiEstimat, 1.62) && R0.waste.ajustariFaraEveniment.coduri === 1);
-t('inclus 0, exclus 0, nedeterminat 285,52', R0.waste.inclusLei === 0 && R0.waste.exclusLei === 0 && aprox(R0.waste.nedeterminatLei, 285.52));
-t('pasul WASTE e indisponibil cu lei 0; pasul NERECONCILIAT poartă 285,52 informativ pe 9 rânduri',
-  !pas(R0, 'WASTE').disponibil && pas(R0, 'WASTE').lei === 0 && pas(R0, 'WASTE_NERECONCILIAT').statut === 'NERECONCILIAT' && aprox(pas(R0, 'WASTE_NERECONCILIAT').leiInformativ!, 285.52) && pas(R0, 'WASTE_NERECONCILIAT').nrRanduri === 9);
+t('inclus 0, exclus 0, nedeterminat 305,52', R0.waste.inclusLei === 0 && R0.waste.exclusLei === 0 && aprox(R0.waste.nedeterminatLei, 305.52));
+t('pasul WASTE e indisponibil cu lei 0; pasul NERECONCILIAT poartă 305,52 informativ pe cele 5 linii nedeterminate',
+  !pas(R0, 'WASTE').disponibil && pas(R0, 'WASTE').lei === 0 && pas(R0, 'WASTE_NERECONCILIAT').statut === 'NERECONCILIAT' && aprox(pas(R0, 'WASTE_NERECONCILIAT').leiInformativ!, 305.52) && pas(R0, 'WASTE_NERECONCILIAT').nrRanduri === 5);
 t('MUTAȚIE „potrivirea exactă scade": Neexplicat = întreaga diferență', aprox(pas(R0, 'UNEXPLAINED').lei, R0.diferentaLei!, 1e-9));
 t('rezidual zero, dar atribuirea NU e completă și puntea NU e completă', aprox(R0.rezidualLei!, 0, 1e-9) && !R0.waste.atribuireCompleta && !R0.complet);
-t('sursa NBO_28 apare în trasabilitate cu 9 rânduri', R0.surse.some(s => s.raport === 'NBO_28' && s.randuri === 9));
+t('sursa NBO_28 apare în trasabilitate cu 10 rânduri', R0.surse.some(s => s.raport === 'NBO_28' && s.randuri === 10));
 
 console.log('\n— 2. Aliasul aprobat leagă codul 2.8 de materialul 2.9 —');
 const S2a: AppState = { ...S2, ingrediente: S2.ingrediente.map(i => (i.cod === 'TIRAMISU' ? { ...i, aliasuri: ['7000131', '910015'] } : i)) };
 const Ra = rec(S2a);
 t('cu 910015 aprobat pe TIRAMISU: 3 + 3 = 6 = Adj → EXACTĂ, fără cod 2.8 fără corespondent', linie(Ra, '7000131').potrivire === 'EXACTA' && linie(Ra, '7000131').cant28 === 6 && Ra.waste.potrivire!.coduri.doarEvenimente === 0);
-t('…statutul rămâne nedeterminat: aliasul schimbă potrivirea, nu includerea', aprox(Ra.waste.nedeterminatLei, 285.52) && Ra.waste.inclusLei === 0);
+t('…statutul rămâne nedeterminat: aliasul schimbă potrivirea, nu includerea', aprox(Ra.waste.nedeterminatLei, 305.52) && Ra.waste.inclusLei === 0);
 
 console.log('\n— 3. Declarațiile dau statut —');
 const F8 = { de: '2026-08-01', la: '2026-08-31' };
@@ -119,7 +128,7 @@ const Rc = rec({ ...S2, declaratiiIncludere: [dInclusCheddar] });
 t('cazul Sos Cheddar BIB: 6.081 − 124,3 × 45,07 = 478,80; scade la 307,53 DOAR cu waste INCLUS (171,27)',
   aprox(6081 - 124.3 * 45.07, 478.8) && aprox(Rc.waste.inclusLei, 171.27) && aprox(478.8 - Rc.waste.inclusLei, 307.53)
   && aprox(pas(Rc, 'UNEXPLAINED').lei, R0.diferentaLei! - 171.27));
-t('cu ambele declarații: 0,90 lei rămân nedeterminați pe Sos Cheddar, restul pe celelalte linii', aprox(rec({ ...S2, declaratiiIncludere: [dExclus, dInclus] }).waste.nedeterminatLei, 285.52 - 171.27 - 56.88));
+t('cu ambele declarații: 0,90 lei rămân nedeterminați pe Sos Cheddar, restul pe celelalte linii', aprox(rec({ ...S2, declaratiiIncludere: [dExclus, dInclus] }).waste.nedeterminatLei, 305.52 - 171.27 - 56.88));
 t('o declarație pe alt restaurant sau altă fereastră nu se aplică',
   rec({ ...S2, declaratiiIncludere: [{ ...dInclus, locatie: 'L02' }] }).waste.inclusLei === 0 && rec({ ...S2, declaratiiIncludere: [{ ...dInclus, fereastra: { de: '2026-07-01', la: '2026-07-31' } }] }).waste.inclusLei === 0);
 t('o declarație INCLUS pe codul 2.8 fără corespondent (910015) nu se aplică', rec({ ...S2, declaratiiIncludere: [{ ...dInclus, material: '910015', cant: 3 }] }).waste.inclusLei === 0);
@@ -127,22 +136,52 @@ t('o declarație INCLUS pe codul 2.8 fără corespondent (910015) nu se aplică'
 console.log('\n— 4. Fără 2.9 pe material, pe altă fereastră, waste vechi —');
 const doarLinii: AppState = { ...S2, materiale29: [] };
 const Rl = rec(doarLinii);
-t('linii29 fără materiale29: atribuirea e indisponibilă, tot 2.8 e nedeterminat, WASTE explică de ce', !Rl.waste.disponibil && aprox(Rl.waste.nedeterminatLei, 285.52) && pas(Rl, 'WASTE').explicatie.includes('nu se poate confrunta'));
+t('linii29 fără materiale29: atribuirea e indisponibilă, tot 2.8 e nedeterminat, WASTE explică de ce', !Rl.waste.disponibil && aprox(Rl.waste.nedeterminatLei, 305.52) && pas(Rl, 'WASTE').explicatie.includes('nu se poate confrunta'));
 const T28iulie = T28.replace(/01\.08\.2026 - 31\.08\.2026/g, '01.07.2026 - 31.07.2026').replace('Period: 8', 'Period: 7');
 const S3 = importa('WASTE_28', parsatDin28(parseRaport28(T28iulie)), '2.8_iulie.pdf', S2).stateNou;
 const Riul = reconciliationFC(S3, buildCtx(S3), { perioada: perioadaDin('2026-07-15', 'LUNA'), nivel: COMPANIE, canal: 'TOTAL' });
-t('iulie: fără 2.9 → nboFC indisponibil, dar waste-ul lunii e raportat nedeterminat', !Riul.nbo.disponibil && !Riul.waste.disponibil && aprox(Riul.waste.nedeterminatLei, 285.52));
+t('iulie: fără 2.9 → nboFC indisponibil, dar waste-ul lunii e raportat nedeterminat', !Riul.nbo.disponibil && !Riul.waste.disponibil && aprox(Riul.waste.nedeterminatLei, 305.52));
 const Raug = rec(S3);
-t('august nu vede evenimentele lui iulie', Raug.waste.evenimente === 9 && Raug.waste.inAfaraSelectiei.evenimente === 0);
+t('august nu vede evenimentele lui iulie', Raug.waste.evenimente === 10 && Raug.waste.inAfaraSelectiei.evenimente === 0);
 const cuVechi: AppState = { ...S2, waste: [{ locatie: 'L01', perioada: '2026-08', ingredient: 'SOS-CHEDDAR', cant: 2, um: 'kg', motiv: 'expirat' }] };
 const Rv = rec(cuVechi);
 const pretAug = S2.ingrediente.find(i => i.cod === 'SOS-CHEDDAR')!.preturi;
 t('waste-ul vechi: nereconciliat, evaluat la prețul determinabil al lunii (2.9 a scris 45,07 valabil de la 1 august)',
   Rv.waste.vechi.randuri === 1 && aprox(Rv.waste.vechi.leiDeterminabil, 2 * 45.07) && pretAug.some(p => p.validDeLa === '2026-08-01' && p.pret === 45.07)
-  && aprox(pas(Rv, 'WASTE_NERECONCILIAT').leiInformativ!, 285.52 + 90.14) && aprox(pas(Rv, 'UNEXPLAINED').lei, R0.diferentaLei!, 1e-9));
+  && aprox(pas(Rv, 'WASTE_NERECONCILIAT').leiInformativ!, 305.52 + 90.14) && aprox(pas(Rv, 'UNEXPLAINED').lei, R0.diferentaLei!, 1e-9));
 const tarziu: AppState = { ...cuVechi, ingrediente: cuVechi.ingrediente.map(i => (i.cod === 'SOS-CHEDDAR' ? { ...i, preturi: [{ validDeLa: '2026-08-20', pret: 45.07 }] } : i)) };
 const Rt = rec(tarziu);
 t('preț care începe pe 20 august → rândul vechi rămâne fără preț determinabil, nu se evaluează', Rt.waste.vechi.randuriFaraPretDeterminabil === 1 && Rt.waste.vechi.leiDeterminabil === 0);
+
+console.log('\n— 5. Corecțiile punctuale: doar Food + Paper reduce Neexplicatul; ajustările neexplicate; nereconciliat = doar nedeterminat —');
+const dDet: DeclaratieIncludere = { locatie: 'L01', fereastra: F8, material: '9001', includere: 'INCLUS_IN_USAGE', cant: 2, temei: 'LEGATURA_STOC_VERIFICATA', sursa: 'test' };
+const Rd = rec({ ...S2, declaratiiIncludere: [dDet] });
+t('C1. Detergent (categorie EXCLUS) declarat INCLUS 2 EA: 20 lei incluși în afara FC, WASTE rămâne indisponibil, Neexplicatul FC nu se mișcă',
+  Rd.waste.inclusLei === 0 && aprox(Rd.waste.inclusInAfaraFCLei, 20) && !pas(Rd, 'WASTE').disponibil && aprox(pas(Rd, 'UNEXPLAINED').lei, R0.diferentaLei!, 1e-9) && pas(Rd, 'WASTE').explicatie.includes('afara Food Cost'));
+const Rdi = rec({ ...S2, declaratiiIncludere: [dDet, dInclus] });
+t('C1. cu Detergent INCLUS + Sausage INCLUS: pasul WASTE scade doar 56,88 (Food)', aprox(pas(Rdi, 'WASTE').lei, 56.88) && aprox(Rdi.waste.inclusInAfaraFCLei, 20) && aprox(pas(Rdi, 'UNEXPLAINED').lei, R0.diferentaLei! - 56.88));
+t('C1. MUTAȚIE „orice inclus scade": Σ pași disponibili = diferența, fără cei 20 lei', aprox(Rdi.pasi.filter(p => p.id !== 'OPERATIONAL' && p.disponibil).reduce((s, p) => s + p.lei, 0), Rdi.diferentaLei!, 1e-6));
+t('C2. fără declarații: 5 ajustări neexplicate (Cheddar, Sausage, Tiramisu, Furculita, Detergent), 305,61 lei la CPU',
+  R0.waste.ajustariNeexplicate.coduri === 5 && aprox(R0.waste.ajustariNeexplicate.leiEstimat, 171.27 + 57.04 + 55.68 + 1.62 + 20));
+t('C2. potrivirea EXACTĂ pe Sausage nu explică ajustarea: rămâne neexplicată fără declarație EXCLUS', linie(R0, '702458').potrivire === 'EXACTA' && R0.waste.ajustariNeexplicate.coduri === 5);
+const dExSaus: DeclaratieIncludere = { ...dInclus, includere: 'EXCLUS_PRIN_AJUSTARE', temei: 'REGULA_NBO_CONFIRMATA' };
+const Rx = rec({ ...S2, declaratiiIncludere: [dExSaus] });
+t('C2. EXCLUS 23 pe Sausage acoperă Adj-ul: 4 neexplicate, estimarea scade cu 57,04', Rx.waste.ajustariNeexplicate.coduri === 4 && aprox(Rx.waste.ajustariNeexplicate.leiEstimat, 171.27 + 55.68 + 1.62 + 20));
+const dExT: DeclaratieIncludere = { locatie: 'L01', fereastra: F8, material: '7000131', includere: 'EXCLUS_PRIN_AJUSTARE', cant: 6, temei: 'REGULA_NBO_CONFIRMATA', sursa: 'test' };
+const dExD: DeclaratieIncludere = { ...dDet, includere: 'EXCLUS_PRIN_AJUSTARE', temei: 'REGULA_NBO_CONFIRMATA' };
+const Rtoate = rec({ ...S2a, declaratiiIncludere: [dExclus, dExSaus, dExT, dExD] });
+t('C2. cu toate ajustările cu eveniment acoperite, Furculita (Adj fără eveniment) ține atribuirea incompletă',
+  Rtoate.waste.ajustariNeexplicate.coduri === 1 && aprox(Rtoate.waste.ajustariNeexplicate.leiEstimat, 1.62) && !Rtoate.waste.atribuireCompleta);
+const doarSaus: AppState = { ...S2, materiale29: S2.materiale29.filter(m => m.material === '702458'), evenimente28: (S2.evenimente28 ?? []).filter(e => e.cod === '702458'), declaratiiIncludere: [dExSaus] };
+t('C2. o selecție în care fiecare Adj e acoperit de EXCLUS și nimic nu e nedeterminat → atribuire completă', rec(doarSaus).waste.atribuireCompleta && rec(doarSaus).waste.ajustariNeexplicate.coduri === 0);
+const doarSausInclus = rec({ ...doarSaus, declaratiiIncludere: [dInclus] });
+t('C2. aceeași selecție cu INCLUS 23 în loc de EXCLUS: nimic nedeterminat, dar Adj neexplicat → incompletă', !doarSausInclus.waste.atribuireCompleta && doarSausInclus.waste.ajustariNeexplicate.coduri === 1 && doarSausInclus.waste.liniiNedeterminate === 0);
+t('C3. fără declarații: 5 linii nereconciliate (nu 10 evenimente); Furculita, fără eveniment, nu e numărată', pas(R0, 'WASTE_NERECONCILIAT').nrRanduri === 5 && R0.waste.liniiNedeterminate === 5);
+t('C3. Sausage INCLUS 23: linia iese din nereconciliat (4), suma informativă scade cu 56,88', pas(Ri, 'WASTE_NERECONCILIAT').nrRanduri === 4 && aprox(pas(Ri, 'WASTE_NERECONCILIAT').leiInformativ!, 305.52 - 56.88));
+t('C3. Cheddar EXCLUS 3,8: linia rămâne nereconciliată pentru 0,90 lei; exclusul e descris la pasul WASTE, nu la cel nereconciliat',
+  pas(Re, 'WASTE_NERECONCILIAT').nrRanduri === 5 && aprox(pas(Re, 'WASTE_NERECONCILIAT').leiInformativ!, 305.52 - 171.27)
+  && !pas(Re, 'WASTE_NERECONCILIAT').explicatie.includes('exclu') && pas(Re, 'WASTE').explicatie.includes('171.27'));
+t('C3. pasul WASTE numără liniile incluse, nu evenimentele', pas(Ri, 'WASTE').nrRanduri === 1 && pas(R0, 'WASTE').nrRanduri === 0);
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 process.exit(fail ? 1 : 0);

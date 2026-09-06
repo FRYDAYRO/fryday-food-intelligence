@@ -39,10 +39,10 @@ export function AtribuireWaste({ rec }: { rec: ReconciliationFC }) {
   return (
     <div className="space-y-3" data-zona="atribuire-waste">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {card('Inclus în Usage Actual', fmtLei(w.inclusLei, 2), pasW?.disponibil ? 'scade Neexplicatul (pas EXPLICAT)' : 'nimic demonstrat: Neexplicatul nu se mișcă')}
+        {card('Inclus în Usage Actual (Food + Paper)', fmtLei(w.inclusLei, 2), (pasW?.disponibil ? 'scade Neexplicatul (pas EXPLICAT)' : 'nimic demonstrat: Neexplicatul nu se mișcă') + (w.inclusInAfaraFCLei ? ` · ${fmtLei(w.inclusInAfaraFCLei, 2)} incluși pe materiale din afara FC` : ''))}
         {card('Exclus prin ajustare', fmtLei(w.exclusLei, 2), 'nu e în Usage Actual; nu se scade')}
         {card('Nedeterminat', fmtLei(w.nedeterminatLei, 2), `${pasN?.nrRanduri ?? 0} rânduri nereconciliate${w.vechi.randuri ? `, din care ${w.vechi.randuri} vechi (${fmtLei(w.vechi.leiDeterminabil, 2)} la preț determinabil)` : ''}`)}
-        {card('Adj 2.9 fără eveniment 2.8', fmtLei(w.ajustariFaraEveniment.leiEstimat, 2), `${w.ajustariFaraEveniment.coduri} coduri · estimare la Cost per Unit, nu waste`)}
+        {card('Adj 2.9 neexplicate', fmtLei(w.ajustariNeexplicate.leiEstimat, 2), `${w.ajustariNeexplicate.coduri} coduri fără declarație „exclus" care să le acopere (din care ${w.ajustariFaraEveniment.coduri} fără eveniment 2.8) · estimare la Cost per Unit, nu waste`)}
       </div>
       <div className="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
         {w.disponibil

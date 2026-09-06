@@ -280,9 +280,18 @@ export interface AtribuireWasteFC {
   inAfaraSelectiei: { evenimente: number; lei: number };
   /** Waste importat pe vechiul drum (fără statut): nereconciliat prin definiție. */
   vechi: { randuri: number; leiDeterminabil: number; randuriFaraPretDeterminabil: number };
+  /** Waste declarat inclus în Usage pe materiale din AFARA Food Cost (clasa EXCLUS): nu reduce Neexplicatul FC. */
+  inclusInAfaraFCLei: number;
+  /** Linii de potrivire cu o parte încă nedeterminată (cantitate sau lei > 0). */
+  liniiNedeterminate: number;
   /** Ajustări 2.9 fără niciun eveniment 2.8: nu sunt waste; apar în panoul ajustărilor. */
   ajustariFaraEveniment: { coduri: number; leiEstimat: number };
-  /** Nimic nedeterminat, nimic în afara selecției, niciun waste vechi, fiecare Adj cu explicație. */
+  /**
+   * Ajustări 2.9 neexplicate: Inv Adj neacoperit de o declarație „exclus prin ajustare" (inclusiv
+   * cele fără eveniment și cele cu semn negativ). Estimarea e pe partea neacoperită, la Cost per Unit.
+   */
+  ajustariNeexplicate: { coduri: number; leiEstimat: number };
+  /** Nimic nedeterminat, nimic în afara selecției, niciun waste vechi, nicio ajustare neexplicată. */
   atribuireCompleta: boolean;
 }
 
@@ -313,7 +322,8 @@ const seSuprapun = (a: { de: string; la: string }, b: { de: string; la: string }
 const wasteGol = (motiv: string): AtribuireWasteFC => ({
   disponibil: false, motiv, potrivire: null, inclusLei: 0, exclusLei: 0, nedeterminatLei: 0, evenimente: 0,
   inAfaraSelectiei: { evenimente: 0, lei: 0 }, vechi: { randuri: 0, leiDeterminabil: 0, randuriFaraPretDeterminabil: 0 },
-  ajustariFaraEveniment: { coduri: 0, leiEstimat: 0 }, atribuireCompleta: false,
+  inclusInAfaraFCLei: 0, liniiNedeterminate: 0,
+  ajustariFaraEveniment: { coduri: 0, leiEstimat: 0 }, ajustariNeexplicate: { coduri: 0, leiEstimat: 0 }, atribuireCompleta: false,
 });
 
 /** Atribuirea waste-ului pe cererea dată — pură, recalculată din selecția 2.9, aliasuri și declarații. */
@@ -370,17 +380,43 @@ export function atribuireWasteFC(state: AppState, cerere: CerereFC): AtribuireWa
   const pot = potriveste28cu29(materialeSel, potrivibile, aliasuri, state.declaratiiIncludere ?? []);
   const leiInAfara = rot2(inAfara.reduce((s, e) => s + e.lei, 0));
   const doarAdj = pot.linii.filter(l => l.potrivire === 'FARA_EVENIMENT_28');
-  const atribuireCompleta = pot.lei28Parti.NEDETERMINAT === 0 && inAfara.length === 0 && vechi.randuri === 0
-    && pot.coduri.faraColoanaAdj === 0 && pot.coduri.doarAdj === 0 && pot.coduri.doarEvenimente === 0
-    && pot.linii.every(l => l.parti.NEDETERMINAT.cant === 0);
+
+  // numai waste-ul materialelor din Food Cost (Food + Paper, aceeași clasificare ca nboFC) poate
+  // reduce Neexplicatul FC: consumul unui material EXCLUS nu e în consumFC, deci nici waste-ul lui
+  const clasaMaterial = new Map(materialeSel.map(m => [m.material, clasifica(m.categorie, state.reguli).clasa]));
+  const inFC = (l: { material: string }) => { const c = clasaMaterial.get(l.material); return c === 'FOOD' || c === 'PAPER'; };
+  const inclusLei = rot2(pot.linii.filter(inFC).reduce((s, l) => s + l.parti.INCLUS_IN_USAGE.lei, 0));
+  const inclusInAfaraFCLei = rot2(pot.lei28Parti.INCLUS_IN_USAGE - inclusLei);
+
+  // o ajustare e explicată doar când Inv Adj e acoperit de o declarație „exclus prin ajustare";
+  // evenimentele singure (chiar cu potrivire exactă) nu explică nimic
+  const toleranta = pot.precizie / 2 + 1e-9;
+  const neexplicate = new Map<string, number>();   // material → lei estimat pe partea neacoperită
+  for (const l of pot.linii) {
+    if (l.adj === null || l.adj === 0) continue;
+    const km = `${l.locatie ?? ''}|${l.fereastra.de}|${l.fereastra.la}|${l.material}`;
+    const neacoperit = l.adj < 0 ? Math.abs(l.adj) : Math.max(0, l.adj - l.parti.EXCLUS_PRIN_AJUSTARE.cant);
+    if (l.adj < 0 || neacoperit > toleranta) {
+      const lei = l.costPeUnitate !== null && l.costPeUnitate > 0 ? neacoperit * l.costPeUnitate : 0;
+      // o singură dată pe material (liniile pe UM diferite au același Adj): se ține cea cu acoperire mai mare
+      neexplicate.set(km, Math.min(neexplicate.get(km) ?? Number.POSITIVE_INFINITY, lei));
+    }
+  }
+  const ajustariNeexplicate = { coduri: neexplicate.size, leiEstimat: rot2([...neexplicate.values()].reduce((s, x) => s + x, 0)) };
+
+  const liniiNedeterminate = pot.linii.filter(l => l.parti.NEDETERMINAT.cant > 0 || l.parti.NEDETERMINAT.lei > 0).length;
+  const atribuireCompleta = liniiNedeterminate === 0 && inAfara.length === 0 && vechi.randuri === 0
+    && pot.coduri.faraColoanaAdj === 0 && pot.coduri.doarEvenimente === 0 && ajustariNeexplicate.coduri === 0;
   return {
     disponibil: true, motiv: null, potrivire: pot,
-    inclusLei: pot.lei28Parti.INCLUS_IN_USAGE, exclusLei: pot.lei28Parti.EXCLUS_PRIN_AJUSTARE,
+    inclusLei, exclusLei: pot.lei28Parti.EXCLUS_PRIN_AJUSTARE,
     nedeterminatLei: rot2(pot.lei28Parti.NEDETERMINAT + leiInAfara),
     evenimente: potrivibile.length,
     inAfaraSelectiei: { evenimente: inAfara.length, lei: leiInAfara },
     vechi,
+    inclusInAfaraFCLei, liniiNedeterminate,
     ajustariFaraEveniment: { coduri: doarAdj.length, leiEstimat: pot.leiEstimat29FaraEvenimente },
+    ajustariNeexplicate,
     atribuireCompleta,
   };
 }
@@ -412,7 +448,10 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
   const nr28 = waste.evenimente + waste.inAfaraSelectiei.evenimente;
   if (nr28) surse.push({ raport: 'NBO_28', randuri: nr28, interval, nota: 'evaluarea proprie a raportului 2.8; statutul față de Usage vine din declarații' });
   const nereconciliatLei = Math.round((waste.nedeterminatLei + waste.vechi.leiDeterminabil) * 100) / 100;
-  const nereconciliatRanduri = waste.evenimente + waste.inAfaraSelectiei.evenimente + waste.vechi.randuri;
+  // nereconciliat = doar ce e efectiv nedeterminat: liniile cu parte nedeterminată, evenimentele din
+  // afara selecției 2.9 și rândurile vechi — nu toate evenimentele, și nu partea exclusă sau inclusă
+  const nereconciliatRanduri = waste.liniiNedeterminate + waste.inAfaraSelectiei.evenimente + waste.vechi.randuri;
+  const liniiIncluse = waste.potrivire?.linii.filter(l => l.parti.INCLUS_IN_USAGE.lei > 0).length ?? 0;
 
   const pasi: PasBridge[] = [
     {
@@ -433,24 +472,25 @@ export function reconciliationFC(state: AppState, ctx: CtxFC, cerere: CerereFC):
     {
       id: 'WASTE', componenta: null, eticheta: 'Waste demonstrat inclus în Usage Actual',
       lei: waste.inclusLei, pp: pp(waste.inclusLei), disponibil: waste.inclusLei > 0, statut: 'EXPLICAT',
-      nrRanduri: waste.evenimente,
-      explicatie: waste.inclusLei > 0
-        ? `${waste.inclusLei.toFixed(2)} lei de waste 2.8 declarat inclus în Usage Actual (același restaurant, aceeași fereastră, `
-          + 'același material și UM), la evaluarea raportului 2.8. Doar această parte reduce Neexplicatul.'
+      nrRanduri: liniiIncluse,
+      explicatie: (waste.inclusLei > 0
+        ? `${waste.inclusLei.toFixed(2)} lei de waste 2.8 declarat inclus în Usage Actual pe materiale Food + Paper (același restaurant, `
+          + 'aceeași fereastră, același material și UM), la evaluarea raportului 2.8. Doar această parte reduce Neexplicatul.'
         : waste.disponibil
-          ? 'Nicio cantitate de waste nu e demonstrată ca inclusă în Usage Actual: potrivirea cu Inv Adj este o observație, nu o dovadă, '
-            + 'iar fără declarație cu temei nimic nu se scade din Neexplicat. Waste-ul exclus prin ajustare nu e în Usage și nu se scade.'
-          : `Waste-ul nu se poate confrunta cu Inv Adj: ${waste.motiv ?? 'raportul 2.9 pe material lipsește'}.`,
+          ? 'Nicio cantitate de waste Food + Paper nu e demonstrată ca inclusă în Usage Actual: potrivirea cu Inv Adj este o observație, nu o dovadă, '
+            + 'iar fără declarație cu temei nimic nu se scade din Neexplicat.'
+          : `Waste-ul nu se poate confrunta cu Inv Adj: ${waste.motiv ?? 'raportul 2.9 pe material lipsește'}.`)
+        + (waste.inclusInAfaraFCLei ? ` ${waste.inclusInAfaraFCLei.toFixed(2)} lei declarați incluși privesc materiale din afara Food Cost și nu intră aici.` : '')
+        + (waste.exclusLei ? ` Separat, ${waste.exclusLei.toFixed(2)} lei sunt excluși prin ajustare: nu sunt în Usage și nu se scad.` : ''),
     },
     {
       id: 'WASTE_NERECONCILIAT', componenta: null, eticheta: 'Waste nereconciliat (nu mișcă Neexplicatul)',
       lei: 0, pp: null, disponibil: false, statut: 'NERECONCILIAT',
       leiInformativ: nereconciliatLei, nrRanduri: nereconciliatRanduri,
       explicatie: nereconciliatRanduri
-        ? `${nereconciliatRanduri} rânduri de waste fără statut demonstrat față de Usage Actual: `
-          + `${waste.nedeterminatLei.toFixed(2)} lei din 2.8 (nedeterminat${waste.inAfaraSelectiei.evenimente ? `, din care ${waste.inAfaraSelectiei.lei.toFixed(2)} lei pe altă fereastră decât 2.9 selectat` : ''})`
+        ? `${nereconciliatRanduri} rânduri cu parte nedeterminată față de Usage Actual: `
+          + `${waste.nedeterminatLei.toFixed(2)} lei din 2.8${waste.inAfaraSelectiei.evenimente ? ` (din care ${waste.inAfaraSelectiei.lei.toFixed(2)} lei pe altă fereastră decât 2.9 selectat)` : ''}`
           + (waste.vechi.randuri ? `, ${waste.vechi.randuri} rânduri vechi de waste (${waste.vechi.leiDeterminabil.toFixed(2)} lei la preț determinabil${waste.vechi.randuriFaraPretDeterminabil ? `, ${waste.vechi.randuriFaraPretDeterminabil} fără preț determinabil pe lună` : ''})` : '')
-          + (waste.exclusLei ? `; separat, ${waste.exclusLei.toFixed(2)} lei sunt excluși prin ajustare (nu sunt în Usage)` : '')
           + '. Rămân în Neexplicat până la o declarație cu temei.'
         : 'Nu există waste nereconciliat pe această cerere.',
     },
