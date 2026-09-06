@@ -2,7 +2,7 @@
 // Rezolvă cele trei cauze frecvente de eșec: fișierul are mai multe foi, antetul nu e pe primul rând,
 // iar numele coloanelor nu seamănă cu nimic cunoscut. Când numele nu ajută, se uită la conținut.
 import * as XLSX from 'xlsx';
-import { mapeazaAntete, type Parsat, type TipImport } from './importer';
+import { mapeazaAntete, type Parsat, type TipImport, antetPermis } from './importer';
 import { matriceDinText, parseSalesMix } from './salesmix';
 import { textDinPdf } from './pdf';
 import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from './nbo-29';
@@ -209,7 +209,8 @@ function completeazaDinContinut(tip: TipImport, parsat: Parsat, map: Record<stri
     const test = reguli[camp];
     if (!test) continue;
     const candidati = parsat.antete
-      .filter(a => !folosite.has(a))
+      // aceeași gardă ca la potrivirea pe nume: un antet de bani nu devine coloană de identitate
+      .filter(a => !folosite.has(a) && antetPermis(camp, a))
       .map(a => ({ a, s: test(cols[a]) + (norm(a).includes(norm(camp)) ? 0.25 : 0) }))
       .filter(x => x.s >= PRAG_CONTINUT)
       .sort((a, b) => b.s - a.s);

@@ -222,6 +222,22 @@ function potrivesteAntet(antet: string, sinonim: string): number {
   return 0;
 }
 
+/**
+ * Un antet de bani sau de agregat („Cost material", „Vânzări nete", „% din total", „TOTAL InStore") nu
+ * poate fi coloana de identitate (cod / material / ingredient), oricât s-ar potrivi un sinonim generic
+ * („material"): altfel o foaie de dashboard cu produse ar trece drept listă de prețuri, cu coduri false.
+ */
+const CAMPURI_IDENTITATE = new Set(['cod', 'material', 'ingredient']);
+const ANTET_DE_BANI = /\b(cost|costuri|pret|preturi|price|valoare|total|net|brut|suma|profit)\b|%/;
+/** „FOOD COST" (procentul) nu e un preț, oricât ar conține cuvântul „cost". */
+const ANTET_DE_PROCENT = /food cost|\bfc\b|%|procent|pct/;
+export const antetPermis = (camp: string, antet: string): boolean => {
+  const n = norm(antet);
+  if (CAMPURI_IDENTITATE.has(camp) && ANTET_DE_BANI.test(n) && !/^cod\b/.test(n)) return false;
+  if ((camp === 'pret' || camp === 'costActual' || camp === 'costPeUnitate') && ANTET_DE_PROCENT.test(n)) return false;
+  return true;
+};
+
 export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, string> {
   const map: Record<string, string> = {};
   const folosite = new Set<string>();
@@ -229,6 +245,7 @@ export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, 
   const candidati: { camp: string; antet: string; scor: number }[] = [];
   for (const [camp, sinonime] of Object.entries(CAMPURI[tip])) {
     for (const a of antete) {
+      if (!antetPermis(camp, a)) continue;
       const scor = Math.max(...sinonime.map(s => potrivesteAntet(a, s)));
       if (scor > 0) candidati.push({ camp, antet: a, scor });
     }
@@ -923,7 +940,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         // restaurantul declarat explicit de om la import — decizia lui bate deducția
         locatie = opt.locatieRaport;
       } else if (a47.atribuibilPeRestaurant && a47.restaurantUnic) {
-        locatie = a47.restaurantUnic;
+        // restaurantul din antet se leagă de CODUL lui din Store Master (după cod sau după nume),
+        // ca vânzările 4.7 și consumul 2.9 ale aceluiași restaurant să stea pe aceeași locație;
+        // fără intrare în nomenclator, numele devine cod (comportamentul de până acum)
+        const nume = a47.restaurantUnic;
+        locatie = state.locatii.find(l => l.cod === nume || norm(l.nume) === norm(nume))?.cod ?? nume;
       } else {
         locatie = LOCATIE_RETEA;
         if (a47.motiv) avert.push(a47.motiv);
@@ -1397,13 +1418,13 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           peData.get(k)!.push(c);
         }
         let ingrediente = stateNou.ingrediente;
-        let scrise = 0, sarite = 0;
+        let scrise = 0, sarite = 0, reamprentate = 0;
         const altRestaurant: string[] = [];
         for (const [validDeLa, lista] of [...peData.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
           const r = aplicaPreturi29({ ...stateNou, ingrediente }, null, lista, validDeLa,
             { fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}) });
           ingrediente = r.stareNoua.ingrediente;
-          scrise += r.scrise; sarite += r.sarite;
+          scrise += r.scrise; sarite += r.sarite; reamprentate += r.reamprentate;
           altRestaurant.push(...r.inlocuiteAltRestaurant);
         }
         stateNou = { ...stateNou, ingrediente };
@@ -1411,7 +1432,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const date = [...peData.keys()].sort();
         avert.push(`Prețuri din 2.9 (Cost per Unit): ${scrise} intrări datate noi în nomenclator`
           + (date.length ? ` (valabile de la ${date.join(', ')})` : '')
-          + `, ${sarite} identice cu prețul în vigoare (fără intrare nouă); rețetele nu primesc versiune, costul lor se recalculează la dată`);
+          + `, ${sarite} identice cu prețul în vigoare (fără intrare nouă${reamprentate ? `; ${reamprentate} cu proveniența mutată pe această versiune` : ''}); rețetele nu primesc versiune, costul lor se recalculează la dată`);
         const neeligibile = preturi.diagnostice.filter(d => d.fel === 'ZERO_SAU_NEGATIV' || d.fel === 'UM_NECUNOSCUTA' || d.fel === 'UM_INCOMPATIBILA');
         if (neeligibile.length) {
           avert.push(`${neeligibile.length} materiale mapate FĂRĂ preț valid — nomenclatorul nu se atinge pentru ele `

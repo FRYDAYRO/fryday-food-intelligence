@@ -282,8 +282,8 @@ export function impactPreturi29(
 export function aplicaPreturi29(
   state: AppState, ctx: Ctx | null, costuri: CostMaterial29[], validDeLa: string,
   sursa?: { fisier: string; amprenta?: string },
-): { stareNoua: AppState; scrise: number; sarite: number; inlocuiteAltRestaurant: string[] } {
-  let scrise = 0, sarite = 0;
+): { stareNoua: AppState; scrise: number; sarite: number; reamprentate: number; inlocuiteAltRestaurant: string[] } {
+  let scrise = 0, sarite = 0, reamprentate = 0;
   const inlocuiteAltRestaurant: string[] = [];
   const ingrediente = state.ingrediente.map(ing => {
     const c = costuri.find(x => x.cod === ing.cod);
@@ -297,7 +297,18 @@ export function aplicaPreturi29(
     const inVigoare = [...sorteazaPreturi(ing.preturi)].reverse().find(p => p.validDeLa <= validDeLa) ?? null;
     const identic = inVigoare !== null && inVigoare.pret === c.costPeUnitate
       && (inVigoare.sursa?.tip !== 'NBO_29' || proprie(inVigoare));
-    if (identic) { sarite++; return ing; }
+    if (identic) {
+      sarite++;
+      // prețul identic al PROPRIEI ferestre rămâne, dar proveniența lui trece pe versiunea care îl
+      // confirmă acum (reimportul actualizat al aceluiași raport): nicio intrare nu rămâne legată
+      // de o versiune dezactivată
+      if (inVigoare!.sursa?.tip === 'NBO_29' && sursa?.amprenta && inVigoare!.sursa.amprenta !== sursa.amprenta) {
+        reamprentate++;
+        const reamprentat = { ...inVigoare!, sursa: { ...inVigoare!.sursa, fisier: sursa.fisier, amprenta: sursa.amprenta } };
+        return { ...ing, preturi: ing.preturi.map(p => (p === inVigoare ? reamprentat : p)) };
+      }
+      return ing;
+    }
     scrise++;
     // nomenclatorul are un singur preț pe ingredient: un 2.9 al altui restaurant, pe aceeași
     // dată, e înlocuit — și spus, nu ascuns
@@ -321,5 +332,5 @@ export function aplicaPreturi29(
     };
   });
   void ctx;
-  return { stareNoua: { ...state, ingrediente }, scrise, sarite, inlocuiteAltRestaurant };
+  return { stareNoua: { ...state, ingrediente }, scrise, sarite, reamprentate, inlocuiteAltRestaurant };
 }
