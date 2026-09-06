@@ -29,9 +29,10 @@ apoi toată rețeaua. Fiecare punct se bifează cu dovadă (raport rulat, test, 
 - [ ] Raportul 4.7 pe mai multe restaurante („Multiple Selection") se închide pe totalul general (verificat pe 30 de magazine).
 - [ ] Raportul 2.9 consolidat („Corporate") intră doar la nivel de companie; cifrele pe restaurant vin din rapoartele proprii.
 - [ ] Store Master complet: toate restaurantele din lista 4.7 „Groups/Stores" au identificator verificat.
-- [ ] Decizie: 4.1 Sales Journal în PDF este un rezumat săptămânal (Net Sales pe Dine In / Take Out / Delivery /
-      Drive Thru), nu un jurnal pe zile. Importul lui cere o regulă de canal (Take Out și Drive Thru → InStore?)
-      și acceptarea granularității săptămânale ca numitor. Până la decizie, numitorul vine din 4.7.
+- [x] Decizie luată (06.09.2026): 4.1 Sales Journal în PDF este un rezumat pe fereastră; Take Out și Drive Thru
+      intră la InStore, Delivery rămâne Delivery. Rândul se datează pe prima zi a ferestrei, versiunea poartă
+      fereastra întreagă (granularitate INTERVAL), raportul „All Stores" intră doar la nivel de companie și,
+      când există, e numitorul autoritar al companiei (rândurile pe restaurant nu se adună peste el).
 - [ ] Decizii rămase, în afara PR-urilor curente: transferurile 2.9, convenția pentru Inv Adj negativ, XLSX pentru 2.8.
 
 ## Ce NU se face înainte de lansare
@@ -49,5 +50,5 @@ apoi toată rețeaua. Fiecare punct se bifează cu dovadă (raport rulat, test, 
 | 2.8 Cluj, august (RO) | PDF real | 157/157 evenimente, 4/4 grupuri |
 | 4.7 Timișoara, săptămâna 34 | PDF real | 284 linii, total exact |
 | 4.7 „Multiple Selection", 30 restaurante | PDF real | 377 linii, total exact după corecția rupturilor |
-| 4.1 Sales Journal (All Stores, Timișoara) | PDF real | rezumat săptămânal; fără adaptor (decizie de canal) |
+| 4.1 Sales Journal (All Stores, Timișoara) | PDF real | rezumat pe fereastră; Σ canale = Net Sales la ban; import prin Import Center |
 | Fișier Excel de dashboard | XLSX real | nu e sursă de import: foile NOMENCLATOR și RETETAR se importă separat |

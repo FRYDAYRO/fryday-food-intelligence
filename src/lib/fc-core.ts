@@ -18,7 +18,7 @@ import { COMBINATIE_FC, intervaleSursePentru, verdictCombinare, type VerdictSurs
 import { selecteaza29 } from './surse-29';
 import type { AppState, Canal } from './types';
 import {
-  canalePentru, componentaDin29, contineData, descrieCerere, locatieDin, luniAtinse,
+  canalePentru, componentaDin29, contineData, descrieCerere, eLocatieReala, locatieDin, luniAtinse,
   type CerereFC, type CtxFC, type FCComponent, type SursaFC,
 } from './fc-domeniu';
 
@@ -42,12 +42,18 @@ export interface NumitorFC {
 export function numitorFC(state: AppState, cerere: CerereFC, netPmix: number): NumitorFC {
   const loc = locatieDin(cerere.nivel);
   const canale = canalePentru(cerere.canal);
-  const linii = state.salesReport.filter(r =>
+  const inPerioada = state.salesReport.filter(r =>
     contineData(cerere.perioada, r.data) && (!loc || r.locatie === loc) && canale.includes(r.canal));
+  // la nivel de companie, rândurile rețelei (4.1 „All Stores") sunt totalul autoritar: cu ele
+  // prezente, rândurile pe restaurant ale aceleiași perioade nu se mai adună o dată în plus
+  const aleRetelei = !loc ? inPerioada.filter(r => !eLocatieReala(r.locatie)) : [];
+  const linii = aleRetelei.length ? aleRetelei : inPerioada;
   const net = linii.reduce((s, r) => s + r.net, 0);
   if (!(linii.length && net > 0)) {
     return { net: netPmix, sursa: 'PMIX', nota: 'Fără Sales Report pe această perioadă — numitorul este PMIX-ul, care poate diferi de vânzările fiscale' };
   }
+  const notaRetea = aleRetelei.length && aleRetelei.length < inPerioada.length
+    ? '; numitorul de companie e totalul de rețea din 4.1 (All Stores), rândurile pe restaurant ale aceleiași perioade nu se adună peste el' : '';
   // 4.1 și 4.7 pot cădea în aceeași lună acoperind ferestre diferite. Costul vine din 4.7;
   // împărțit la vânzările altei ferestre ar da un procent plauzibil și fals. Când
   // incompatibilitatea e DEMONSTRATĂ, numitorul rămâne cel din aceeași sursă cu costul.
@@ -78,7 +84,7 @@ export function numitorFC(state: AppState, cerere: CerereFC, netPmix: number): N
       motivIncompatibil: `Sales Report incomplet pe perioadă: lipsesc ${zileFara.slice(0, 5).join(', ')}${zileFara.length > 5 ? '…' : ''}.`,
     };
   }
-  return { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO` };
+  return { net, sursa: 'Sales Report', nota: `${linii.length} rânduri de Sales Report NBO${notaRetea}` };
 }
 
 // ————————————————————————————————————————————————————————— 1. Recipe FC

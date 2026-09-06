@@ -8,6 +8,7 @@ import { citesteFisier, type Parsat } from '../../lib/importer';
 import { textDinPdf } from '../../lib/pdf';
 import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from '../../lib/nbo-29';
 import { descrie28, esteRaport28, parsatDin28, parseRaport28 } from '../../lib/nbo-28';
+import { descrie41, esteRaport41, parsatDin41, parseRaport41 } from '../../lib/nbo-41';
 import {
   activeazaImport, pregatesteImport, ETICHETA_SURSA,
   type CerereImport, type PregatireImport, type TipSursaFC,
@@ -81,7 +82,21 @@ export default function ImportCenter() {
         }));
         return;
       }
-      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary") și nici 2.8 („Spoilage and Loss"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
+      if (esteRaport41(text)) {
+        // raportul 4.1 „Sales Journal": rezumat pe fereastră; InStore = Dine In + Take Out + Drive Thru
+        const raport = parseRaport41(text);
+        if (raport.netSales === null) { setMesaj(`Raportul 4.1 nu conține „Net Sales". ${raport.avertismente.join(' ')}`); return; }
+        const p = parsatDin41(raport);
+        setParsat(p); setFisier(f.name); setTip('NBO_41');
+        if (raport.de && raport.la) { setFereastraDe(raport.de); setFereastraLa(raport.la); }
+        setMesaj(descrie41(raport));
+        setPregatire(pregatesteImport(state, {
+          ...cerere(p, f.name), tip: 'NBO_41',
+          ...(raport.de && raport.la ? { interval: { de: raport.de, la: raport.la } } : {}),
+        }));
+        return;
+      }
+      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary"), 2.8 („Spoilage and Loss") sau 4.1 („Sales Journal"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
       const raport = parseRaport29(text);
       if (!raport.randuri.length) { setMesaj(`Raportul 2.9 nu conține rânduri de material lizibile. ${raport.avertismente.join(' ')}`); return; }
       const p = parsatDin29(raport);

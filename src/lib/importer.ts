@@ -1154,7 +1154,9 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
     else {
       const noi = p.randuri.flatMap((r, i) => {
         const data = parseData(g(r, 'data'));
-        const locatie = rezolvaLocatie(g(r, 'locatie'));
+        // raportul de rețea (4.1 „All Stores") intră pe locația rezervată, nu pe un restaurant creat din nume
+        const locBrut = String(g(r, 'locatie') ?? '').trim();
+        const locatie = locBrut === LOCATIE_RETEA ? LOCATIE_RETEA : rezolvaLocatie(locBrut);
         const canal = detecteazaCanal(g(r, 'canal'), numeFisier);
         const net = parseNumar(g(r, 'net')) ?? (parseNumar(g(r, 'brut')) ?? 0) / 1.1;
         if (!data || !locatie || !canal || !net) { avert.push(`Rând ${i + 2}: date incomplete — ignorat`); return []; }

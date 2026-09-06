@@ -8,6 +8,7 @@
 // Reguli care nu se încalcă:
 //  · VALIDARE ÎNAINTE DE ACTIVARE: `pregatesteImport` lucrează pe o COPIE a stării și nu
 //    scrie nimic; un import invalid nu poate corupe parțial datele existente, pentru că
+import { LOCATIE_RETEA } from './fc-domeniu';
 //    starea reală se atinge doar în `activeazaImport`, și doar când validarea a trecut;
 //  · nimic nu se ghicește: detecția combină numele fișierului cu antetele, iar când cele
 //    două nu se susțin reciproc rezultatul e NECESITA_CONFIRMARE, cu candidații listați;
@@ -598,7 +599,11 @@ function cuRestaurantDeclarat(p: Parsat, intern: TipImport, locatie: string): Pa
   };
 }
 
-interface Scop { scop: ScopSursa; restaurante: string[]; mixt: boolean; cuLocatie: number; faraLocatie: number; }
+interface Scop {
+  scop: ScopSursa; restaurante: string[]; mixt: boolean; cuLocatie: number; faraLocatie: number;
+  /** Toate rândurile poartă explicit locația rezervată a rețelei (4.1 „All Stores"): companie, nu „fără restaurant". */
+  retea?: boolean;
+}
 
 function determinaScop(
   tip: TipSursaFC, intern: TipImport, p: Parsat, map: Record<string, string>, declarat?: string,
@@ -619,6 +624,11 @@ function determinaScop(
   const rezolva = (v: string) => locatii.find(l => l.cod === v || norm(l.nume) === norm(v))?.cod ?? v;
   const valori = p.randuri.filter(r => !randGol(r)).map(r => rezolva(String(r[antet] ?? '').trim()));
   const cu = valori.filter(v => v.length > 0);
+  // locația rezervată a rețelei (4.1 „All Stores") nu e un restaurant: importul e la nivel de companie,
+  // dar rândurile NU sunt „fără restaurant" — ele își declară explicit rețeaua, deci nu cad pe primul restaurant
+  if (cu.length && cu.every(v => v === LOCATIE_RETEA)) {
+    return { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: valori.length - cu.length, retea: true };
+  }
   const fara = valori.length - cu.length;
   const restaurante = [...new Set(cu)].sort();
   if (cu.length && fara) return { scop: 'RESTAURANT', restaurante, mixt: true, cuLocatie: cu.length, faraLocatie: fara };
@@ -708,7 +718,14 @@ const eSursa29 = (intern: TipImport) => intern === 'FC29' || intern === 'FC29_MA
  * și 1–9 august, iar regula documentată e că nedeclaratul rămâne nedeclarat
  * (INSUFFICIENT_DATA, fără blocare). Rândurile lui se citesc ca raportul lunar al lunii lor.
  */
-function cuFereastra29(per: Perioade, intern: TipImport, declarat?: { de: string; la: string }): Perioade {
+function cuFereastra29(per: Perioade, intern: TipImport, declarat?: { de: string; la: string }, p?: Parsat): Perioade {
+  // 4.1 din PDF e un REZUMAT pe fereastră: un singur rând datat pe prima zi. Fereastra declarată de
+  // raport e cea a versiunii, iar granularitatea e INTERVAL (agregat), nu ZI — altfel regula golurilor
+  // ar cere câte un rând pe zi și numitorul ar cădea pe PMIX
+  if (intern === 'SALES' && p?.fereastra && parseData(p.fereastra.de) && parseData(p.fereastra.la) && p.fereastra.de <= p.fereastra.la) {
+    const agregat = p.fereastra.de !== p.fereastra.la;
+    return { ...per, intervalDe: p.fereastra.de, intervalLa: p.fereastra.la, granularitate: agregat ? 'INTERVAL' : per.granularitate };
+  }
   if (!eSursa29(intern)) return per;
   if (per.intervalDe && per.intervalLa) return per;
   if (declarat && parseData(declarat.de) && parseData(declarat.la) && declarat.de <= declarat.la) {
@@ -845,7 +862,11 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
       + 'ori împarți fișierul.', [`${scop.cuLocatie} cu restaurant`, `${scop.faraLocatie} fără`]);
   }
   if (!eComuna(tip) && scop.scop === 'COMPANIE') {
-    if (NECESITA_RESTAURANT.includes(intern)) {
+    if (scop.retea) {
+      adaugaDiag(col, 'LOCATIE_LIPSA', 'INFO', 'Import la nivel de rețea',
+        'Rândurile poartă explicit locația rezervată a rețelei (raport „All Stores"): intră doar la nivel de companie, '
+        + 'pe niciun restaurant.', [LOCATIE_RETEA]);
+    } else if (NECESITA_RESTAURANT.includes(intern)) {
       // fără restaurant, motorul ar atribui totul primului restaurant din nomenclator —
       // iar la 2.9 ar ȘTERGE luna acelui restaurant. Se blochează, nu se „agregă".
       adaugaDiag(col, 'LOCATIE_LIPSA', 'BLOCANT', 'Raport fără restaurant, dar care cere unul',
@@ -861,7 +882,7 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   }
 
   // — perioade și granularitate
-  const per = cuFereastra29(determinaPerioade(intern, pEfectiv, map, cerere.dataValabil), intern, cerere.interval);
+  const per = cuFereastra29(determinaPerioade(intern, pEfectiv, map, cerere.dataValabil), intern, cerere.interval, pEfectiv);
   adaugaDiag(col, 'DATE_INVALIDE', 'ATENTIE', 'Date calendaristice necitibile',
     'Rândurile cu dată invalidă nu pot fi atribuite unei perioade.', per.dateInvalide);
   if (cerere.interval && !(parseData(cerere.interval.de) && parseData(cerere.interval.la) && cerere.interval.de <= cerere.interval.la)) {
