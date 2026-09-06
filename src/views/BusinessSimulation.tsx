@@ -131,8 +131,8 @@ function TabSimulare() {
 
   const rezultat = useMemo(() => {
     if (!scenariu || !scenariu.schimbari.length) return null;
-    const { ctx: ctx1, produseNoi, preturiVanzare } = aplicaScenariu(state, scenariu.schimbari);
-    const retea = impactRetea(state, ctx0, ctx1, produseNoi, preturiVanzare, sel.luna);
+    const { ctx: ctx1, ctxBaza, produseNoi, preturiVanzare } = aplicaScenariu(state, scenariu.schimbari, { peIstoric: true });
+    const retea = impactRetea(state, ctxBaza, ctx1, produseNoi, preturiVanzare, sel.luna);
     const vol = volumeLuna(state, sel.luna);
     const randuri: {
       cod: string; denumire: string; nou: boolean; bucIn: number; bucDlv: number; impactLunar: number;
@@ -658,8 +658,8 @@ function TabComparatie() {
 
   const randuri = useMemo(() => state.scenarii.filter(s => alese.has(s.id)).map(s => {
     if (!s.schimbari.length) return { s, r: null };
-    const { ctx: ctx1, produseNoi, preturiVanzare } = aplicaScenariu(state, s.schimbari);
-    return { s, r: impactRetea(state, ctx0, ctx1, produseNoi, preturiVanzare, sel.luna) };
+    const { ctx: ctx1, ctxBaza, produseNoi, preturiVanzare } = aplicaScenariu(state, s.schimbari, { peIstoric: true });
+    return { s, r: impactRetea(state, ctxBaza, ctx1, produseNoi, preturiVanzare, sel.luna) };
   }), [state, ctx0, alese, sel.luna]);
 
   if (state.scenarii.length === 0) return <Gol titlu="Nu există simulări de comparat" sub="Creează simulări în tabul „Simulare & impact”." />;

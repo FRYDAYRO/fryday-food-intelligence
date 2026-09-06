@@ -64,6 +64,10 @@ function filtreazaPentruRol(stare, u) {
     waste: (stare.waste ?? []).filter(x => x.locatie === L),
     inventar: (stare.inventar ?? []).filter(x => x.locatie === L),
     linii29: (stare.linii29 ?? []).filter(x => x.locatie === L),
+    // 2.9 pe material stă la baza punții din Control Tower: fără filtrul ăsta, un manager
+    // ar primi consumul întregii rețele. Rândurile fără restaurant declarat rămân: ele nu
+    // aparțin altcuiva, iar puntea le raportează separat, ca „fără locație".
+    materiale29: (stare.materiale29 ?? []).filter(x => x.locatie === L || x.locatie == null),
     salesReport: (stare.salesReport ?? []).filter(x => x.locatie === L),
     labor: (stare.labor ?? []).filter(x => x.locatie === L),
     locatii: (stare.locatii ?? []).filter(x => x.cod === L),

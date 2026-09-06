@@ -2,18 +2,24 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppState } from './types';
 import { genereazaSeed, stareGoala } from './seed';
 import { genereazaSeedNBO } from './seed-nbo';
+import { VERSIUNE_REGULI_29, imbinaReguli } from './fc-clasificare';
+import { felNemapat } from './aprobare';
 // Baza reală FRYDAY, încorporată în aplicație: nomenclator, rețete și prețuri pe canal.
 // Vânzările NU sunt incluse — se importă periodic (PMIX / Sales Mix 4.7).
 import bazaFryday from '../date/baza-fryday.json';
 
 /**
- * Build public: cu VITE_FARA_BAZA=1, aplicația NU include rețetele și costurile FRYDAY.
- * Pornește goală, iar datele se încarcă din instantaneu (Setări). Așa adresa publică nu
- * expune nimic, chiar dacă e deschisă de oricine.
+ * Aplicația pornește GOALĂ. Nu există date „de bază": rețetarul, nomenclatorul, prețurile
+ * și rapoartele intră exclusiv prin import, iar fiecare cifră are astfel o proveniență.
+ * O bază încorporată ar fi arătat cifre pe care nimeni nu le-a încărcat — și, la prima
+ * încărcare reală, importurile s-ar fi adăugat peste ele, amestecând analizele.
+ *
+ * Setul FRYDAY încorporat rămâne disponibil, dar numai cerut explicit: cu VITE_CU_BAZA=1
+ * la build, sau încărcat din Setări. Implicit, adresa publică nu expune nimic.
  */
-const FARA_BAZA = import.meta.env?.VITE_FARA_BAZA === '1';
-const bazaInitiala = (): AppState =>
-  FARA_BAZA ? stareGoala() : migreaza(structuredClone(bazaFryday) as unknown as AppState);
+const CU_BAZA = import.meta.env?.VITE_CU_BAZA === '1';
+export const bazaInitiala = (): AppState =>
+  CU_BAZA ? migreaza(structuredClone(bazaFryday) as unknown as AppState) : stareGoala();
 import { buildCtx, type Ctx } from './engine';
 
 const KEY = 'fryday:ffi:v1';
@@ -52,7 +58,9 @@ interface Store {
   reset: () => void;
   incarcaSet: (set: 'DEMO' | 'NBO' | 'GOL' | 'FRYDAY') => void;
   atribuieAlias: (denumire: string, codProdus: string) => void;
-  renuntaNemapat: (denumire: string) => void;
+  /** Materialele 2.9 din coada comună se leagă de un INGREDIENT, nu de un produs. */
+  atribuieAliasIngredient: (identitate: string, codIngredient: string) => void;
+  renuntaNemapat: (denumire: string, fel?: 'PRODUS' | 'MATERIAL') => void;
   persistent: boolean;
   serverStare: { revizie: number; filtrat: boolean; eroare?: string } | null;
 }
@@ -98,8 +106,21 @@ export function migreaza(brut: unknown): AppState {
   p.retete = p.retete ?? [];
   p.vanzari = p.vanzari ?? [];
   p.linii29 = p.linii29 ?? [];
+  p.materiale29 = p.materiale29 ?? [];
   p.importuri = p.importuri ?? [];
-  p.reguli = p.reguli ?? d.reguli;
+  p.versiuniImport = p.versiuniImport ?? [];
+  p.istoricPreturi = p.istoricPreturi ?? [];
+  p.auditImport = p.auditImport ?? [];
+  p.auditAcces = p.auditAcces ?? [];
+  // regulile deja salvate (inclusiv cele adăugate de om) rămân neatinse și în față;
+  // implicitele noi intră doar în urma lor, ca vocabularul să fie același ca în punte —
+  // o singură dată pe versiune de listă: ce a șters omul după aceea rămâne șters
+  if (p.reguliImplicite !== VERSIUNE_REGULI_29) {
+    p.reguli = imbinaReguli(p.reguli ?? [], d.reguli);
+    p.reguliImplicite = VERSIUNE_REGULI_29;
+  } else {
+    p.reguli = p.reguli ?? [];
+  }
   p.tinte = p.tinte ?? d.tinte;
   return p;
 }
@@ -212,8 +233,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, [update]);
 
-  const renuntaNemapat = useCallback((denumire: string) => {
-    update(s => ({ ...s, nemapate: s.nemapate.filter(n => n.denumire !== denumire) }));
+  const atribuieAliasIngredient = useCallback((identitate: string, codIngredient: string) => {
+    update(s => ({
+      ...s,
+      ingrediente: s.ingrediente.map(i => i.cod !== codIngredient ? i
+        : { ...i, aliasuri: [...new Set([...(i.aliasuri ?? []), identitate])] }),
+      nemapate: s.nemapate.filter(n => !(n.denumire === identitate && felNemapat(n) === 'MATERIAL')),
+    }));
+  }, [update]);
+
+  const renuntaNemapat = useCallback((denumire: string, fel?: 'PRODUS' | 'MATERIAL') => {
+    update(s => ({ ...s, nemapate: s.nemapate.filter(n => !(n.denumire === denumire && (fel === undefined || felNemapat(n) === fel))) }));
   }, [update]);
 
   const reset = useCallback(() => {
@@ -243,7 +273,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, atribuieAlias, renuntaNemapat, persistent, serverStare }}>{children}</StoreCtx.Provider>;
+  return <StoreCtx.Provider value={{ state, ctx: ctx!, update, reset, incarcaSet, atribuieAlias, atribuieAliasIngredient, renuntaNemapat, persistent, serverStare }}>{children}</StoreCtx.Provider>;
 }
 
 export function useStore(): Store {

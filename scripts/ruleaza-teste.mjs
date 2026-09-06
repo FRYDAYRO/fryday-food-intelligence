@@ -13,6 +13,9 @@ for (const f of fisiere) {
   const iesire = join(temp, f.replace('.ts', '.cjs'));
   execFileSync('npx', ['esbuild', join(dirTeste, f), '--bundle', '--platform=node',
     '--format=cjs', `--outfile=${iesire}`, '--log-level=error',
+    // componentele de UI se randează în teste cu react-dom/server; esbuild trebuie aliniat
+    // cu `jsx: react-jsx` din tsconfig, altfel .tsx-urile ar cere un React global inexistent
+    '--jsx=automatic',
     // pdf.js cere API-uri de randare la încărcare; extragerea de text nu le folosește, deci stub-uri
     '--banner:js=globalThis.DOMMatrix??=class{};globalThis.Path2D??=class{};globalThis.ImageData??=class{};',
     // pdf.js folosește createRequire(import.meta.url); în CJS ar fi undefined

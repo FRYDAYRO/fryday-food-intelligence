@@ -1,5 +1,5 @@
 import { genereazaSeed } from '../src/lib/seed';
-import { buildCtx, perProdus, pretCurent } from '../src/lib/engine';
+import { buildCtx, pretCurent } from '../src/lib/engine';
 import { simuleaza } from '../src/lib/simulare';
 import { construiesteSchimbari, simuleazaStrategie, categoriiCuPondere } from '../src/lib/strategie';
 

@@ -1,6 +1,6 @@
 import { stareGoala } from '../src/lib/seed';
 import { importa, type Parsat } from '../src/lib/importer';
-import { cheieDenumire, matriceDinText, parseSalesMix } from '../src/lib/salesmix';
+import { cheieDenumire, matriceDinText } from '../src/lib/salesmix';
 import { buildCtx, perProdus } from '../src/lib/engine';
 import type { AppState } from '../src/lib/types';
 

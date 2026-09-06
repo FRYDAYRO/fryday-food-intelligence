@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { useSel, useStore } from '../lib/store';
-import { campuriTip, citesteFisier, detecteazaTip, importa, mapeazaAntete, TIP_LABEL, type Parsat, type TipImport } from '../lib/importer';
+import { campuriTip, citesteFisier, detecteazaTip, mapeazaAntete, TIP_LABEL, type Parsat, type TipImport } from '../lib/importer';
+// poarta unică: acelaşi motor pentru ambele ecrane, dar cu proveniență, versiune și audit
+import { importaUnificat } from '../lib/import-center';
 import { analizeazaFisier, type FoaieAnalizata } from '../lib/auto';
 import { Btn, Camp, Gol, In, Insigna, Sel, T, Td, Th, Titlu, cx } from '../lib/ui';
 import Nemapate from './shared/Nemapate';
@@ -11,10 +13,12 @@ const COLOANE_ASTEPTATE: Record<TipImport, string> = {
   PMIX: 'data · locație · canal (sau din numele fișierului) · cod produs · cantitate · valoare brută · discount · valoare netă',
   SALES: 'data · locație · canal · vânzări brute · vânzări nete · nr. bonuri',
   FC29: 'perioadă (lună) · locație · categorie cheltuială · valoare',
+  FC29_MATERIAL: 'raportul 2.9 cu detaliu pe material: perioadă · locație · cod material · denumire · categorie · cantitate · UM · cost actual · cost teoretic · normalizat. Alimentează puntea de reconciliere pe material și generează automat rollup-ul pe categorie.',
   COST_INGREDIENTE: 'cod ingredient · denumire · categorie · tip · UM · preț net · valabil de la · furnizor',
   RETETAR: 'cod rețetă · tip rețetă · denumire · cod componentă · tip componentă · cantitate · UM · pierdere % · canal · randament',
   MENIURI: 'componența meniurilor: meniu · componentă · cantitate (opțional preț și TVA). Costul meniului se calculează prin însumarea componentelor, iar componentele vândute la preț 0 nu se mai contorizează separat.',
-  WASTE: 'pierderile lunare pe ingredient: cod · cantitate · UM · restaurant · perioadă. Fără waste, diferența dintre Food Cost teoretic și consumul real rămâne neexplicată.',
+  WASTE: 'pierderile lunare pe ingredient: cod · cantitate · UM · restaurant · perioadă. Fără statut de includere față de Usage Actual din 2.9, aceste rânduri rămân „nereconciliate" în punte: nu se scad din Neexplicat.',
+  WASTE_28: 'raportul NBO 2.8 (Spoilage and Loss) pe eveniment: material · motiv · utilizator · cantitate · UM · Cost/Unit · Extension, cu fereastra raportului. Se importă prin Import Center (PDF); nu se însumează cu ajustările 2.9.',
   INVENTAR: 'consumul real pe ingredient (stoc inițial + intrări − stoc final): cod · consum real · UM · restaurant · perioadă. Permite descompunerea completă a variance-ului.',
   FC_BAZA: 'fișierul de bază FRYDAY FC, cu foile NOMENCLATOR · RETETAR · FOOD COST — se citesc toate trei într-o trecere și populează ingredientele cu prețuri, rețetele și produsele cu prețuri pe canal',
   SALES_MIX: 'raportul 4.7 Sales Mix exportat din Back Office — Menu Item Name · Qty · Price · Extension. Canalul se citește din sufixul denumirii („ D" = Delivery, „ MD" = meniu pe Delivery), iar liniile la prețuri diferite se însumează automat.',
@@ -65,6 +69,9 @@ function TabImport() {
   const [foaieSel, setFoaieSel] = useState(0);
   const [canalPret, setCanalPret] = useState<'AUTO' | 'INSTORE' | 'DELIVERY'>('AUTO');
   const [dataValabil, setDataValabil] = useState('');
+  // restaurantul declarat, pentru rapoartele pe unitate care n-au coloană de locație.
+  // Înainte, un asemenea fișier era atribuit TĂCUT primului restaurant din listă.
+  const [locatieRaport, setLocatieRaport] = useState('');
   const [lot, setLot] = useState<{ nume: string; analiza: FoaieAnalizata[] }[] | null>(null);
   const [jurnalLot, setJurnalLot] = useState<string[] | null>(null);
   const [inLucru, setInLucru] = useState(false);
@@ -92,15 +99,18 @@ function TabImport() {
     if (!lot) return;
     const inainte = instantaneu(state);
     const jurnal: string[] = [];
-    const ordine: TipImport[] = ['FC_BAZA', 'COST_INGREDIENTE', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'PRETURI_FURNIZORI', 'FC29', 'SALES', 'SALES_MIX', 'PMIX'];
+    const ordine: TipImport[] = ['FC_BAZA', 'COST_INGREDIENTE', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'PRETURI_FURNIZORI', 'FC29', 'FC29_MATERIAL', 'SALES', 'SALES_MIX', 'PMIX'];
     const foi = lot.flatMap(x => x.analiza.filter(f => f.tip).map(f => ({ fisier: x.nume, f })))
       .sort((a, b) => ordine.indexOf(a.f.tip!) - ordine.indexOf(b.f.tip!));
     let stare = state;
     let perioadaMax: string | undefined;
     const optLot = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
     for (const { fisier, f } of foi) {
-      const { stateNou, batch } = importa(f.tip!, f.parsat, fisier, stare, f.mapare, optLot);
-      stare = stateNou;
+      const { stareNoua, batch } = importaUnificat(stare, {
+        fisier, parsat: f.parsat, intern: f.tip!, mapare: f.mapare, optiuni: optLot,
+        ...(locatieRaport ? { locatie: locatieRaport } : {}),
+      });
+      stare = stareNoua;
       if (batch.perioada && (!perioadaMax || batch.perioada > perioadaMax)) perioadaMax = batch.perioada;
       const loc = batch.avertismente.find(a => a.startsWith('Locație creată pentru raport:'))?.replace('Locație creată pentru raport: ', '');
       jurnal.push(`${fisier} → ${TIP_LABEL[f.tip!]}: ${batch.importate} înregistrări${loc ? ` · ${loc}` : ''}`
@@ -143,7 +153,7 @@ function TabImport() {
     setAnaliza(null);
     setJurnalAuto(null);
       setAnaliza(null);
-      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls, .csv și .pdf (raportul 4.7).');
+      setRezumat('Fișierul nu a putut fi citit. Sunt acceptate .xlsx, .xls, .csv și .pdf (rapoartele 4.7 și 2.9).');
     }
   };
 
@@ -154,10 +164,13 @@ function TabImport() {
     if (!parsat) return;
     const opt = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
     const inainte = instantaneu(state);
-    const { stateNou, batch } = importa(tip, parsat, numeFisier, state, mapare, opt);
+    const { stareNoua, batch } = importaUnificat(state, {
+      fisier: numeFisier, parsat, intern: tip, mapare, optiuni: opt,
+      ...(locatieRaport ? { locatie: locatieRaport } : {}),
+    });
     if (batch.perioada && batch.perioada !== sel.luna) setSel({ ...sel, luna: batch.perioada });
-    update(() => stateNou);
-    setSchimbari(diferente(inainte, instantaneu(stateNou)));
+    update(() => stareNoua);
+    setSchimbari(diferente(inainte, instantaneu(stareNoua)));
     setRezumat(batch.status === 'IMPORTAT'
       ? `Import reușit: ${batch.importate} înregistrări din ${batch.randuri} rânduri.${batch.avertismente.length ? ` ${batch.avertismente.length} avertismente — vezi istoricul.` : ''}`
       : `Import eșuat: ${batch.erori.join('; ')}`);
@@ -201,7 +214,7 @@ function TabImport() {
         <Btn className="mt-2" onClick={() => fileRef.current?.click()}>Alege fișier…</Btn>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.pdf" hidden multiple
           onChange={e => { const fs = [...(e.target.files ?? [])]; if (fs.length > 1) void alegeLot(fs); else if (fs[0]) void alegeFisier(fs[0]); }} />
-        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 (Excel sau PDF) · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
+        <div className="mt-2 text-xs text-muted-foreground">PMIX · Sales Report NBO · Raport NBO 2.9 · Cost ingrediente · Rețetar · Rețetar NBO · Sales Mix 4.7 (Excel sau PDF) · Raport 2.9 (PDF) · Prețuri de vânzare · Prețuri Furnizori — coloanele sunt detectate automat și pot fi mapate manual</div>
       </div>
 
       {schimbari && (
@@ -326,8 +339,12 @@ function TabImport() {
               let stare = state;
               for (const f of foi) {
                 const optAuto = { ...(canalPret === 'AUTO' ? {} : { canalImplicit: canalPret }), ...(dataValabil ? { dataValabil } : {}) };
-                const { stateNou, batch } = importa(f.tip!, f.parsat, `${numeFisier} — ${f.foaie}`, stare, f.mapare, optAuto);
-                stare = stateNou;
+                const { stareNoua, batch } = importaUnificat(stare, {
+                  fisier: `${numeFisier} — ${f.foaie}`, parsat: f.parsat, intern: f.tip!,
+                  mapare: f.mapare, optiuni: optAuto,
+                  ...(locatieRaport ? { locatie: locatieRaport } : {}),
+                });
+                stare = stareNoua;
                 const unitate = f.tip === 'RETETAR_NBO' ? 'produse' : f.tip === 'RETETAR' ? 'linii de rețetă' : 'rânduri';
                 jurnal.push(`${f.foaie} → ${TIP_LABEL[f.tip!]}: ${batch.importate} ${unitate}`
                   + (f.tip !== 'RETETAR_NBO' ? ` din ${batch.randuri}` : '')
@@ -436,6 +453,24 @@ function TabImport() {
                   </div>
                 );
               })()}
+              {['PMIX', 'SALES_MIX', 'SALES', 'FC29', 'FC29_MATERIAL'].includes(tip)
+                && !parsat.antete.some(a => /locatie|loca\u021bie|restaurant|unitate|magazin|store/i.test(a)) && (
+                <div className="mt-2 rounded border-2 border-primary/40 bg-card px-3 py-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Restaurantul acestui raport</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Sel className="h-8" value={locatieRaport} onChange={e => setLocatieRaport(e.target.value)}>
+                      <option value="">— alege restaurantul —</option>
+                      {state.locatii.map(l => <option key={l.cod} value={l.cod}>{l.nume}</option>)}
+                    </Sel>
+                    {!locatieRaport && (
+                      <span className="text-xs font-semibold text-danger">
+                        Fișierul nu conține coloană de restaurant. Fără alegere, importul se oprește —
+                        datele nu se atribuie unei unități ghicite.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {['FC_BAZA', 'RETETAR_NBO', 'RETETAR', 'PRETURI_PRODUSE', 'COST_INGREDIENTE', 'PRETURI_FURNIZORI'].includes(tip) && (
                 <label className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   <span className="font-semibold uppercase tracking-wider text-muted-foreground">Prețurile se aplică de la data</span>

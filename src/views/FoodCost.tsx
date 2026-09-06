@@ -84,7 +84,7 @@ export default function FoodCost() {
         </tbody>
       </T>
       <p className="mt-2 text-xs text-muted-foreground">
-        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic · <b>Pierdere 2.9</b> = consumul Curat − costul teoretic, în lei: partea de consum pe care rețetele nu o explică (waste, porționare, erori). Numitor: {rezRetea.numitor}. Clasamentul e ordonat de la cel mai mare Food Cost la cel mai mic.
+        FC teoretic = rețete × mixul vândut · FC operațional = tot consumul din 2.9 · <b>FC Curat</b> = 2.9 fără excluderi (doar Food & Paper) · FC teoretic se raportează la vânzările produselor care au rețetă, nu la totalul vânzărilor — altfel produsele fără rețetă ar dilua artificial procentul. Paper Cost = ambalajele PAPER din 2.9 / vânzări nete (teoretic dacă 2.9 lipsește) · Variance = Curat − Teoretic · <b>Pierdere 2.9</b> = consumul Curat − costul teoretic, în lei: partea de consum pe care rețetele nu o explică (porționare, erori, waste neajustat); ajustările de inventar din 2.9 (Inv Adj) sunt în afara acestei cifre, pentru că Usage Actual = Beg + Pur + Trans − Adj − End. Numitor: {rezRetea.numitor}. Clasamentul e ordonat de la cel mai mare Food Cost la cel mai mic.
       </p>
 
       {(vd.areWaste || vd.areInventar) && (
@@ -130,7 +130,7 @@ export default function FoodCost() {
             </tbody>
           </T>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Neexplicat = consum real − (teoretic + waste). Pozitiv înseamnă că s-a consumat mai mult decât justifică
+            Neexplicat = consum real − (teoretic + waste). Consumul real din inventar e brut (stoc inițial + intrări − stoc final), deci aici waste-ul se scade oricare i-ar fi statutul față de Usage-ul din 2.9; în puntea din Tower se scade doar waste-ul demonstrat inclus în Usage Actual. Pozitiv înseamnă că s-a consumat mai mult decât justifică
             rețetele și pierderile raportate: porționare peste gramaj, erori de producție sau pierderi neînregistrate.
             Negativ poate însemna gramaje sub rețetă sau inventar inexact. Rândurile sunt ordonate după impactul în lei.
           </p>
