@@ -187,7 +187,7 @@ export function parseRaport28(text: string): Raport28 {
     precedent = 'GRUP';
   });
 
-  if (perioadeVazute.size > 1) r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.replace('|', ' → ')).join(', ')} — s-a păstrat prima.`);
+  if (perioadeVazute.size > 1) r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.split('|').join(' → ')).join(', ')} — s-a păstrat prima.`);
   if (!r.de || !r.la) r.avertismente.push('Raportul nu declară perioada (dd.mm.yyyy - dd.mm.yyyy) — fereastra rămâne nedeclarată.');
   if (!r.restaurant && !r.agregat) r.avertismente.push('Raportul nu declară restaurantul în antet.');
   if (r.agregat) r.avertismente.push('Raport consolidat (Corporate): evenimentele sunt ale întregii companii, fără restaurant — nu se pot potrivi cu ajustările unui restaurant.');

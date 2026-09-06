@@ -378,7 +378,7 @@ export function parseRaport29(text: string): Raport29 {
   inchide();
 
   if (perioadeVazute.size > 1) {
-    r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.replace('|', ' → ')).join(', ')} — s-a păstrat prima.`);
+    r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.split('|').join(' → ')).join(', ')} — s-a păstrat prima.`);
   }
   if (!r.de || !r.la) r.avertismente.push('Raportul nu declară perioada (dd.mm.yyyy - dd.mm.yyyy) — fereastra rămâne nedeclarată.');
   if (!r.restaurant && !r.agregat) r.avertismente.push('Raportul nu declară restaurantul în antet.');
