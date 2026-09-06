@@ -86,6 +86,9 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   săptămânal; prețul datat și versiunea de rețetă pe o astfel de fereastră sunt determinabile doar fără
   schimbare în interior și cu istoric de la începutul ei. Evaluarea 2.8 (Cost/Unit, Extension) rămâne a lui.
 - Codurile de meniu din 2.8 (DESERT*) se leagă de materia primă doar prin alias aprobat în coada comună.
+- Rețetarul importat din foaie creează produsele care lipsesc (fără preț de vânzare; prețul intră din 4.7 sau din
+  lista de prețuri). Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
+  perioadele din Tower vin din vânzări (4.7): fără 4.7 nu există perioadă, chiar dacă 2.9/2.8 sunt importate.
 - NBO tipărește 2.9 și 2.8 în două gramatici (RO: „1.610,35 lei", dd.mm.yyyy; EN: „$15,647.76", „($3,221)", m/d/yyyy).
   Formatul se detectează din text („$" în fața cifrelor) și se aplică întregului raport. Raportul consolidat
   („Corporate Start Date / End Date") nu are restaurant: intră doar la nivel de companie. Formatul EN al 2.8 e
