@@ -940,7 +940,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         // restaurantul declarat explicit de om la import — decizia lui bate deducția
         locatie = opt.locatieRaport;
       } else if (a47.atribuibilPeRestaurant && a47.restaurantUnic) {
-        locatie = a47.restaurantUnic;
+        // restaurantul din antet se leagă de CODUL lui din Store Master (după cod sau după nume),
+        // ca vânzările 4.7 și consumul 2.9 ale aceluiași restaurant să stea pe aceeași locație;
+        // fără intrare în nomenclator, numele devine cod (comportamentul de până acum)
+        const nume = a47.restaurantUnic;
+        locatie = state.locatii.find(l => l.cod === nume || norm(l.nume) === norm(nume))?.cod ?? nume;
       } else {
         locatie = LOCATIE_RETEA;
         if (a47.motiv) avert.push(a47.motiv);

@@ -5,6 +5,9 @@
 //   · denumiri cu cifre și paranteze („PACK COUNTRY HOT WINGS 30 (990G)") — rămân întregi.
 // Proprietatea verificată: suma liniilor citite = totalul categoriei, iar fiecare produs își ține numele.
 import { matriceDinText, parseSalesMix } from '../src/lib/salesmix';
+import { importa } from '../src/lib/importer';
+import { stareGoala } from '../src/lib/seed';
+import type { AppState } from '../src/lib/types';
 
 let ok = 0, fail = 0;
 const t = (n: string, c: boolean, d = '') => { if (c) { ok++; console.log('  ✔', n, d); } else { fail++; console.log('  ✘', n, d); } };
@@ -66,6 +69,22 @@ t('un început de denumire pe rândul de dinaintea cifrelor rămâne început, n
   return sm2.linii.some(x => x.nume === 'Nume foarte lung de produs care continua' && x.qty === 3) && sm2.linii.find(x => x.qty === 10)?.nume === 'Burger A';
 })());
 t('lista de restaurante și perioada se citesc ca înainte', sm.magazine.length === 3 && sm.perioadaDe === '2026-08-17' && sm.perioadaLa === '2026-08-23');
+
+console.log('\n— Restaurantul din antetul 4.7 se leagă de codul lui din Store Master —');
+const TEXT1 = [
+  'FRYDAY TIMISOARA Fiscal Year: 2026', '4.7 Sales Mix', 'IULIUS TOWN Period: 8 Week: 4', '8/17/2026 - 8/23/2026', 'Menu Item Name Qty Price Extension',
+  'CATEGORY BERE', 'Bere Corona new 1 15.990 $15.99', 'Bere Corona new D 1 19.990 $19.99', 'Total BERE 2 $35.98', 'Total 2 $35.98',
+  'V 21.1.126.0 - 1 - 8/24/2026 9:12 AM Copyright © NCR Corporation 2022 1 of 1',
+].join('\n');
+const parsat1 = { foaie: 'PDF', antete: [] as string[], randuri: [] as Record<string, unknown>[], matrice: matriceDinText(TEXT1) };
+const cuRestaurant: AppState = { ...stareGoala(), locatii: [{ cod: 'L02', nume: 'FRYDAY TIMISOARA IULIUS TOWN' }],
+  produse: [{ cod: 'CORONA', denumire: 'Bere Corona', categorie: 'BERE', tip: 'SIMPLU', tva: 21, pretInstore: 15.99, activ: true, aliasuri: ['Bere Corona'] }] };
+const r1 = importa('SALES_MIX', parsat1, '4.7_Sales_Mix.pdf', cuRestaurant);
+t('vânzările intră pe codul L02, nu pe numele restaurantului', r1.stateNou.vanzari.length === 2 && r1.stateNou.vanzari.every(v => v.locatie === 'L02'), [...new Set(r1.stateNou.vanzari.map(v => v.locatie))].join(','));
+t('nu se creează o a doua locație cu numele restaurantului (MUTAȚIA „locație după nume" ar pica aici)', r1.stateNou.locatii.length === 1 && !r1.batch.avertismente.some(a => a.includes('Locație creată')));
+const faraRestaurant: AppState = { ...cuRestaurant, locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }] };
+const r2 = importa('SALES_MIX', parsat1, '4.7_Sales_Mix.pdf', faraRestaurant);
+t('fără intrare în Store Master, numele devine cod și locația e creată, ca înainte', r2.stateNou.locatii.length === 2 && r2.stateNou.vanzari.every(v => v.locatie === 'FRYDAY TIMISOARA IULIUS TOWN') && r2.batch.avertismente.some(a => a.includes('Locație creată')));
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 process.exit(fail ? 1 : 0);
