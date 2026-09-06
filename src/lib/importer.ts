@@ -231,7 +231,7 @@ const CAMPURI_IDENTITATE = new Set(['cod', 'material', 'ingredient']);
 const ANTET_DE_BANI = /\b(cost|costuri|pret|preturi|price|valoare|total|net|brut|suma|profit)\b|%/;
 /** „FOOD COST" (procentul) nu e un preț, oricât ar conține cuvântul „cost". */
 const ANTET_DE_PROCENT = /food cost|\bfc\b|%|procent|pct/;
-const antetPermis = (camp: string, antet: string): boolean => {
+export const antetPermis = (camp: string, antet: string): boolean => {
   const n = norm(antet);
   if (CAMPURI_IDENTITATE.has(camp) && ANTET_DE_BANI.test(n) && !/^cod\b/.test(n)) return false;
   if ((camp === 'pret' || camp === 'costActual' || camp === 'costPeUnitate') && ANTET_DE_PROCENT.test(n)) return false;
