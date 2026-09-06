@@ -232,12 +232,23 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
  */
 export function matriceDinText(text: string): unknown[][] {
   const brute = text.split(/\r?\n/).map(l => l.trim());
-  // lipim cifrele orfane de valoarea trunchiată de pe rândul anterior
+  // lipim cifrele orfane de valoarea trunchiată de pe rândul anterior: singure („64") sau
+  // împreună cu continuarea denumirii („new 00" după „$119,520."), caz în care cuvintele rămân
+  // o linie proprie, de continuare
   const linii: string[] = [];
   for (const l of brute) {
-    if (/^\d{1,3}$/.test(l) && linii.length && /[.,]$/.test(linii[linii.length - 1])) {
-      linii[linii.length - 1] += l;
-    } else linii.push(l);
+    const precedent = linii[linii.length - 1];
+    if (precedent !== undefined && /[.,]$/.test(precedent)) {
+      const jetoane = l.split(/\s+/).filter(Boolean);
+      const cifre = jetoane.filter(j => /^\d{1,3}$/.test(j));
+      if (cifre.length === 1 && jetoane.length <= 4 && jetoane.every(j => /^\d{1,3}$/.test(j) || /^[A-Za-z]{1,4}$/.test(j))) {
+        linii[linii.length - 1] = precedent + cifre[0];
+        const rest = jetoane.filter(j => j !== cifre[0]).join(' ');
+        if (rest) linii.push(rest);
+        continue;
+      }
+    }
+    linii.push(l);
   }
 
   // valoarea finală poate fi „$1,234.00", „($38.00)" sau „-38.00"
@@ -249,7 +260,13 @@ export function matriceDinText(text: string): unknown[][] {
   let tampon: string[] = [];
   let inMagazine = false;
 
-  for (const l of linii) {
+  const eStructura = (l: string) => /^category\b/i.test(l) || /^total\b/i.test(l) || GUNOI.some(re => re.test(l))
+    || /^\d{1,2}\/\d{1,2}\/\d{4}/.test(l) || /^groups?\/stores/i.test(l)
+    || /\b(fiscal\s+year|period\s*:|week\s*:|start\s*date\s*:|end\s*date\s*:)/i.test(l)
+    || /^(corporate|all\s+stores|multiple\s+selection)\b/i.test(l);
+
+  for (let idx = 0; idx < linii.length; idx++) {
+    const l = linii[idx];
     if (!l) { continue; }
     // rânduri care resetează tamponul: categorie, total, antet, subsol
     if (/^groups?\/stores/i.test(l)) { tampon = []; inMagazine = true; rez.push([l]); continue; }
@@ -274,7 +291,16 @@ export function matriceDinText(text: string): unknown[][] {
     const m = FINAL.exec(l);
     if (!m) {
       const ultim = rez[rez.length - 1];
-      if (DOAR_SUFIX.test(l.trim()) && ultim && ultim.length === 4 && !tampon.length) {
+      // Continuarea denumirii vine DUPĂ linia cu cifre („250g MD New" sub „Cartofi … SuperSize 82 …");
+      // începutul unei denumiri vine ÎNAINTEA ei. Se deosebesc după ce urmează: dacă linia următoare
+      // e un rând întreg (nume + cifre) sau o linie de structură, fragmentul scurt aparține
+      // rândului precedent; dacă linia următoare are doar cifre, fragmentul e numele acelui rând.
+      let urmatoarea = '';
+      for (let j = idx + 1; j < linii.length; j++) if (linii[j]) { urmatoarea = linii[j]; break; }
+      const mUrm = FINAL.exec(urmatoarea);
+      const urmeazaRandIntreg = mUrm ? urmatoarea.slice(0, mUrm.index).trim() !== '' : eStructura(urmatoarea);
+      const scurta = l.trim().split(/\s+/).length <= 4;
+      if (ultim && ultim.length === 4 && !tampon.length && (DOAR_SUFIX.test(l.trim()) || (scurta && urmeazaRandIntreg))) {
         ultim[0] = `${ultim[0]} ${l.trim()}`;     // continuarea denumirii de pe rândul precedent
       } else tampon.push(l);
       continue;

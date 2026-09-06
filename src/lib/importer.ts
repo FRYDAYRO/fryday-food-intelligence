@@ -222,6 +222,22 @@ function potrivesteAntet(antet: string, sinonim: string): number {
   return 0;
 }
 
+/**
+ * Un antet de bani sau de agregat („Cost material", „Vânzări nete", „% din total", „TOTAL InStore") nu
+ * poate fi coloana de identitate (cod / material / ingredient), oricât s-ar potrivi un sinonim generic
+ * („material"): altfel o foaie de dashboard cu produse ar trece drept listă de prețuri, cu coduri false.
+ */
+const CAMPURI_IDENTITATE = new Set(['cod', 'material', 'ingredient']);
+const ANTET_DE_BANI = /\b(cost|costuri|pret|preturi|price|valoare|total|net|brut|suma|profit)\b|%/;
+/** „FOOD COST" (procentul) nu e un preț, oricât ar conține cuvântul „cost". */
+const ANTET_DE_PROCENT = /food cost|\bfc\b|%|procent|pct/;
+const antetPermis = (camp: string, antet: string): boolean => {
+  const n = norm(antet);
+  if (CAMPURI_IDENTITATE.has(camp) && ANTET_DE_BANI.test(n) && !/^cod\b/.test(n)) return false;
+  if ((camp === 'pret' || camp === 'costActual' || camp === 'costPeUnitate') && ANTET_DE_PROCENT.test(n)) return false;
+  return true;
+};
+
 export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, string> {
   const map: Record<string, string> = {};
   const folosite = new Set<string>();
@@ -229,6 +245,7 @@ export function mapeazaAntete(antete: string[], tip: TipImport): Record<string, 
   const candidati: { camp: string; antet: string; scor: number }[] = [];
   for (const [camp, sinonime] of Object.entries(CAMPURI[tip])) {
     for (const a of antete) {
+      if (!antetPermis(camp, a)) continue;
       const scor = Math.max(...sinonime.map(s => potrivesteAntet(a, s)));
       if (scor > 0) candidati.push({ camp, antet: a, scor });
     }
