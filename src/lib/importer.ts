@@ -1414,13 +1414,13 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
           peData.get(k)!.push(c);
         }
         let ingrediente = stateNou.ingrediente;
-        let scrise = 0, sarite = 0;
+        let scrise = 0, sarite = 0, reamprentate = 0;
         const altRestaurant: string[] = [];
         for (const [validDeLa, lista] of [...peData.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
           const r = aplicaPreturi29({ ...stateNou, ingrediente }, null, lista, validDeLa,
             { fisier: numeFisier, ...(opt?.amprenta ? { amprenta: opt.amprenta } : {}) });
           ingrediente = r.stareNoua.ingrediente;
-          scrise += r.scrise; sarite += r.sarite;
+          scrise += r.scrise; sarite += r.sarite; reamprentate += r.reamprentate;
           altRestaurant.push(...r.inlocuiteAltRestaurant);
         }
         stateNou = { ...stateNou, ingrediente };
@@ -1428,7 +1428,7 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         const date = [...peData.keys()].sort();
         avert.push(`Prețuri din 2.9 (Cost per Unit): ${scrise} intrări datate noi în nomenclator`
           + (date.length ? ` (valabile de la ${date.join(', ')})` : '')
-          + `, ${sarite} identice cu prețul în vigoare (fără intrare nouă); rețetele nu primesc versiune, costul lor se recalculează la dată`);
+          + `, ${sarite} identice cu prețul în vigoare (fără intrare nouă${reamprentate ? `; ${reamprentate} cu proveniența mutată pe această versiune` : ''}); rețetele nu primesc versiune, costul lor se recalculează la dată`);
         const neeligibile = preturi.diagnostice.filter(d => d.fel === 'ZERO_SAU_NEGATIV' || d.fel === 'UM_NECUNOSCUTA' || d.fel === 'UM_INCOMPATIBILA');
         if (neeligibile.length) {
           avert.push(`${neeligibile.length} materiale mapate FĂRĂ preț valid — nomenclatorul nu se atinge pentru ele `

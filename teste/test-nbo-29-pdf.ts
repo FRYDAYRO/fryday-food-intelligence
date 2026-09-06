@@ -404,5 +404,21 @@ t('Σ Adj × CPU pe fixtură = 126 × 0,63 + 76 × 3,58 + 175 × 2,35 = 762,71',
 t('FC cu ajustări estimat pe raport: (149.490 + 762,71) ÷ 675.735,58 = 22,24 %, față de 22,12 % raportat',
   aprox(verificaIdentitate29(R).fcCuAjustariEstimatPct!, ((149490 + 762.71) / 675735.58) * 100, 1e-9) && verificaIdentitate29(R).fcRaportatPct === 22.12);
 
+console.log('\n— 11. Reimportul actualizat nu lasă prețuri legate de o versiune dezactivată —');
+const bazaA4: AppState = { ...stareGoala(), locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }],
+  ingrediente: [{ cod: 'CHEDDAR', denumire: 'Branza cheddar felii 2026', categorie: 'MP', tip: 'FOOD', um: 'buc', preturi: [{ validDeLa: '2026-07-01', pret: 0.6 }], activ: true, aliasuri: ['7000123'] }] };
+const a4a = importaPrinCentru(bazaA4, { fisier: '2.9_Memo_Cluj.pdf', parsat: P, tip: 'NBO_29', interval: { de: R.de!, la: R.la! }, acum: ACUM(30) });
+// același raport, cu o corecție care NU atinge Cost per Unit (o cantitate teoretică): conținut diferit → reimport actualizat
+const P2 = { ...P, randuri: P.randuri.map(r => (r['Cod material'] === '7000268' ? { ...r, 'Cantitate teoretica': 24374 } : r)) };
+const a4b = importaPrinCentru(a4a.stareNoua, { fisier: '2.9_Memo_Cluj.pdf', parsat: P2, tip: 'NBO_29', interval: { de: R.de!, la: R.la! }, acum: ACUM(31) });
+const versA4 = (a4b.stareNoua.versiuniImport ?? []).filter(v => v.tip === 'NBO_29');
+const activaA4 = versA4.find(v => v.activa)!;
+const pretA4 = a4b.stareNoua.ingrediente[0].preturi.find(p => p.sursa?.tip === 'NBO_29')!;
+t('al doilea import e REIMPORT_ACTUALIZAT: versiunea veche inactivă, cea nouă activă', a4b.rezultat.duplicat === 'REIMPORT_ACTUALIZAT' && versA4.length === 2 && versA4.filter(v => v.activa).length === 1);
+t('prețul 0,63 rămâne o singură intrare (identic, fără intrare nouă)', a4b.stareNoua.ingrediente[0].preturi.filter(p => p.sursa?.tip === 'NBO_29').length === 1 && pretA4.pret === 0.63);
+t('…dar proveniența lui e versiunea ACTIVĂ, nu cea dezactivată (MUTAȚIA „intrare orfană" ar pica aici)', pretA4.sursa?.amprenta === activaA4.amprenta && pretA4.sursa?.amprenta !== versA4.find(v => !v.activa)!.amprenta);
+t('nicio intrare de preț 2.9 nu mai indică o versiune inactivă', a4b.stareNoua.ingrediente.every(i => i.preturi.every(p => p.sursa?.tip !== 'NBO_29' || versA4.some(v => v.activa && v.amprenta === p.sursa?.amprenta))));
+t('raportul importului spune că proveniența a fost mutată', a4b.rezultat.avertismente.some(a => a.includes('proveniența mutată')));
+
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);
