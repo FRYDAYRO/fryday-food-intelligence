@@ -39,6 +39,8 @@ export interface Raport28 {
   perioadaEticheta: string | null;
   de: string | null;
   la: string | null;
+  format: Format28;
+  agregat: boolean;
   randuri: Rand28[];
   totaluri: { categorie: string; lei: number }[];
   totalGeneral: number | null;
@@ -49,16 +51,32 @@ export interface Raport28 {
   avertismente: string[];
 }
 
-const NUM = /^-?[\d.]*\d(?:,\d+)?$/;
+/**
+ * Gramatica numerelor, ca la 2.9: RO („3,00", „9,55 lei", dd.mm.yyyy) sau EN („3.00", „$9.55", m/d/yyyy).
+ * Se decide din text („$" în fața cifrelor). Pe raportul real Cluj e RO; formatul EN al 2.8 e dedus
+ * din gramatica 2.9 și verificat doar pe fixturi, până la un raport real în acest format.
+ */
+export type Format28 = 'RO' | 'EN';
+interface Gramatica28 { format: Format28; NUM: RegExp; BANI: RegExp; numar: (s: string) => number; data: (s: string) => string | null; interval: RegExp; }
+const NUM_RO = /^-?[\d.]*\d(?:,\d+)?$/;
+const NUM_EN = /^-?[\d,]*\d(?:\.\d+)?$/;
+const numarRO = (s: string): number => Number(s.replace(/\./g, '').replace(',', '.'));
+const numarEN = (s: string): number => Number(s.replace(/[$,]/g, ''));
+const dataEN = (d: string): string | null => {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(d.trim());
+  return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
+};
+const GRAMATICA: Record<Format28, Gramatica28> = {
+  RO: { format: 'RO', NUM: NUM_RO, BANI: NUM_RO, numar: numarRO, data: (d: string) => iso(d), interval: /^(\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})$/ },
+  EN: { format: 'EN', NUM: NUM_EN, BANI: /^\$[\d,]*\d(?:\.\d+)?$/, numar: numarEN, data: dataEN, interval: /^(\d{1,2}\/\d{1,2}\/\d{4}) - (\d{1,2}\/\d{1,2}\/\d{4})$/ },
+};
+export const detecteazaFormat28 = (text: string): Format28 => (/\$\d/.test(text) ? 'EN' : 'RO');
+
 const UM_INVENTAR = /^(ea|each|kg|liter|litre|ltr|lt|l|ml|gram|grams|gr|g|pair|pairs|buc|pcs|pc)$/i;
 const ITEM_ID = /^\d{1,8}$/;
 const TITLU = /2\.8\s+Spoilage and Loss/i;
 const DATA_RO = /^(\d{2})\.(\d{2})\.(\d{4})$/;
 
-const numar = (s: string): number => {
-  const t = s.replace(/\./g, '').replace(',', '.');
-  return Number(t);
-};
 const iso = (d: string): string | null => {
   const m = DATA_RO.exec(d.trim());
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
@@ -66,18 +84,24 @@ const iso = (d: string): string | null => {
 
 export const esteRaport28 = (text: string): boolean => TITLU.test(text);
 
-/** Grila 2.8 dintr-o linie: `<nume> <ItemID> <motiv…> <utilizator> <UM> <cant> <cost> [lei] <ext> lei`. */
-function citesteRand(linie: string): Omit<Rand28, 'rand' | 'categorie'> | null {
+/**
+ * Grila 2.8 dintr-o linie: RO `<nume> <ItemID> <motiv…> <utilizator> <UM> <cant> <cost> [lei] <ext> lei`,
+ * EN `<nume> <ItemID> <motiv…> <utilizator> <UM> <cant> $<cost> $<ext>`.
+ */
+function citesteRand(linie: string, g: Gramatica28): Omit<Rand28, 'rand' | 'categorie'> | null {
   let tok = linie.split(' ');
-  if (tok.length < 6 || tok[tok.length - 1].toLowerCase() !== 'lei') return null;
-  tok = tok.slice(0, -1);
+  if (tok.length < 6) return null;
+  if (g.format === 'RO') {
+    if (tok[tok.length - 1].toLowerCase() !== 'lei') return null;
+    tok = tok.slice(0, -1);
+  }
   const ext = tok.pop()!;
-  if (!NUM.test(ext)) return null;
-  if (tok[tok.length - 1]?.toLowerCase() === 'lei') tok.pop();
+  if (!g.BANI.test(ext)) return null;
+  if (g.format === 'RO' && tok[tok.length - 1]?.toLowerCase() === 'lei') tok.pop();
   const cost = tok.pop()!;
   const cant = tok.pop()!;
   const um = tok.pop()!;
-  if (!NUM.test(cost) || !NUM.test(cant) || !UM_INVENTAR.test(um)) return null;
+  if (!g.BANI.test(cost) || !g.NUM.test(cant) || !UM_INVENTAR.test(um)) return null;
   const utilizator = tok.pop() ?? '';
   if (!utilizator) return null;
   // motivul: cuvintele dintre ItemID (ultimul jeton numeric din stânga utilizatorului) și utilizator
@@ -87,13 +111,17 @@ function citesteRand(linie: string): Omit<Rand28, 'rand' | 'categorie'> | null {
   const itemId = tok[i];
   const motiv = tok.slice(i + 1).join(' ');
   const item = tok.slice(0, i).join(' ');
-  return { itemId, item, motiv, utilizator, um, cant: numar(cant), costUnitar: numar(cost), lei: numar(ext) };
+  return { itemId, item, motiv, utilizator, um, cant: g.numar(cant), costUnitar: g.numar(cost), lei: g.numar(ext) };
 }
 
 export function parseRaport28(text: string): Raport28 {
   const linii = text.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim());
+  const g = GRAMATICA[detecteazaFormat28(text)];
+  const BAN = g.format === 'RO' ? '(?:lei )?(-?[\\d.]*\\d(?:,\\d+)?) lei' : '(\\$[\\d,]*\\d(?:\\.\\d+)?)';
+  const TOTAL = new RegExp(`^Total: (.+?) ${BAN}$`);
+  const GRAND = new RegExp(`^Grand Total: ${BAN}$`);
   const r: Raport28 = {
-    titlu: null, restaurant: null, anFiscal: null, perioadaEticheta: null, de: null, la: null,
+    titlu: null, restaurant: null, anFiscal: null, perioadaEticheta: null, de: null, la: null, format: g.format, agregat: false,
     randuri: [], totaluri: [], totalGeneral: null, nerecunoscute: [], verificari: [], extensiiNeinchise: [], avertismente: [],
   };
   let categorie: string | null = null;
@@ -109,25 +137,29 @@ export function parseRaport28(text: string): Raport28 {
     const an = /^(.*?) Fiscal Year: (\d{4})$/.exec(l);
     if (an) { r.restaurant ??= an[1].trim(); r.anFiscal ??= an[2]; precedent = 'CADRU'; return; }
     if (TITLU.test(l)) { r.titlu ??= l; precedent = 'CADRU'; return; }
-    const per = /^(Period|Week): (\d+)$/.exec(l);
+    const per = /^(Period|Week): (.+)$/.exec(l);
     if (per) { r.perioadaEticheta ??= l; precedent = 'CADRU'; return; }
-    const interval = /^(\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})$/.exec(l);
+    const interval = g.interval.exec(l);
     if (interval) {
-      const de = iso(interval[1]), la = iso(interval[2]);
+      const de = g.data(interval[1]), la = g.data(interval[2]);
       if (de && la) { perioadeVazute.add(`${de}|${la}`); r.de ??= de; r.la ??= la; }
       precedent = 'CADRU'; return;
     }
+    const start = /^(Corporate\s+)?Start Date:\s*(\S+)$/i.exec(l);
+    if (start) { if (start[1]) r.agregat = true; const de = g.data(start[2]) ?? iso(start[2]) ?? dataEN(start[2]); if (de) r.de ??= de; precedent = 'CADRU'; return; }
+    const end = /^End Date:\s*(\S+)$/i.exec(l);
+    if (end) { const la = g.data(end[1]) ?? iso(end[1]) ?? dataEN(end[1]); if (la) r.la ??= la; precedent = 'CADRU'; return; }
     if (/^Inventory Qty\. Cost\/$/.test(l) || /^Description ItemID Reason By/.test(l)) { precedent = 'CADRU'; return; }
     if (/^V [\d.]+ - \d+ - .*Copyright/.test(l)) { precedent = 'CADRU'; return; }
     // ——— totaluri (cu „lei" rătăcit admis înaintea sumei)
-    const tg = /^Grand Total: (?:lei )?(-?[\d.]*\d(?:,\d+)?) lei$/.exec(l);
-    if (tg) { r.totalGeneral = numar(tg[1]); precedent = 'TOTAL'; return; }
-    const tot = /^Total: (.+?) (?:lei )?(-?[\d.]*\d(?:,\d+)?) lei$/.exec(l);
-    if (tot) { r.totaluri.push({ categorie: tot[1].trim(), lei: numar(tot[2]) }); precedent = 'TOTAL'; numePendinte = null; return; }
+    const tg = GRAND.exec(l);
+    if (tg) { r.totalGeneral = g.numar(tg[1]); precedent = 'TOTAL'; return; }
+    const tot = TOTAL.exec(l);
+    if (tot) { r.totaluri.push({ categorie: tot[1].trim(), lei: g.numar(tot[2]) }); precedent = 'TOTAL'; numePendinte = null; return; }
     // ——— „lei"-ul rătăcit al coloanei Cost/Unit, singur pe linie
     if (/^lei$/i.test(l)) return;
     // ——— rând de eveniment
-    const rand = citesteRand(l);
+    const rand = citesteRand(l, g);
     if (rand) {
       const item = rand.item || numePendinte || '';
       numePendinte = null;
@@ -138,9 +170,9 @@ export function parseRaport28(text: string): Raport28 {
     }
     // ——— „<nume> lei": numele evenimentului următor, cu „lei"-ul coloanei Cost/Unit lipit de el
     const cuLei = /^(.+?) lei$/i.exec(l);
-    if (cuLei && !/\d,\d/.test(l)) { numePendinte = cuLei[1]; return; }
+    if (g.format === 'RO' && cuLei && !/\d,\d/.test(l)) { numePendinte = cuLei[1]; return; }
     // ——— un rând de material care nu s-a putut citi (are sume, dar nu grila întreagă)
-    if (/\d,\d{2}/.test(l) && /lei/i.test(l)) { r.nerecunoscute.push({ rand: nr, text: l }); precedent = 'RAND'; return; }
+    if ((/\d,\d{2}/.test(l) && /lei/i.test(l)) || (g.format === 'EN' && /\$\d/.test(l))) { r.nerecunoscute.push({ rand: nr, text: l }); precedent = 'RAND'; return; }
     // ——— continuare de nume (după un rând) sau antet de grup
     const scurta = /^[\p{L}\d%.,()\-/]{1,8}$/u.test(l) && !/^[A-Z][A-Za-z]+ \d+%$/.test(l);
     if (precedent === 'RAND' && r.randuri.length && !/^(Food|Paper|DESERT|FRYCafe|Alcool|Drinks|Diverse)/i.test(l)) {
@@ -157,7 +189,8 @@ export function parseRaport28(text: string): Raport28 {
 
   if (perioadeVazute.size > 1) r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.replace('|', ' → ')).join(', ')} — s-a păstrat prima.`);
   if (!r.de || !r.la) r.avertismente.push('Raportul nu declară perioada (dd.mm.yyyy - dd.mm.yyyy) — fereastra rămâne nedeclarată.');
-  if (!r.restaurant) r.avertismente.push('Raportul nu declară restaurantul în antet.');
+  if (!r.restaurant && !r.agregat) r.avertismente.push('Raportul nu declară restaurantul în antet.');
+  if (r.agregat) r.avertismente.push('Raport consolidat (Corporate): evenimentele sunt ale întregii companii, fără restaurant — nu se pot potrivi cu ajustările unui restaurant.');
   if (r.nerecunoscute.length) r.avertismente.push(`${r.nerecunoscute.length} rânduri nu s-au putut citi (liniile ${r.nerecunoscute.slice(0, 5).map(x => x.rand).join(', ')}${r.nerecunoscute.length > 5 ? '…' : ''}).`);
 
   // Extension = Qty × Cost/Unit: NBO calculează din costul nerotunjit, deci toleranța crește cu cantitatea
@@ -214,7 +247,7 @@ export function parsatDin28(r: Raport28, foaie = 'PDF'): Parsat {
 }
 
 export function descrie28(r: Raport28): string {
-  const cap = `Raport NBO 2.8${r.restaurant ? ` · ${r.restaurant}` : ''}${r.de && r.la ? ` · ${r.de} → ${r.la}` : ' · perioadă nedeclarată'}`;
+  const cap = `Raport NBO 2.8${r.restaurant ? ` · ${r.restaurant}` : r.agregat ? ' · consolidat (Corporate)' : ''}${r.de && r.la ? ` · ${r.de} → ${r.la}` : ' · perioadă nedeclarată'}${r.format === 'EN' ? ' · format american' : ''}`;
   const lei = Math.round(r.randuri.reduce((s, x) => s + x.lei, 0) * 100) / 100;
   const verif = r.verificari.length ? `${r.verificari.filter(v => v.ok).length}/${r.verificari.length} grupuri verificate pe total` : 'fără totaluri de grup';
   const motive = [...new Set(r.randuri.map(x => x.motiv))];

@@ -73,6 +73,10 @@ export interface Raport29 {
   perioadaEticheta: string | null;
   de: string | null;
   la: string | null;
+  /** Gramatica numerelor detectată din text. */
+  format: Format29;
+  /** Raport consolidat („Corporate Start Date"): al întregii companii, fără restaurant. */
+  agregat: boolean;
   randuri: Rand29[];
   totaluri: Total29[];
   totalGeneral: { vanzari: number; valoareStocFinal: number; consumLei: Trio; consumPct: Trio } | null;
@@ -82,10 +86,80 @@ export interface Raport29 {
   avertismente: string[];
 }
 
-// parantezele trebuie să fie echilibrate: „(1.316" e o celulă RUPTĂ, nu un număr pozitiv
-const NUM = /^(?:\(-?[\d.]*\d(?:,\d+)?\)|-?[\d.]*\d(?:,\d+)?)$/;
-const LEI = /^(?:\(-?[\d.]*\d(?:,\d+)? lei\)|-?[\d.]*\d(?:,\d+)? lei)$/;
-const PCT = /^(?:\(-?[\d.]*\d(?:,\d+)?%\)|-?[\d.]*\d(?:,\d+)?%)$/;
+/**
+ * Gramatica numerelor: NBO tipărește același raport în două formate, după setările stației.
+ *  · RO: virgulă zecimală, punct la mii, „lei" după sumă, data dd.mm.yyyy („1.610,35 lei", „(264,0)");
+ *  · EN: punct zecimal, virgulă la mii, „$" înaintea sumei, data m/d/yyyy („$15,647.76", „($3,221)", „(43.7)").
+ * Formatul se decide din text (prezența lui „$" în fața cifrelor), nu din numele fișierului, și se aplică
+ * întregului raport: un „19.0" citit cu gramatica greșită ar deveni 190.
+ */
+export type Format29 = 'RO' | 'EN';
+
+interface Gramatica {
+  format: Format29;
+  NUM: RegExp; LEI: RegExp; PCT: RegExp;
+  /** Un jeton este o sumă în bani (cu „lei" sau „$")? */
+  eLei: (t: string) => boolean;
+  numar: (s: string) => number | null;
+  /** Suma de bani ca fragment de regex pentru liniile de total. */
+  banTotal: string;
+  /** Intervalul din antet. */
+  interval: RegExp;
+  data: (s: string) => string | null;
+}
+
+const NUM_RO = /^(?:\(-?[\d.]*\d(?:,\d+)?\)|-?[\d.]*\d(?:,\d+)?)$/;
+const NUM_EN = /^(?:\(-?[\d,]*\d(?:\.\d+)?\)|-?[\d,]*\d(?:\.\d+)?)$/;
+
+/** Număr în format românesc, cu paranteze pentru negativ: „1.610,35 lei" → 1610.35, „(264,0)" → −264. */
+export function numar29(s: string): number | null {
+  let t = s.trim().replace(/\s*(lei|%)\s*/gi, '');
+  const neg = /^\(.*\)$/.test(t) || t.startsWith('-');
+  t = t.replace(/[()\-]/g, '').replace(/\./g, '').replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return neg ? -n : n;
+}
+
+/** Număr în format american: „$15,647.76" → 15647.76, „($3,221)" → −3221, „(0.05%)" → −0.05. */
+export function numar29EN(s: string): number | null {
+  let t = s.trim().replace(/[$%\s]/g, '');
+  const neg = /^\(.*\)$/.test(t) || t.startsWith('-');
+  t = t.replace(/[()\-]/g, '').replace(/,/g, '');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return neg ? -n : n;
+}
+
+const dataRO = (s: string): string | null => {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s.trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
+const dataEN = (s: string): string | null => {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s.trim());
+  return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
+};
+
+const GRAMATICA: Record<Format29, Gramatica> = {
+  RO: {
+    format: 'RO', NUM: NUM_RO,
+    LEI: /^(?:\(-?[\d.]*\d(?:,\d+)? lei\)|-?[\d.]*\d(?:,\d+)? lei)$/,
+    PCT: /^(?:\(-?[\d.]*\d(?:,\d+)?%\)|-?[\d.]*\d(?:,\d+)?%)$/,
+    eLei: t => /lei/i.test(t), numar: numar29, banTotal: '\\(?[\\d.,]+ lei\\)?',
+    interval: /^(\d{2}\.\d{2}\.\d{4})\s-\s(\d{2}\.\d{2}\.\d{4})$/, data: dataRO,
+  },
+  EN: {
+    format: 'EN', NUM: NUM_EN,
+    LEI: /^(?:\(\$[\d,]*\d(?:\.\d+)?\)|-?\$[\d,]*\d(?:\.\d+)?)$/,
+    PCT: /^(?:\([\d,]*\d(?:\.\d+)?%\)|-?[\d,]*\d(?:\.\d+)?%)$/,
+    eLei: t => /\$/.test(t), numar: numar29EN, banTotal: '\\(?\\$[\\d.,]+\\)?',
+    interval: /^(\d{1,2}\/\d{1,2}\/\d{4})\s-\s(\d{1,2}\/\d{1,2}\/\d{4})$/, data: dataEN,
+  },
+};
+
+/** Formatul raportului, din text: sumele cu „$" înseamnă gramatica americană. */
+export const detecteazaFormat29 = (text: string): Format29 => (/\(?\$\d/.test(text) ? 'EN' : 'RO');
+
 const UM_INVENTAR = /^(ea|each|kg|liter|litre|ltr|lt|l|ml|gram|grams|gr|g|pair|pairs|buc|pcs|pc)$/i;
 // ID-urile reale au între 2 și 7 cifre („75", „2002", „7000247"); o pereche falsă din denumire
 // („ACCUSHAKER 2 G", „Galeata 10 L") nu are exact 17 câmpuri după ea, deci nu câștigă
@@ -100,35 +174,22 @@ const COLOANE: ('NUM' | 'LEI' | 'PCT')[] = [
   'LEI', 'LEI', 'LEI',                  // Usage in Dollars
   'PCT', 'PCT', 'PCT',                  // Usage in Percent
 ];
-const REGEX: Record<'NUM' | 'LEI' | 'PCT', RegExp> = { NUM, LEI, PCT };
-
-/** Număr în format românesc, cu paranteze pentru negativ: „1.610,35 lei" → 1610.35, „(264,0)" → −264. */
-export function numar29(s: string): number | null {
-  let t = s.trim().replace(/\s*(lei|%)\s*/gi, '');
-  const neg = /^\(.*\)$/.test(t) || t.startsWith('-');
-  t = t.replace(/[()\-]/g, '').replace(/\./g, '').replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(t)) return null;
-  const n = Number(t);
-  return neg ? -n : n;
-}
-
-const dataRO = (s: string): string | null => {
-  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s.trim());
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
-};
+const regexuri = (g: Gramatica): Record<'NUM' | 'LEI' | 'PCT', RegExp> => ({ NUM: g.NUM, LEI: g.LEI, PCT: g.PCT });
 
 const STRUCTURA = [
   /^Total:\s/, /^Totals:\s/, /^V\s\d+\.\d/, /Fiscal Year:/i, /^2\.9 Food Cost/i, /^Period:\s/i, /^Week:\s/i,
-  /^\d{2}\.\d{2}\.\d{4}\s-\s\d{2}\.\d{2}\.\d{4}$/, /^Usage in Units/i, /^Raw Material/i, /^Item Name/i, /copyright/i,
+  /^\d{2}\.\d{2}\.\d{4}\s-\s\d{2}\.\d{2}\.\d{4}$/, /^\d{1,2}\/\d{1,2}\/\d{4}\s-\s\d{1,2}\/\d{1,2}\/\d{4}$/,
+  /^Corporate Start Date:/i, /^Start Date:/i, /^End Date:/i,
+  /^Usage in Units/i, /^Raw Material/i, /^Item Name/i, /copyright/i,
 ];
 const eStructura = (l: string) => STRUCTURA.some(re => re.test(l));
 /** Cadrul paginii (subsol + antetul repetat): nu e un total, deci nu încheie un grup început. */
 const eCadruPagina = (l: string) => !/^Totals?:\s/.test(l);
 /** O linie care arată a rând de grilă (cifre, lei, procente), dar nu s-a putut citi ca atare. */
-const pareGrila = (l: string) => {
+const pareGrila = (l: string, g: Gramatica) => {
   const t = l.split(' ');
-  const numerice = t.filter(x => NUM.test(x) || PCT.test(x)).length;
-  return numerice >= 6 || (/\blei\b/i.test(l) && /%/.test(l));
+  const numerice = t.filter(x => g.NUM.test(x) || g.PCT.test(x)).length;
+  return numerice >= 6 || ((/\blei\b/i.test(l) || /\$\d/.test(l)) && /%/.test(l));
 };
 
 /** Textul e raportul 2.9 al NBO? Se decide din titlul tipărit pe fiecare pagină, nu din numele fișierului. */
@@ -149,13 +210,14 @@ function campuri(tokens: string[]): string[] {
 }
 
 /** Ce câmpuri sunt rupte în celulă și ce bucată le lipsește. */
-function deschise(c: string[]): Deschis[] {
+function deschise(c: string[], g: Gramatica): Deschis[] {
   const rez: Deschis[] = [];
+  const REGEX = regexuri(g);
   c.forEach((v, i) => {
     const fel = COLOANE[i];
     if (REGEX[fel].test(v)) return;
     if (/[,.]$/.test(v) || (v.startsWith('(') && !v.includes(')') && fel !== 'LEI')) rez.push({ index: i, fel: 'CIFRE' });
-    else if (fel === 'LEI' && !/lei/i.test(v)) rez.push({ index: i, fel: 'LEI' });
+    else if (fel === 'LEI' && !g.eLei(v)) rez.push({ index: i, fel: 'LEI' });
     else if (v.startsWith('(') && !v.includes(')')) rez.push({ index: i, fel: 'LEI' });
   });
   return rez;
@@ -165,6 +227,7 @@ const lipeste = (v: string, bucata: string) => (/^lei/i.test(bucata) ? `${v} ${b
 
 /** Un rând de material, dacă linia are forma grilei: nume … ItemID InvUnit + 17 câmpuri. */
 function candidat(l: string): { nume: string; itemId: string; um: string; campuri: string[] } | null {
+  // în formatul american „$" stă lipit de sumă, deci nu există jetoane „lei" de lipit
   const tokens = l.split(' ');
   for (let i = 0; i + 1 < tokens.length; i++) {
     if (!ITEM_ID.test(tokens[i]) || !UM_INVENTAR.test(tokens[i + 1])) continue;
@@ -183,8 +246,12 @@ const trio = (a: number, t: number, v: number): Trio => ({ actual: a, teoretic: 
  */
 export function parseRaport29(text: string): Raport29 {
   const linii = text.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim());
+  const g = GRAMATICA[detecteazaFormat29(text)];
+  const REGEX = regexuri(g);
+  const TOTAL = new RegExp(`^Total:\\s(.+?)\\s(${g.banTotal})\\s(${g.banTotal})\\s(${g.banTotal})\\s(${g.banTotal})\\s(\\(?[\\d.,]+%\\)?)\\s(\\(?[\\d.,]+%\\)?)\\s(\\(?[\\d.,]+%\\)?)$`);
+  const TOTALS = new RegExp(`^Totals:\\s(?:Sales:\\s)?(${g.banTotal})\\s(${g.banTotal})\\s(${g.banTotal})\\s(${g.banTotal})\\s(${g.banTotal})\\s(\\(?[\\d.,]+%\\)?)\\s(\\(?[\\d.,]+%\\)?)\\s(\\(?[\\d.,]+%\\)?)$`);
   const r: Raport29 = {
-    titlu: null, restaurant: null, anFiscal: null, perioadaEticheta: null, de: null, la: null,
+    titlu: null, restaurant: null, anFiscal: null, perioadaEticheta: null, de: null, la: null, format: g.format, agregat: false,
     randuri: [], totaluri: [], totalGeneral: null, nerecunoscute: [], verificari: [], avertismente: [],
   };
   let grup: string | null = null;
@@ -205,7 +272,7 @@ export function parseRaport29(text: string): Raport29 {
     if (!valide) {
       r.nerecunoscute.push({ rand: inCurs.linie, text: inCurs.text });
     } else {
-      const n = c.map(numar29) as number[];
+      const n = c.map(g.numar) as number[];
       r.randuri.push({
         rand: inCurs.linie, grup, categorie: categorie ?? '', itemId: inCurs.itemId, item: inCurs.nume, umInventar: inCurs.um,
         stocInitial: n[0], achizitii: n[1], ajustari: n[2], transferuri: n[3], stocFinal: n[4],
@@ -233,26 +300,34 @@ export function parseRaport29(text: string): Raport29 {
         r.titlu ??= l;
       } else if ((m = /^(Period|Week):\s*(.+)$/i.exec(l))) {
         r.perioadaEticheta ??= `${m[1]} ${m[2].trim()}`;
-      } else if ((m = /^(\d{2}\.\d{2}\.\d{4})\s-\s(\d{2}\.\d{2}\.\d{4})$/.exec(l))) {
-        const de = dataRO(m[1]), la = dataRO(m[2]);
+      } else if ((m = g.interval.exec(l))) {
+        const de = g.data(m[1]), la = g.data(m[2]);
         if (de && la) {
           perioadeVazute.add(`${de}|${la}`);
           r.de ??= de; r.la ??= la;
         }
-      } else if ((m = /^Total:\s(.+?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+%\)?)\s(\(?[\d.,]+%\)?)\s(\(?[\d.,]+%\)?)$/.exec(l))) {
+      } else if ((m = /^(Corporate\s+)?Start Date:\s*(\S+)$/i.exec(l))) {
+        // raportul consolidat („Corporate") nu are restaurant în antet: e al întregii companii
+        if (m[1]) r.agregat = true;
+        const de = g.data(m[2]) ?? dataRO(m[2]) ?? dataEN(m[2]);
+        if (de) { r.de ??= de; if (r.la) perioadeVazute.add(`${r.de}|${r.la}`); }
+      } else if ((m = /^End Date:\s*(\S+)$/i.exec(l))) {
+        const la = g.data(m[1]) ?? dataRO(m[1]) ?? dataEN(m[1]);
+        if (la) { r.la ??= la; if (r.de) perioadeVazute.add(`${r.de}|${r.la}`); }
+      } else if ((m = TOTAL.exec(l))) {
         const t: Total29 = {
-          categorie: m[1], valoareStocFinal: numar29(m[2]) ?? 0,
-          consumLei: trio(numar29(m[3]) ?? 0, numar29(m[4]) ?? 0, numar29(m[5]) ?? 0),
-          consumPct: trio(numar29(m[6]) ?? 0, numar29(m[7]) ?? 0, numar29(m[8]) ?? 0),
+          categorie: m[1], valoareStocFinal: g.numar(m[2]) ?? 0,
+          consumLei: trio(g.numar(m[3]) ?? 0, g.numar(m[4]) ?? 0, g.numar(m[5]) ?? 0),
+          consumPct: trio(g.numar(m[6]) ?? 0, g.numar(m[7]) ?? 0, g.numar(m[8]) ?? 0),
         };
         const ultim = r.totaluri[r.totaluri.length - 1];
         // totalul e tipărit de două ori; a doua tipărire a aceluiași grup nu e alt total
         if (!(ultim && ultim.categorie === t.categorie && ultim.consumLei.actual === t.consumLei.actual)) r.totaluri.push(t);
-      } else if ((m = /^Totals:\s(?:Sales:\s)?(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+ lei\)?)\s(\(?[\d.,]+%\)?)\s(\(?[\d.,]+%\)?)\s(\(?[\d.,]+%\)?)$/.exec(l))) {
+      } else if ((m = TOTALS.exec(l))) {
         r.totalGeneral = {
-          vanzari: numar29(m[1]) ?? 0, valoareStocFinal: numar29(m[2]) ?? 0,
-          consumLei: trio(numar29(m[3]) ?? 0, numar29(m[4]) ?? 0, numar29(m[5]) ?? 0),
-          consumPct: trio(numar29(m[6]) ?? 0, numar29(m[7]) ?? 0, numar29(m[8]) ?? 0),
+          vanzari: g.numar(m[1]) ?? 0, valoareStocFinal: g.numar(m[2]) ?? 0,
+          consumLei: trio(g.numar(m[3]) ?? 0, g.numar(m[4]) ?? 0, g.numar(m[5]) ?? 0),
+          consumPct: trio(g.numar(m[6]) ?? 0, g.numar(m[7]) ?? 0, g.numar(m[8]) ?? 0),
         };
       }
       return;
@@ -261,14 +336,14 @@ export function parseRaport29(text: string): Raport29 {
     const c = candidat(l);
     if (c) {
       inchide();
-      inCurs = { rand: null, ...c, deschise: deschise(c.campuri), linie: nr, text: l };
+      inCurs = { rand: null, ...c, deschise: deschise(c.campuri, g), linie: nr, text: l };
       precedent = 'DATE';
       return;
     }
 
     // o linie cu forma grilei pe care candidat() n-o recunoaște (unitate de inventar necunoscută,
     // un câmp în plus sau în minus) NU e o denumire și nici un antet: rămâne raportată ca necitită
-    if (pareGrila(l) && !(inCurs && inCurs.deschise.length && l.split(' ').length <= inCurs.deschise.length + 6)) {
+    if (pareGrila(l, g) && !(inCurs && inCurs.deschise.length && l.split(' ').length <= inCurs.deschise.length + 6)) {
       inchide();
       r.nerecunoscute.push({ rand: nr, text: l });
       precedent = 'STRUCTURA';
@@ -306,7 +381,8 @@ export function parseRaport29(text: string): Raport29 {
     r.avertismente.push(`Paginile declară perioade diferite: ${[...perioadeVazute].map(p => p.replace('|', ' → ')).join(', ')} — s-a păstrat prima.`);
   }
   if (!r.de || !r.la) r.avertismente.push('Raportul nu declară perioada (dd.mm.yyyy - dd.mm.yyyy) — fereastra rămâne nedeclarată.');
-  if (!r.restaurant) r.avertismente.push('Raportul nu declară restaurantul în antet.');
+  if (!r.restaurant && !r.agregat) r.avertismente.push('Raportul nu declară restaurantul în antet.');
+  if (r.agregat) r.avertismente.push('Raport consolidat (Corporate): consumul e al întregii companii, fără restaurant — intră doar la nivel de companie.');
   if (r.nerecunoscute.length) {
     r.avertismente.push(`${r.nerecunoscute.length} rânduri de material nu s-au putut citi (liniile ${r.nerecunoscute.slice(0, 5).map(x => x.rand).join(', ')}${r.nerecunoscute.length > 5 ? '…' : ''}).`);
   }
@@ -468,7 +544,7 @@ export function parsatDin29(r: Raport29, foaie = 'PDF'): Parsat {
 
 /** Rezumatul de o linie pe care îl arată ecranul de import. */
 export function descrie29(r: Raport29): string {
-  const cap = `Raport NBO 2.9${r.restaurant ? ` · ${r.restaurant}` : ''}${r.de && r.la ? ` · ${r.de} → ${r.la}` : ' · perioadă nedeclarată'}`;
+  const cap = `Raport NBO 2.9${r.restaurant ? ` · ${r.restaurant}` : r.agregat ? ' · consolidat (Corporate)' : ''}${r.de && r.la ? ` · ${r.de} → ${r.la}` : ' · perioadă nedeclarată'}${r.format === 'EN' ? ' · format american' : ''}`;
   const verif = r.verificari.length
     ? `${r.verificari.filter(v => v.ok).length}/${r.verificari.length} grupuri verificate pe total`
     : 'fără totaluri de grup';
