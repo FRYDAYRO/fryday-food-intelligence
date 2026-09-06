@@ -209,6 +209,16 @@ t('un import cu restaurante în afara drepturilor e refuzat',
 t('… iar refuzul numește restaurantul străin',
   (verificaImport({ ...A_TOP, allowedStoreIds: ['L02'] },
     { scop: 'RESTAURANT', restaurante: ['L01'] }).motiv ?? '').includes('L01'));
+// primul raport al unui restaurant NOU: nu e al altcuiva, iar rolul de companie îl poate aduce
+const CUNOSCUTE = s0.locatii.map(l => l.cod);
+t('un restaurant care nu există încă poate fi adus de management prin primul lui raport',
+  verificaImport(A_TOP, { scop: 'RESTAURANT', restaurante: ['FRYDAY CLUJ MEMO'] }, CUNOSCUTE).permis);
+t('… și de operatorul local, fără server', verificaImport(A_LOCAL, { scop: 'RESTAURANT', restaurante: ['FRYDAY CLUJ MEMO'] }, CUNOSCUTE).permis);
+t('un restaurant CUNOSCUT din afara drepturilor rămâne refuzat, chiar cu lista cunoscutelor',
+  !verificaImport({ ...A_TOP, allowedStoreIds: ['L02'] }, { scop: 'RESTAURANT', restaurante: ['L01'] }, CUNOSCUTE).permis);
+t('fără lista cunoscutelor, poarta rămâne strictă și pentru restaurantul nou',
+  !verificaImport(A_TOP, { scop: 'RESTAURANT', restaurante: ['FRYDAY CLUJ MEMO'] }).permis);
+t('managerul nu poate aduce un restaurant nou', !verificaImport(A_MGR_NEFILTRAT, { scop: 'RESTAURANT', restaurante: ['FRYDAY CLUJ MEMO'] }, CUNOSCUTE).permis);
 
 // ————————————————————————————————————————————————————————— intrarea dinspre exterior
 

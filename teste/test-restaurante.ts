@@ -113,6 +113,14 @@ t('management: locațiile cu date apar separat', oAdmin.dinDate.length === 2);
 t('restaurantele reale sunt marcate FĂRĂ date', oAdmin.reale.every(o => !o.areDate && o.motiv === MESAJ_NEMAPAT));
 t('locațiile din date sunt marcate CU date', oAdmin.dinDate.every(o => o.areDate));
 t('căutarea filtrează opțiunile', optiuniRestaurant(S, ADMIN, 'sibiu').reale.length === 2);
+// restaurantul pilot: primul lui raport creează locația cu numele EXACT din antet — nu apare de două ori
+const S_CLUJ: AppState = { ...S, locatii: [...S.locatii, { cod: 'FRYDAY CLUJ MEMO', nume: 'FRYDAY CLUJ MEMO' }] };
+const oCluj = optiuniRestaurant(S_CLUJ, accesTower(S_CLUJ, { rol: 'ADMIN' }, false));
+t('restaurantul cu date sub numele real apare o singură dată, CU date',
+  oCluj.dinDate.filter(o => o.eticheta === 'FRYDAY CLUJ MEMO' && o.areDate).length === 1
+  && !oCluj.reale.some(o => o.eticheta === 'FRYDAY CLUJ MEMO'));
+t('celelalte restaurante reale rămân în listă', oCluj.reale.length === 29);
+t('căutarea nu îl readuce ca „fără date"', !optiuniRestaurant(S_CLUJ, accesTower(S_CLUJ, { rol: 'ADMIN' }, false), 'cluj').reale.some(o => o.eticheta === 'FRYDAY CLUJ MEMO'));
 
 const oMgr = optiuniRestaurant(S, MGR);
 t('managerul e blocat la restaurantul lui', oMgr.blocatLa === 'L02');

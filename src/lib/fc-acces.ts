@@ -184,16 +184,24 @@ export function verificaScriere(a: ContextAutorizare): Verdict {
  * Poarta pentru un import: scopul fișierului trebuie să încapă în drepturile rolului.
  * Un import de companie sau pentru alt restaurant e refuzat înainte de orice scriere.
  */
+/**
+ * Poarta de import. `cunoscute` = restaurantele care există deja în stare: un restaurant care
+ * NU există încă nu e al altcuiva, iar un rol cu vedere pe companie îl poate aduce prin primul
+ * lui raport (altfel primul 2.9 al unui restaurant nou n-ar putea fi activat niciodată dintr-o
+ * aplicație goală). Fără `cunoscute`, poarta rămâne strictă: doar restaurantele din drepturi.
+ */
 export function verificaImport(
   a: ContextAutorizare,
   importScop: { scop: string; restaurante: string[] },
+  cunoscute?: string[],
 ): Verdict {
   const scriere = verificaScriere(a);
   if (!scriere.permis) return scriere;
   if (importScop.scop === 'COMPANIE' && !a.companyAccess) {
     return nu('COMPANIE_NEAUTORIZATA', 'Un import de companie cere acces la nivel de companie.');
   }
-  const straine = importScop.restaurante.filter(r => !potVedeaRestaurantul(a, r));
+  const eNou = (r: string) => cunoscute !== undefined && !cunoscute.includes(r);
+  const straine = importScop.restaurante.filter(r => !potVedeaRestaurantul(a, r) && !(a.companyAccess && eNou(r)));
   return straine.length
     ? nu('IMPORT_IN_AFARA_SCOPULUI', `Importul conține restaurante în afara drepturilor: ${straine.join(', ')}.`)
     : DA;

@@ -38,6 +38,7 @@ import {
   MESAJ_NEMAPAT, TOATE_RESTAURANTELE, cautaRestaurante, esteMapat,
   restaurantDupaNume, type RestaurantFryday,
 } from './restaurante-fryday';
+import { normalizeazaNume } from './store-master';
 
 // ————————————————————————————————————————————————————————— navigarea
 
@@ -1245,6 +1246,10 @@ export function optiuniRestaurant(state: AppState, acces: AccesTower, cautare = 
     .filter(l => permise.has(l.cod))
     .map(l => ({ eticheta: l.nume, valoare: l.cod, areDate: true }))
     .sort((x, y) => x.eticheta.localeCompare(y.eticheta, 'ro'));
+  // un restaurant din master care are deja date sub numele lui real (locația creată de primul
+  // raport poartă exact numele din antet) nu se mai listează a doua oară ca „fără date"
+  const cuDate = new Set(dinDate.flatMap(o => [normalizeazaNume(o.eticheta), normalizeazaNume(o.valoare)]));
+  const faraDateInca = (r: RestaurantFryday) => !cuDate.has(normalizeazaNume(r.displayName));
 
   const q = cautare.trim();
   const potrivit = (o: OptiuneRestaurant) =>
@@ -1255,7 +1260,7 @@ export function optiuniRestaurant(state: AppState, acces: AccesTower, cautare = 
       ? { eticheta: 'Toate restaurantele', valoare: TOATE_RESTAURANTELE, areDate: true }
       : null,
     dinDate: dinDate.filter(potrivit),
-    reale: cautaRestaurante(q).map(optiuneReala),
+    reale: cautaRestaurante(q).filter(faraDateInca).map(optiuneReala),
     blocatLa: null,
   };
 }

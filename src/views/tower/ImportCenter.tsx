@@ -134,7 +134,7 @@ export default function ImportCenter() {
 
   const randBrut = pregatire ? randImport(pregatire.rezultat) : null;
   // a doua poartă: chiar validat de motor, un import în afara scopului autorizat nu se activează
-  const poarta = randBrut ? verificaImport(acces.context, { scop: randBrut.scop, restaurante: randBrut.restaurante }) : null;
+  const poarta = randBrut ? verificaImport(acces.context, { scop: randBrut.scop, restaurante: randBrut.restaurante }, state.locatii.map(l => l.cod)) : null;
   const rand = randBrut && poarta && !poarta.permis
     ? { ...randBrut, poateActiva: false, motivBlocare: poarta.motiv }
     : randBrut;
