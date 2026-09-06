@@ -167,10 +167,14 @@ const CAMPURI: Record<TipImport, Record<string, string[]>> = {
     validDeLa: ['valabil de la', 'de la', 'data', 'valabilitate'],
   },
   RETETAR: {
-    reteta: ['cod reteta', 'cod produs', 'reteta', 'cod'],
+    // foaia REȚETAR a dashboardului FRYDAY: „Produs | Categorie | Canal | Cod MP | Denumire MP | Cantitate | UM"
+    reteta: ['cod reteta', 'cod produs', 'reteta', 'cod', 'produs', 'denumire produs', 'nume produs'],
     tipReteta: ['tip reteta', 'tip'],
     denumire: ['denumire reteta', 'denumire', 'nume'],
-    comp: ['cod componenta', 'componenta', 'cod ingredient', 'ingredient'],
+    categorie: ['categorie', 'grupa', 'category'],
+    comp: ['cod componenta', 'componenta', 'cod ingredient', 'ingredient', 'cod mp', 'cod materie prima', 'cod material', 'cod comp'],
+    // denumirea componentei se consumă separat, ca „Denumire MP" să nu devină denumirea rețetei
+    denumireComp: ['denumire mp', 'denumire componenta', 'denumire ingredient', 'denumire materie prima', 'materie prima'],
     tipComp: ['tip componenta', 'tip comp'],
     cant: ['cantitate', 'cant', 'gramaj', 'qty'],
     um: ['um', 'unitate', 'u.m.'],
@@ -1752,6 +1756,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         arr.push(r); grupe.set(cod, arr);
       }
       const retete = state.retete.map(x => ({ ...x, versiuni: [...x.versiuni] }));
+      // rețetarul e și lista de produse: un produs care lipsește din nomenclator se creează de aici,
+      // fără preț de vânzare (prețul vine din 4.7 sau din lista de prețuri), altfel vânzările lui
+      // din 4.7 n-ar avea pe ce să se mapeze și rețeta n-ar apărea niciodată în Food Cost
+      const produse = state.produse.map(x => ({ ...x }));
+      const produseNoi: string[] = [];
       let neschimbate = 0;
       // versiunea se datează la data cerută de import, nu la ceasul mașinii: altfel o
       // versiune „din iunie" nu s-ar aplica în iunie, iar recalculul istoric ar folosi
@@ -1789,7 +1798,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
         if (!ret) {
           ret = { cod, tip: eSPReteta ? 'SEMIPREPARAT' : 'PRODUS', denumire, versiuni: [], activa: 0 } as Reteta;
           retete.push(ret);
-          if (!eSPReteta && !state.produse.some(x => x.cod === cod)) avert.push(`Rețeta ${cod} nu are produs în nomenclator — se importă, dar nu apare în vânzări`);
+        }
+        if (!eSPReteta && !produse.some(x => x.cod === cod)) {
+          const categorie = String(g(randuri[0], 'categorie')).trim() || 'Fără categorie';
+          produse.push({ cod, denumire, categorie, tip: 'SIMPLU', tva: state.setari.tvaImplicit, activ: true, aliasuri: [] });
+          produseNoi.push(cod);
         }
         // O versiune nouă se scrie DOAR când conținutul chiar diferă. La un import
         // săptămânal, altfel s-ar aduna ~52 de versiuni pe an per rețetă, aproape toate
@@ -1814,7 +1827,11 @@ export function importa(tip: TipImport, p: Parsat, numeFisier: string, state: Ap
       if (neschimbate) {
         avert.push(`${neschimbate} rețete neschimbate față de versiunea în vigoare — nu s-a creat o versiune nouă pentru ele.`);
       }
-      stateNou = { ...state, retete };
+      if (produseNoi.length) {
+        avert.push(`${produseNoi.length} produse noi create din rețetar, fără preț de vânzare (prețul intră din 4.7 sau din lista de prețuri): `
+          + `${produseNoi.slice(0, 8).join(', ')}${produseNoi.length > 8 ? '…' : ''}`);
+      }
+      stateNou = { ...state, retete, produse };
     }
   }
 
