@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
+  base: '/Fryday-OS/',   // repo path pentru GitHub Pages (valentin845.github.io/Fryday-OS/)
   plugins: [react()],
   // Versiunea are o SINGURĂ sursă: package.json. Data vine din ceasul build-ului, deci nu
   // poate rămâne în urmă. Ambele se injectează la compilare — nimic de ținut sincronizat
