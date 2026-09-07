@@ -91,8 +91,10 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   test, pompă) aplicate numai unde există materialul (puntea pe material, ajustări, waste), nu în rollup-ul pe
   categorie. „Toys" intră în Food (se vând ca side și în meniurile junior). Regulile implicite noi intră în stările salvate o
   singură dată, prin `VERSIUNE_REGULI_29`.
-- Rețetarul importat din foaie creează produsele care lipsesc (fără preț de vânzare; prețul intră din 4.7 sau din
-  lista de prețuri). Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
+- Rețetarul importat din foaie creează produsele care lipsesc (fără preț de vânzare, cu TVA implicit 11 %: băuturile
+  cu 21 % cer TVA-ul corect pe produs, altfel netul din 4.7 iese umflat; prețul intră din 4.7 sau din lista de prețuri).
+  Raportul 4.7 e o grilă fără antete: motorul îi verifică liniile de vânzare și restaurantul pe conținut, prin Store
+  Master; un restaurant neidentificat și nedeclarat e refuzat, „Multiple Selection" intră pe locația rețelei. Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
   perioadele din Tower vin din vânzări (4.7): fără 4.7 nu există perioadă, chiar dacă 2.9/2.8 sunt importate.
 - NBO tipărește 2.9 și 2.8 în două gramatici (RO: „1.610,35 lei", dd.mm.yyyy; EN: „$15,647.76", „($3,221)", m/d/yyyy).
   Formatul se detectează din text („$" în fața cifrelor) și se aplică întregului raport. Raportul consolidat

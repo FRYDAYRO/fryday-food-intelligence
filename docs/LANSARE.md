@@ -33,6 +33,11 @@ pe aplicația goală, cu fișierele reale.
       - [ ] 4.7 Sales Mix FRYDAY CLUJ MEMO, Period 8 (01.08–31.08.2026): FIȘIER LIPSĂ la data probei. Fără el
             nu există vânzări, deci nici perioadă în Tower, nici numitor, nici cost teoretic: Food Cost-ul și
             reconcilierea nu pot fi validate.
+            Calea e dovedită pe 4.7 Timișoara săptămâna 34 (PDF, prin Importuri și prin Import Center):
+            222 rânduri de vânzări, locația creată din antet, 35 de denumiri POS în coada de aprobare
+            (≈ 9 % din lei), Tower cu perioada 2026-S34, FC teoretic 42,2 %, toate ecranele fără erori.
+            Produsele create din rețetar au TVA implicit (11 %): pe băuturile cu 21 % netul din 4.7 iese
+            umflat; cu 4.1 prezent, numitorul e Sales Report-ul (189.606 lei față de 189.771 din PMIX).
       - [x] 2.9 Cluj MEMO august, prin Import Center (PDF): VALIDAT și activat ca NBO_29#1, 582/582 rânduri,
             bilanț 570 exact + 12 în toleranță, 20/20 grupuri, 311.565 lei consum actual.
       - [x] 2.8 Cluj MEMO august, prin Import Center (PDF): VALIDAT și activat ca NBO_28#1, 157/157 evenimente,

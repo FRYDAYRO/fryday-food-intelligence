@@ -6,6 +6,7 @@
 import { useRef, useState } from 'react';
 import { citesteFisier, type Parsat } from '../../lib/importer';
 import { textDinPdf } from '../../lib/pdf';
+import { matriceDinText, parseSalesMix } from '../../lib/salesmix';
 import { descrie29, esteRaport29, parsatDin29, parseRaport29 } from '../../lib/nbo-29';
 import { descrie28, esteRaport28, parsatDin28, parseRaport28 } from '../../lib/nbo-28';
 import { descrie41, esteRaport41, parsatDin41, parseRaport41 } from '../../lib/nbo-41';
@@ -96,7 +97,21 @@ export default function ImportCenter() {
         }));
         return;
       }
-      if (!esteRaport29(text)) { setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary"), 2.8 („Spoilage and Loss") sau 4.1 („Sales Journal"). Raportul 4.7 se importă din ecranul Importuri.'); return; }
+      if (!esteRaport29(text)) {
+        // raportul 4.7 Sales Mix: grilă fără antete; restaurantul și fereastra vin din antetul raportului
+        const matrice = matriceDinText(text);
+        const sm = parseSalesMix(matrice);
+        if (sm.linii.length) {
+          const p: Parsat = { foaie: 'PDF', antete: [], randuri: [], matrice } as Parsat;
+          setParsat(p); setFisier(f.name); setTip('PMIX_47');
+          if (sm.perioadaDe && sm.perioadaLa) { setFereastraDe(sm.perioadaDe); setFereastraLa(sm.perioadaLa); }
+          setMesaj(`Raport 4.7 Sales Mix · ${sm.magazine.length === 1 ? sm.magazine[0] : `${sm.magazine.length} restaurante`} · ${sm.perioadaDe ?? '?'} → ${sm.perioadaLa ?? '?'} · ${sm.linii.length} linii de vânzare`);
+          setPregatire(pregatesteImport(state, { ...cerere(p, f.name), tip: 'PMIX_47' }));
+          return;
+        }
+        setMesaj('PDF-ul nu e raportul NBO 2.9 („Food Cost - Inventory With Adjustments Summary"), 2.8 („Spoilage and Loss"), 4.1 („Sales Journal") sau 4.7 („Sales Mix").');
+        return;
+      }
       const raport = parseRaport29(text);
       if (!raport.randuri.length) { setMesaj(`Raportul 2.9 nu conține rânduri de material lizibile. ${raport.avertismente.join(' ')}`); return; }
       const p = parsatDin29(raport);
