@@ -11,6 +11,7 @@
 //  · ce nu se poate calcula se raportează `disponibil: false`, niciodată zero;
 //  · fiecare rezultat își poartă sursele, ca orice cifră să fie urmărită până la datele brute.
 import { UMS, areCostMasurabil, costProdus, luna as lunaDin, clasifica } from './engine';
+import { clasaMaterial29 } from './fc-clasificare';
 import { potriveste28cu29, pretDeterminabil, type Potrivire28cu29 } from './atribuire-waste';
 import { identificaIngredient } from './identitate';
 import { fereastraRand } from './surse-29';
@@ -389,7 +390,7 @@ export function atribuireWasteFC(state: AppState, cerere: CerereFC): AtribuireWa
 
   // numai waste-ul materialelor din Food Cost (Food + Paper, aceeași clasificare ca nboFC) poate
   // reduce Neexplicatul FC: consumul unui material EXCLUS nu e în consumFC, deci nici waste-ul lui
-  const clasaMaterial = new Map(materialeSel.map(m => [m.material, clasifica(m.categorie, state.reguli).clasa]));
+  const clasaMaterial = new Map(materialeSel.map(m => [m.material, clasaMaterial29(m.categorie, m.denumire, () => clasifica(m.categorie, state.reguli).clasa)]));
   const inFC = (l: { material: string }) => { const c = clasaMaterial.get(l.material); return c === 'FOOD' || c === 'PAPER'; };
   const inclusLei = rot2(pot.linii.filter(inFC).reduce((s, l) => s + l.parti.INCLUS_IN_USAGE.lei, 0));
   const inclusInAfaraFCLei = rot2(pot.lei28Parti.INCLUS_IN_USAGE - inclusLei);

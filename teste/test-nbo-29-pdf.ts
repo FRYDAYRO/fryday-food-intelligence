@@ -201,7 +201,8 @@ const mb = m3.find(m => m.material === '702257')!;
 t('subgrupul își păstrează grupul părinte și rândul din PDF', mb.grup === 'Paper' && mb.categorie === 'Paper / ACCESORII' && mb.sursa?.rand === la('702257').rand && mb.cantTeoretic === 265);
 t('fereastra fiecărui rând e luna raportului (granularitate LUNA), nu una presupusă', m3.every(m => m.fereastra?.de === '2026-08-01' && m.fereastra?.la === '2026-08-31' && m.fereastra.granularitate === 'LUNA'));
 const coada = S3.nemapate.filter(n => felNemapat(n) === 'MATERIAL').map(n => n.denumire).sort();
-t('D1/D6: în coadă intră doar materialele nemapate Food & Paper (Capac, Bonete), nu Corona (Alcool, neclasificat)', coada.join() === '702116,702257', coada.join());
+// decizia din 06.09.2026: „Alcool" intră în FC Curat, deci și Corona (nemapată) cere alias
+t('D1/D6: în coadă intră doar materialele nemapate din FC Curat (Corona, Capac, Bonete)', coada.join() === '7000241,702116,702257', coada.join());
 const pret = (s: AppState, cod: string) => s.ingrediente.find(i => i.cod === cod)!;
 const eCH = pret(S3, 'CHED').preturi.find(p => p.validDeLa === '2026-08-01');
 t('D4: Cost per Unit 0,63 lei/EA devine prețul datat al ingredientului identificat pe denumire', !!eCH && eCH.pret === 0.63 && pret(S3, 'CHED').preturi.length === 2);
