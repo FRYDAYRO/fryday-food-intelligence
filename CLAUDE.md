@@ -89,7 +89,7 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
 - Vocabularul 2.9 al rețelei e clasificat prin regulile implicite (decizia din 06.09.2026): băuturile, cafeneaua,
   merch-ul, garanțiile SGR și „Diverse 21%" intră în FC Curat; „Diverse" are excepții PE MATERIAL (taxe, articol
   test, pompă) aplicate numai unde există materialul (puntea pe material, ajustări, waste), nu în rollup-ul pe
-  categorie. „Toys" nu are decizie și rămâne neclasificat. Regulile implicite noi intră în stările salvate o
+  categorie. „Toys" intră în Food (se vând ca side și în meniurile junior). Regulile implicite noi intră în stările salvate o
   singură dată, prin `VERSIUNE_REGULI_29`.
 - Rețetarul importat din foaie creează produsele care lipsesc (fără preț de vânzare; prețul intră din 4.7 sau din
   lista de prețuri). Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;

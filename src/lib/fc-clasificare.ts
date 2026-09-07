@@ -52,9 +52,10 @@ export interface RegulaCategorie29 {
 export const REGULI_IMPLICITE_29: RegulaCategorie29[] = [
   // — vocabularul NBO al rețelei FRYDAY (decizia din 06.09.2026): în FC Curat intră și băuturile
   //   („Drink 11%", „DrinksSugar 21%", „Alcool"), cafeneaua („FRYCafe 21%"), merch-ul, garanțiile
-  //   SGR ale ambalajelor de băuturi și „Diverse" — ultima cu excepții pe material (vezi mai jos).
-  //   „Toys" și „ACCESORII" NU au primit decizie: rămân neclasificate până la o regulă explicită.
+  //   SGR ale ambalajelor de băuturi, „Diverse" — ultima cu excepții pe material (vezi mai jos) — și
+  //   „Toys" (jucăriile se vând ca side și în meniurile junior, decizia din 07.09.2026).
   { pattern: 'frycafe', categorie: 'FOOD' },
+  { pattern: 'toys', categorie: 'FOOD' },
   { pattern: 'drinkssugar', categorie: 'FOOD' },
   { pattern: 'drink', categorie: 'FOOD' },
   { pattern: 'alcool', categorie: 'FOOD' },
@@ -149,7 +150,7 @@ export const clasaDinCategorie = (c: FCCategory): Clasa29 =>
  * Migrarea rulează O SINGURĂ DATĂ pe versiune: altfel o regulă implicită ștearsă de om din
  * ecranul Food Cost s-ar întoarce tăcut la fiecare reîncărcare, iar decizia lui ar fi anulată.
  */
-export const VERSIUNE_REGULI_29 = '29.2';
+export const VERSIUNE_REGULI_29 = '29.3';
 
 /**
  * Regulile implicite ale clasificatorului vechi — DERIVATE din `REGULI_IMPLICITE_29`, nu o
