@@ -15,6 +15,7 @@
  *  · ajustările NU sunt etichetate drept waste: natura lor fizică se stabilește din 2.8.
  */
 import { clasifica } from './engine';
+import { clasaMaterial29 } from './fc-clasificare';
 import { selecteaza29 } from './surse-29';
 import { identificaIngredient } from './fc-material';
 import { nboFC, numitorFC, recipeFC, type NumitorFC } from './fc-core';
@@ -104,7 +105,7 @@ export function ajustari29(state: AppState, ctx: CtxFC, cerere: CerereFC): Ajust
     const cpu = m.costPeUnitate ?? null;
     const utilizabil = cpu !== null && cpu > 0;
     const leiEstimat = utilizabil ? Math.abs(m.ajustari) * cpu : null;
-    const clasa = clasifica(m.categorie, state.reguli).clasa;
+    const clasa = clasaMaterial29(m.categorie, m.denumire, () => clasifica(m.categorie, state.reguli).clasa);
     if (m.ajustari < 0) negative++;
     if (!utilizabil) faraEvaluare++;
     else if (m.ajustari > 0) { leiPoz += leiEstimat!; if (clasa === 'FOOD' || clasa === 'PAPER') leiPozFC += leiEstimat!; }

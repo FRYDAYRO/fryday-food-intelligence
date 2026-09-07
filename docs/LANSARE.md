@@ -23,11 +23,13 @@ pe aplicația goală, cu fișierele reale.
       motor = Σ cantitate × preț/UM bază = TOTAL REȚETĂ tipărit, pe 154 de produse (test pe fișierul real).
       La import, „Valabil de la" se pune pe prima zi a lunii pilot (01.08.2026): altfel versiunea de rețetă e
       datată azi și se aplică lunii doar prin regula „prima versiune existentă" (nomenclatorul își poartă data pe rând).
-- [ ] Reguli de clasificare pentru TOATE categoriile 2.9 ale restaurantului (Tower › Setări). În 2.9 Cluj august,
-      10 categorii n-au regulă și rămân neclasificate (nu se presupun Food): DrinksSugar 21% (17.239 lei usage),
-      FRYCafe 21% (3.229), Toys (1.496), Drink 11% (1.492), ACCESORII (751), Diverse 21% (719), Garantie sgr
-      pet / aluminiu / sticla (312 / 105 / 36), MERCH RAW (197), Alcool (−4.765, din transferuri).
-      Decizie de business: Food / Paper / exclus, pe fiecare.
+- [x] Reguli de clasificare pentru categoriile 2.9 (decizia din 06.09.2026, reguli implicite, versiunea 29.2):
+      în FC Curat intră Food 11%/21%, Condimente, Paper (cu subgrupul ACCESORII), Drink 11%, DrinksSugar 21%,
+      FRYCafe 21%, Alcool, MERCH RAW, garanțiile SGR (pet / aluminiu / sticlă) și Diverse 21% — din Diverse doar
+      ce e aliment, băutură sau ambalaj (Biogon C intră; taxa de CO2, articolul de test și pompa Monin nu).
+      Cluj august: FC Curat actual 45,52 % / teoretic 46,66 %; companie 01–09.08: 47,50 % / 47,02 %.
+      - [ ] „Toys" (Cutie Jucarie: 1.496 lei la Cluj, 23.424 lei pe companie în 01–09.08) rămâne fără decizie,
+            deci neclasificat și în afara FC.
 - [ ] Rapoartele lunii pilot, în ordinea 4.7 → 2.9 → 2.8 (4.1 în etapa următoare):
       - [ ] 4.7 Sales Mix FRYDAY CLUJ MEMO, Period 8 (01.08–31.08.2026): FIȘIER LIPSĂ la data probei. Fără el
             nu există vânzări, deci nici perioadă în Tower, nici numitor, nici cost teoretic: Food Cost-ul și

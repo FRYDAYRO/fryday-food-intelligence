@@ -20,8 +20,8 @@ import {
   type CerereFC, type CtxFC, type FCChannelSursa, type SursaFC,
 } from './fc-domeniu';
 import {
-  categorieMaterial, clasificaCategorie29, esteFC, esteOperational,
-  type Clasificare29, type FCCategory, type RegulaCategorie29,
+  categorieMaterial, esteFC, esteOperational,
+  type Clasificare29, type FCCategory, type RegulaCategorie29, clasificaMaterial29,
 } from './fc-clasificare';
 import { recipeFC, type RecipeFC } from './fc-core';
 
@@ -236,7 +236,7 @@ export function randuriMaterialFC(
   });
 
   return materiale.map((m, i) => {
-    const cls = clasificaCategorie29(m.categorie, reguliUtilizator);
+    const cls = clasificaMaterial29(m.categorie, m.denumire, reguliUtilizator);
     const mp = mapari[i];
     const categorie = categorieMaterial(cls, { normalizatInSursa: m.normalizat, areReteta: mp.areReteta });
     const teoretic = m.costTeoretic

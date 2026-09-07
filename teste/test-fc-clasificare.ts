@@ -4,6 +4,7 @@
 import {
   CATEGORII_FC, CATEGORII_OPERATIONALE, ETICHETA_CATEGORIE, REGULI_IMPLICITE_29,
   categorieMaterial, clasificaCategorie29, esteFC, esteOperational,
+  EXCEPTII_MATERIAL_29, clasificaMaterial29, exceptieMaterial29, clasaMaterial29,
   type FCCategory, type RegulaCategorie29,
 } from '../src/lib/fc-clasificare';
 import { genereazaSeed } from '../src/lib/seed';
@@ -115,6 +116,37 @@ t('categoria „materiale normalizate" e recunoscută direct',
   cat('Materiale normalizate').categorie === 'NORMALIZED');
 t('„semipreparate" e tratat ca material normalizat', cat('Semipreparate interne').categorie === 'NORMALIZED');
 t('NORMALIZED intră în Food Cost', esteFC('NORMALIZED'));
+
+// ————————————————————————————————————————————————————————— vocabularul NBO FRYDAY (decizia 06.09.2026)
+
+console.log('\n— Categoriile 2.9 ale rețelei FRYDAY: ce intră în FC Curat —');
+const inFC: [string, FCCategory][] = [
+  ['Food 11%', 'FOOD'], ['Food 21%', 'FOOD'], ['Paper', 'PAPER'], ['Condimente', 'FOOD'],
+  ['Drink 11%', 'FOOD'], ['DrinksSugar 21%', 'FOOD'], ['FRYCafe 21%', 'FOOD'], ['Alcool', 'FOOD'],
+  ['MERCH RAW', 'FOOD'], ['Garantie sgr pet (Raw)', 'FOOD'], ['Garantie sgr aluminiu (Raw)', 'FOOD'],
+  ['Garantie sgr sticla (Raw)', 'FOOD'], ['Diverse 21%', 'FOOD'],
+];
+for (const [c, a] of inFC) t(`${c} → ${a}, intră în FC Curat`, cat(c).categorie === a && esteFC(cat(c).categorie), cat(c).categorie);
+const inAfara: [string, FCCategory][] = [
+  ['Produse curatenie', 'CLEANING'], ['Operationale', 'OPERATIONAL'], ['UNIFORMA CREW & MANAGERI', 'UNIFORMS'], ['Birotica', 'STATIONERY'],
+];
+for (const [c, a] of inAfara) t(`${c} → ${a}, în afara FC`, cat(c).categorie === a && !esteFC(cat(c).categorie), cat(c).categorie);
+t('Toys rămâne neclasificat (fără decizie)', cat('Toys').categorie === 'UNCLASSIFIED');
+t('ACCESORII rămâne neclasificat (fără decizie)', cat('ACCESORII').categorie === 'UNCLASSIFIED');
+t('Consumabile diverse rămâne OPERATIONAL: nu e Diverse 21%', cat('Consumabile diverse').categorie === 'OPERATIONAL');
+t('Chestii diverse rămâne neclasificat', cat('Chestii diverse').categorie === 'UNCLASSIFIED');
+
+console.log('\n— Diverse 21%: excepțiile pe material —');
+t('Biogon C (CO2 pentru băuturi) urmează categoria → FOOD', clasificaMaterial29('Diverse 21%', 'Biogon C E290 10kg').categorie === 'FOOD');
+t('taxa de CO2 nu e aliment → OTHER, în afara FC', clasificaMaterial29('Diverse 21%', 'Alte taxe CO2 15kg').categorie === 'OTHER');
+t('articolul de test → OTHER', clasificaMaterial29('Diverse 21%', 'Articol test').categorie === 'OTHER');
+t('pompa Monin → OPERATIONAL', clasificaMaterial29('Diverse 21%', 'MONIN -PUMP 10ML (70CL GLASS)').categorie === 'OPERATIONAL');
+t('excepția spune ce regulă a decis', clasificaMaterial29('Diverse 21%', 'Articol test').regula === 'diverse 21 · articol test' && !clasificaMaterial29('Diverse 21%', 'Articol test').neclasificat);
+t('excepția nu se aplică în altă categorie', exceptieMaterial29('Food 11%', 'Articol test') === null && clasificaMaterial29('Food 11%', 'Articol test').categorie === 'FOOD');
+t('fără denumire nu există excepție', exceptieMaterial29('Diverse 21%', '') === null);
+t('toate excepțiile duc în afara FC', EXCEPTII_MATERIAL_29.every(e => !esteFC(e.rezultat)));
+t('clasa pentru clasificatorul vechi respectă excepția', clasaMaterial29('Diverse 21%', 'Alte taxe CO2 15kg', () => 'FOOD') === 'EXCLUS' && clasaMaterial29('Diverse 21%', 'Biogon C E290 10kg', () => 'FOOD') === 'FOOD');
+t('regulile utilizatorului nu trec peste excepția pe material', clasificaMaterial29('Diverse 21%', 'Articol test', [{ pattern: 'diverse', categorie: 'FOOD' }]).categorie === 'OTHER');
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);

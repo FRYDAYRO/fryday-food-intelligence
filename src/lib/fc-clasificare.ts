@@ -50,6 +50,18 @@ export interface RegulaCategorie29 {
  * FRYDAY este mapată EXPLICIT aici — nu mai există cădere tăcută pe FOOD.
  */
 export const REGULI_IMPLICITE_29: RegulaCategorie29[] = [
+  // — vocabularul NBO al rețelei FRYDAY (decizia din 06.09.2026): în FC Curat intră și băuturile
+  //   („Drink 11%", „DrinksSugar 21%", „Alcool"), cafeneaua („FRYCafe 21%"), merch-ul, garanțiile
+  //   SGR ale ambalajelor de băuturi și „Diverse" — ultima cu excepții pe material (vezi mai jos).
+  //   „Toys" și „ACCESORII" NU au primit decizie: rămân neclasificate până la o regulă explicită.
+  { pattern: 'frycafe', categorie: 'FOOD' },
+  { pattern: 'drinkssugar', categorie: 'FOOD' },
+  { pattern: 'drink', categorie: 'FOOD' },
+  { pattern: 'alcool', categorie: 'FOOD' },
+  { pattern: 'merch', categorie: 'FOOD' },
+  { pattern: 'garantie sgr', categorie: 'FOOD' },
+  // exact categoria NBO „Diverse 21%": „Consumabile diverse" rămâne operațional, „Chestii diverse" neclasificat
+  { pattern: 'diverse 21', categorie: 'FOOD' },
   // — papetărie și birotică (înaintea „consumabile" generic)
   { pattern: 'consumabile administrative', categorie: 'STATIONERY' },
   { pattern: 'administrative', categorie: 'STATIONERY' },
@@ -137,7 +149,7 @@ export const clasaDinCategorie = (c: FCCategory): Clasa29 =>
  * Migrarea rulează O SINGURĂ DATĂ pe versiune: altfel o regulă implicită ștearsă de om din
  * ecranul Food Cost s-ar întoarce tăcut la fiecare reîncărcare, iar decizia lui ar fi anulată.
  */
-export const VERSIUNE_REGULI_29 = '29.1';
+export const VERSIUNE_REGULI_29 = '29.2';
 
 /**
  * Regulile implicite ale clasificatorului vechi — DERIVATE din `REGULI_IMPLICITE_29`, nu o
@@ -194,6 +206,53 @@ export function clasificaCategorie29(
   }
   return { categorie: 'UNCLASSIFIED', regula: null, sursa: 'NECLASIFICAT', neclasificat: true };
 }
+
+/**
+ * Excepții pe MATERIAL, în interiorul unei categorii: „Diverse 21%" adună și materiale care nu
+ * sunt nici aliment, nici băutură, nici ambalaj (taxa de CO2, articolul de test, pompa Monin).
+ * Decizia din 06.09.2026: din „Diverse" intră în FC Curat doar ce e paper, băutură sau aliment.
+ * Rollup-ul pe categorie (liniile 2.9 fără material) nu poate aplica excepția: acolo „Diverse"
+ * rămâne întreagă, iar diferența e valoarea acestor materiale (zero în rapoartele verificate).
+ */
+export interface ExceptieMaterial29 {
+  /** Text căutat în categorie, normalizat. */
+  categorie: string;
+  /** Text căutat în denumirea materialului, normalizat. */
+  material: string;
+  rezultat: FCCategory;
+}
+
+export const EXCEPTII_MATERIAL_29: ExceptieMaterial29[] = [
+  { categorie: 'diverse 21', material: 'taxe', rezultat: 'OTHER' },
+  { categorie: 'diverse 21', material: 'articol test', rezultat: 'OTHER' },
+  { categorie: 'diverse 21', material: 'pump', rezultat: 'OPERATIONAL' },
+];
+
+/** Categoria impusă de o excepție pe material, sau `null` când materialul urmează categoria lui. */
+export function exceptieMaterial29(categorie: string, denumire: string): ExceptieMaterial29 | null {
+  const c = norm(categorie), d = norm(denumire);
+  if (!c || !d) return null;
+  return EXCEPTII_MATERIAL_29.find(e => c.includes(e.categorie) && d.includes(e.material)) ?? null;
+}
+
+/** Clasificarea unui material: excepția pe material înaintea regulii de categorie. */
+export function clasificaMaterial29(
+  categorie: string,
+  denumire: string,
+  reguliUtilizator: RegulaCategorie29[] = [],
+): Clasificare29 {
+  const e = exceptieMaterial29(categorie, denumire);
+  if (e) return { categorie: e.rezultat, regula: `${e.categorie} · ${e.material}`, sursa: 'IMPLICITA', neclasificat: false };
+  return clasificaCategorie29(categorie, reguliUtilizator);
+}
+
+/** Clasa (Food / Paper / Exclus) a unui material, pentru apelanții clasificatorului vechi. */
+export const clasaMaterial29 = (
+  categorie: string, denumire: string, clasaCategoriei: () => Clasa29,
+): Clasa29 => {
+  const e = exceptieMaterial29(categorie, denumire);
+  return e ? clasaDinCategorie(e.rezultat) : clasaCategoriei();
+};
 
 /**
  * Categoria efectivă a unui material: clasificarea categoriei, cu două corecții din date —
