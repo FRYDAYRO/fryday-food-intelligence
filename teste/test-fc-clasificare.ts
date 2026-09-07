@@ -124,15 +124,15 @@ const inFC: [string, FCCategory][] = [
   ['Food 11%', 'FOOD'], ['Food 21%', 'FOOD'], ['Paper', 'PAPER'], ['Condimente', 'FOOD'],
   ['Drink 11%', 'FOOD'], ['DrinksSugar 21%', 'FOOD'], ['FRYCafe 21%', 'FOOD'], ['Alcool', 'FOOD'],
   ['MERCH RAW', 'FOOD'], ['Garantie sgr pet (Raw)', 'FOOD'], ['Garantie sgr aluminiu (Raw)', 'FOOD'],
-  ['Garantie sgr sticla (Raw)', 'FOOD'], ['Diverse 21%', 'FOOD'],
+  ['Garantie sgr sticla (Raw)', 'FOOD'], ['Diverse 21%', 'FOOD'], ['Toys', 'FOOD'],
 ];
 for (const [c, a] of inFC) t(`${c} → ${a}, intră în FC Curat`, cat(c).categorie === a && esteFC(cat(c).categorie), cat(c).categorie);
 const inAfara: [string, FCCategory][] = [
   ['Produse curatenie', 'CLEANING'], ['Operationale', 'OPERATIONAL'], ['UNIFORMA CREW & MANAGERI', 'UNIFORMS'], ['Birotica', 'STATIONERY'],
 ];
 for (const [c, a] of inAfara) t(`${c} → ${a}, în afara FC`, cat(c).categorie === a && !esteFC(cat(c).categorie), cat(c).categorie);
-t('Toys rămâne neclasificat (fără decizie)', cat('Toys').categorie === 'UNCLASSIFIED');
-t('ACCESORII rămâne neclasificat (fără decizie)', cat('ACCESORII').categorie === 'UNCLASSIFIED');
+t('ACCESORII singur (fără grupul Paper) rămâne neclasificat', cat('ACCESORII').categorie === 'UNCLASSIFIED');
+t('ACCESORII sub grupul Paper, cum vine din 2.9, e PAPER', cat('Paper / ACCESORII').categorie === 'PAPER');
 t('Consumabile diverse rămâne OPERATIONAL: nu e Diverse 21%', cat('Consumabile diverse').categorie === 'OPERATIONAL');
 t('Chestii diverse rămâne neclasificat', cat('Chestii diverse').categorie === 'UNCLASSIFIED');
 
