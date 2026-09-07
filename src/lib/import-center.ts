@@ -30,7 +30,8 @@ import {
   detecteazaCanal, identitateSeRezolva, importa, mapeazaAntete, parseData, parseNumar, parsePerioada,
   type OpteImport, type Parsat, type TipImport,
 } from './importer';
-import { parseSalesMix } from './salesmix';
+import { parseSalesMix, type SalesMix } from './salesmix';
+import { analizeaza47 } from './adaptor-47';
 import { inlocuieste } from './surse-29';
 
 // ————————————————————————————————————————————————————————— tipurile canonice de sursă
@@ -638,6 +639,32 @@ function determinaScop(
     : { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: fara };
 }
 
+/**
+ * Scopul unui 4.7 citit din grilă: restaurantul vine din antetul raportului, prin Store Master,
+ * exact cum îl rezolvă importatorul (codul din nomenclator dacă numele există acolo, altfel
+ * numele); restaurantul declarat de om bate deducția; un raport pe mai multe unități
+ * („Multiple Selection") intră pe locația rezervată a rețelei, la nivel de companie.
+ */
+function scopDinGrila47(
+  sm: SalesMix, fisier: string, declarat: string | undefined,
+  locatii: { cod: string; nume: string }[],
+): Scop {
+  const n = sm.linii.length;
+  if (declarat) return { scop: 'RESTAURANT', restaurante: [declarat], mixt: false, cuLocatie: n, faraLocatie: 0 };
+  const a47 = analizeaza47(sm, fisier);
+  if (a47.atribuibilPeRestaurant && a47.restaurantUnic) {
+    const nume = a47.restaurantUnic;
+    const cod = locatii.find(l => l.cod === nume || norm(l.nume) === norm(nume))?.cod ?? nume;
+    return { scop: 'RESTAURANT', restaurante: [cod], mixt: false, cuLocatie: n, faraLocatie: 0 };
+  }
+  if (sm.magazine.length > 1) {
+    return { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: 0, retea: true };
+  }
+  // un singur restaurant în antet, dar neidentificat în Store Master (sau niciunul): garda veche
+  // rămâne — fără restaurant declarat, importul e refuzat, nu agregat tăcut pe rețea
+  return { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: n };
+}
+
 interface Perioade {
   perioade: string[]; granularitate: Granularitate; dateInvalide: string[];
   /** Cea mai veche dată de valabilitate din fișier — data efectivă a unei liste de prețuri. */
@@ -807,7 +834,11 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   const preferat = cerere.internPreferat
     && REGULI_CONTINUT.some(r => r.tip === tip && r.intern === cerere.internPreferat)
     ? cerere.internPreferat : null;
-  const internBrut = preferat ?? variantaInterna(tip, p.antete);
+  // 4.7 citit din grilă (PDF sau exportul Excel al raportului NCR): nu are antete, conținutul
+  // real e în matrice. Varianta e SALES_MIX dacă grila are linii de vânzare recognoscibile.
+  const internGrila: TipImport | null = tip === 'PMIX_47' && (p.matrice?.length ?? 0) > 0
+    && parseSalesMix(p.matrice!).linii.length > 0 ? 'SALES_MIX' : null;
+  const internBrut = preferat ?? internGrila ?? variantaInterna(tip, p.antete);
   // restaurantul declarat se injectează ÎNAINTE de mapare: altfel ar rămâne o etichetă în
   // metadate, iar rândurile ar ajunge, tăcut, pe primul restaurant din nomenclator
   const pEfectiv = cerere.locatie && internBrut ? cuRestaurantDeclarat(p, internBrut, cerere.locatie) : p;
@@ -837,18 +868,27 @@ export function pregatesteImport(state: AppState, cerere: CerereImport): Pregati
   // aceeași compunere ca în `importa`: manualul suprascrie automatul, iar valoarea goală ȘTERGE
   const map: Record<string, string> = { ...mapAuto };
   if (cerere.mapare) for (const [c, a] of Object.entries(cerere.mapare)) { if (a) map[c] = a; else delete map[c]; }
-  const obligatorii = OBLIGATORII[intern] ?? [];
+  // grila 4.7: coloanele obligatorii și restaurantul se verifică pe conținutul grilei, nu pe antete
+  const grila47 = intern === 'SALES_MIX' && (pEfectiv.matrice?.length ?? 0) > 0 ? parseSalesMix(pEfectiv.matrice!) : null;
+  const obligatorii = grila47 ? [] : (OBLIGATORII[intern] ?? []);
   const lipsa = obligatorii.filter(c => map[c] === undefined);
   adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Coloane obligatorii lipsă',
     `Raportul ${ETICHETA_SURSA[tip]} cere aceste câmpuri; fără ele importul nu se poate face corect.`,
     lipsa);
+  if (grila47 && !grila47.linii.length) {
+    adaugaDiag(col, 'COLOANE_LIPSA', 'BLOCANT', 'Grila 4.7 fără linii de vânzare',
+      'Raportul 4.7 citit din grilă nu are nicio linie „Menu Item Name / Qty / Price / Extension" recognoscibilă.',
+      ['linii de vânzare']);
+  }
   const folosite = new Set(Object.values(map));
   adaugaDiag(col, 'COLOANE_NECUNOSCUTE', 'INFO', 'Coloane nefolosite',
     'Prezente în fișier, dar fără corespondent în model — ignorate, nu pierdute din vedere.',
     p.antete.filter(a => !folosite.has(a) && a.trim() !== ''));
 
   // — scopul: companie vs restaurant, niciodată amestecate
-  const scop = determinaScop(tip, intern, pEfectiv, map, cerere.locatie, state.locatii);
+  const scop = grila47
+    ? scopDinGrila47(grila47, cerere.fisier, cerere.locatie, state.locatii)
+    : determinaScop(tip, intern, pEfectiv, map, cerere.locatie, state.locatii);
   if (eComuna(tip)) {
     const coloanaLoc = p.antete.filter(a => /locatie|restaurant|unitate|magazin|store/.test(norm(a)));
     adaugaDiag(col, 'LOCATIE_LIPSA', 'ATENTIE', 'Date comune cu coloană de restaurant',
