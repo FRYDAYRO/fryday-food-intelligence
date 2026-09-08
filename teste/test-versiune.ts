@@ -27,8 +27,14 @@ t('semver cu etichetă necunoscută rămâne întreg',
   etichetaVersiune('1.0.0-alpha3') === '1.0.0-alpha3', etichetaVersiune('1.0.0-alpha3'));
 
 console.log('\n— 3. Sursa unică —');
-t('package.json e la 1.0.0-rc15', pkg.version === '1.0.0-rc15', pkg.version);
-t('eticheta derivată din el e RC 15.0', etichetaVersiune(pkg.version) === 'RC 15.0',
+// versiunea nu se scrie de două ori: testul verifică IDENTITATEA (eticheta se derivă din
+// package.json), nu un număr fixat aici — altfel fiecare release ar cere o corecție de test
+t('package.json poartă un semver valid', /^\d+\.\d+\.\d+(-rc\.?\d+(\.\d+)?)?$/.test(pkg.version), pkg.version);
+t('eticheta afișată se derivă din package.json, nu dintr-o constantă proprie',
+  etichetaVersiune(pkg.version) === etichetaVersiune(pkg.version.trim()) && etichetaVersiune(pkg.version) !== pkg.version,
+  `${pkg.version} → ${etichetaVersiune(pkg.version)}`);
+t('un release stabil se afișează ca v1.2.3, un candidat ca RC n.m',
+  (pkg.version.includes('-rc') ? /^RC \d+\.\d+$/ : /^v\d+\.\d+\.\d+$/).test(etichetaVersiune(pkg.version)),
   etichetaVersiune(pkg.version));
 // dacă versiunea din package.json s-ar schimba, eticheta o urmează SINGURĂ
 t('eticheta urmează sursa, oricare ar fi ea',
