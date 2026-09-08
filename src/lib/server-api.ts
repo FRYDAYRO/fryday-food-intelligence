@@ -40,7 +40,7 @@ export interface AdaptorDb {
 
 export interface AdaptorParola {
   /** PBKDF2 sau echivalent. Aceeași sare ⇒ același rezultat. */
-  hash(parola: string, sare: string): Promise<string>;
+  hash(parola: string, sare: string, iteratii?: number): Promise<string>;
   sareNoua(): string;
   tokenNou(): string;
 }
@@ -86,13 +86,19 @@ export const SCHEMA: string[] = [
   `CREATE TABLE IF NOT EXISTS sesiuni (
     token TEXT PRIMARY KEY, email TEXT NOT NULL, creatLa TEXT NOT NULL, expiraLa TEXT NOT NULL
   )`,
+  // `scriere` e identitatea încercării care a produs bucățile. Fără ea, două cereri concurente
+  // aleg AMÂNDOUĂ același număr de revizie, își suprascriu bucățile una alteia, iar pointerul
+  // ajunge să descrie un amestec din două stări. Cu ea, fiecare încercare își scrie propriile
+  // bucăți, publicarea spune a cui e revizia, iar cititorul cere exact bucățile publicate.
   `CREATE TABLE IF NOT EXISTS stare_meta (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    revizie INTEGER NOT NULL, actualizatLa TEXT NOT NULL, actualizatDe TEXT, bucati INTEGER NOT NULL, octeti INTEGER NOT NULL
+    revizie INTEGER NOT NULL, actualizatLa TEXT NOT NULL, actualizatDe TEXT, bucati INTEGER NOT NULL, octeti INTEGER NOT NULL,
+    scriere TEXT NOT NULL DEFAULT ''
   )`,
   `CREATE TABLE IF NOT EXISTS stare_bucati (
     revizie INTEGER NOT NULL, nr INTEGER NOT NULL, continut TEXT NOT NULL,
-    PRIMARY KEY (revizie, nr)
+    scriere TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (revizie, nr, scriere)
   )`,
   `CREATE TABLE IF NOT EXISTS jurnal (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,19 +119,43 @@ export function taieInBucati(s: string, marime = MARIME_BUCATA): string[] {
   return out;
 }
 
-interface RandMeta { revizie: number; actualizatLa: string; actualizatDe: string | null; bucati: number; octeti: number }
+interface RandMeta { revizie: number; actualizatLa: string; actualizatDe: string | null; bucati: number; octeti: number; scriere: string }
 
 async function meta(db: AdaptorDb): Promise<RandMeta | null> {
-  const r = await db.toate<RandMeta>('SELECT revizie, actualizatLa, actualizatDe, bucati, octeti FROM stare_meta WHERE id = 1');
+  const r = await db.toate<RandMeta>('SELECT revizie, actualizatLa, actualizatDe, bucati, octeti, scriere FROM stare_meta WHERE id = 1');
   return r[0] ?? null;
 }
+
+/** Publicarea a pierdut cursa cu altă cerere: revizia activă nu mai e cea de la care am plecat. */
+export class ConflictRevizie extends Error {
+  readonly revizieServer: number;
+  constructor(revizieServer: number) {
+    super(`revizia activă e ${revizieServer}: altcineva a publicat între timp`);
+    this.name = 'ConflictRevizie';
+    this.revizieServer = revizieServer;
+  }
+}
+
+/**
+ * Iterațiile cu care a fost calculat un hash stocat („pbkdf2$210000$…"). Un hash de altă
+ * formă (sau lipsa lui, când contul nu există) cade pe valoarea curentă — verificarea trebuie
+ * să meargă până la capăt oricum, ca durata răspunsului să nu spună cine e înscris.
+ */
+export function iteratiiDin(hash: string | undefined | null): number {
+  const m = /^pbkdf2\$(\d+)\$/.exec(hash ?? '');
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : ITERATII_IMPLICITE;
+}
+
+/** Valoarea folosită pentru hash-urile NOI; cele vechi se verifică cu iterațiile lor. */
+export const ITERATII_IMPLICITE = 210_000;
 
 /** Citește starea reviziei active, reunind bucățile în ordine. */
 export async function citesteStarea(db: AdaptorDb): Promise<{ revizie: number; stare: AppState | null; actualizatLa: string | null; actualizatDe: string | null }> {
   const m = await meta(db);
   if (!m) return { revizie: 0, stare: null, actualizatLa: null, actualizatDe: null };
   const bucati = await db.toate<{ nr: number; continut: string }>(
-    'SELECT nr, continut FROM stare_bucati WHERE revizie = ? ORDER BY nr', [m.revizie]);
+    'SELECT nr, continut FROM stare_bucati WHERE revizie = ? AND scriere = ? ORDER BY nr', [m.revizie, m.scriere]);
   if (bucati.length !== m.bucati) {
     // pointerul arată spre o revizie incompletă: mai bine o eroare decât o stare trunchiată
     throw new Error(`revizia ${m.revizie} are ${bucati.length} bucăți din ${m.bucati} — starea nu se poate reconstitui`);
@@ -140,19 +170,41 @@ export async function citesteStarea(db: AdaptorDb): Promise<{ revizie: number; s
  */
 export async function scrieStarea(
   db: AdaptorDb, stare: unknown, revizieNoua: number, acum: string, deCine: string | null,
+  idScriere: string = `${revizieNoua}-${Math.random().toString(36).slice(2)}-${acum}`,
 ): Promise<{ bucati: number; octeti: number }> {
   const json = JSON.stringify(stare);
   const bucati = taieInBucati(json);
-  await db.lot(bucati.map((continut, i) => ({
-    sql: 'INSERT OR REPLACE INTO stare_bucati (revizie, nr, continut) VALUES (?,?,?)',
-    p: [revizieNoua, i, continut],
-  })));
+  // o revizie DEJA publicată nu se rescrie: ștergerea bucăților ei ar lăsa pointerul arătând
+  // spre o stare pe care nimeni n-o mai poate citi. Se scrie doar înainte, niciodată peste.
+  const inainte = await meta(db);
+  if (inainte && inainte.revizie >= revizieNoua) throw new ConflictRevizie(inainte.revizie);
+  await db.lot([
+    // bucățile unei încercări ANTERIOARE a ACELEIAȘI scrieri (o reîncercare după o cădere) se
+    // șterg întâi: altfel o reîncercare mai scurtă ar lăsa orfani indicii mai mari, iar numărul
+    // publicat n-ar mai corespunde cu ce e în tabel — și citirea ar arunca, definitiv.
+    { sql: 'DELETE FROM stare_bucati WHERE revizie = ? AND scriere = ?', p: [revizieNoua, idScriere] },
+    ...bucati.map((continut, i) => ({
+      sql: 'INSERT INTO stare_bucati (revizie, nr, continut, scriere) VALUES (?,?,?,?)',
+      p: [revizieNoua, i, continut, idScriere] as unknown[],
+    })),
+  ]);
+  // mutarea pointerului e un compare-and-swap: publică DOAR dacă revizia activă e încă cea de
+  // la care am plecat. Două cereri concurente citesc aceeași revizie curentă și amândouă ar fi
+  // trecut de verificarea din rută; aici a doua nu mai publică, iar apelantul primește 409.
   await db.lot([{
-    sql: `INSERT INTO stare_meta (id, revizie, actualizatLa, actualizatDe, bucati, octeti) VALUES (1,?,?,?,?,?)
+    sql: `INSERT INTO stare_meta (id, revizie, actualizatLa, actualizatDe, bucati, octeti, scriere) VALUES (1,?,?,?,?,?,?)
           ON CONFLICT(id) DO UPDATE SET revizie=excluded.revizie, actualizatLa=excluded.actualizatLa,
-          actualizatDe=excluded.actualizatDe, bucati=excluded.bucati, octeti=excluded.octeti`,
-    p: [revizieNoua, acum, deCine, bucati.length, json.length],
+          actualizatDe=excluded.actualizatDe, bucati=excluded.bucati, octeti=excluded.octeti,
+          scriere=excluded.scriere
+          WHERE stare_meta.revizie = ?`,
+    p: [revizieNoua, acum, deCine, bucati.length, json.length, idScriere, revizieNoua - 1],
   }]);
+  const dupa = await meta(db);
+  // „a publicat cineva revizia mea" nu e același lucru cu „am publicat EU": două cereri
+  // concurente aleg același număr, deci întrebarea corectă e a cui e scrierea publicată
+  if (!dupa || dupa.scriere !== idScriere) {
+    throw new ConflictRevizie(dupa?.revizie ?? 0);
+  }
   await db.lot([{ sql: 'DELETE FROM stare_bucati WHERE revizie <= ?', p: [revizieNoua - REVIZII_PASTRATE] }]);
   return { bucati: bucati.length, octeti: json.length };
 }
@@ -173,12 +225,27 @@ const jurnal = (email: string | null, actiune: string, acum: string, detalii?: s
   p: [acum, email, actiune, detalii ?? null] as unknown[],
 });
 
+/**
+ * Colecțiile pe care filtrarea pe rol le parcurge NECONDIȚIONAT. O stare căreia îi lipsește
+ * una dintre ele ar trece de validare, s-ar stoca, iar primul GET al unui manager ar cădea în
+ * `.filter` — adică un 500 la citire, provocat de o scriere acceptată. Le cerem la intrare:
+ * un 400 care spune ce lipsește e un răspuns, un 500 mai târziu nu e.
+ */
+export const COLECTII_CERUTE = [
+  'produse', 'retete', 'ingrediente', 'vanzari', 'locatii',
+  'salesReport', 'linii29', 'materiale29', 'waste', 'inventar', 'labor', 'costuriOperare', 'tinte',
+] as const;
+
+/** Colecțiile lipsă dintr-o stare — lista goală înseamnă că e completă. */
+export function colectiiLipsa(x: unknown): string[] {
+  const s = x as Record<string, unknown> | null;
+  if (!s || typeof s !== 'object') return [...COLECTII_CERUTE];
+  return COLECTII_CERUTE.filter(k => !Array.isArray(s[k]));
+}
+
 /** O stare plauzibilă: colecțiile de bază există. Nu validăm conținutul — motorul o face. */
 export function pareStare(x: unknown): x is AppState {
-  const s = x as Partial<AppState> | null;
-  return !!s && typeof s === 'object'
-    && Array.isArray(s.produse) && Array.isArray(s.retete)
-    && Array.isArray(s.ingrediente) && Array.isArray(s.vanzari) && Array.isArray(s.locatii);
+  return colectiiLipsa(x).length === 0;
 }
 
 const zilePeste = (acum: string, zile: number) =>
@@ -210,7 +277,9 @@ export async function raspundeApi(
     const u = r[0];
     // hash-uim chiar și când contul nu există: altfel durata răspunsului ar spune cine e înscris
     const sare = u?.sare ?? 'sare-inexistenta';
-    const calculat = await parole.hash(parola, sare);
+    // iterațiile se citesc din hash-ul stocat, nu din constanta de azi: altfel, în ziua în care
+    // parametrul se ridică, toate conturile existente ar fi blocate deodată
+    const calculat = await parole.hash(parola, sare, iteratiiDin(u?.parolaHash));
     if (!u || !egal(calculat, u.parolaHash)) {
       await db.lot([jurnal(email || null, 'AUTENTIFICARE_EȘUATĂ', acum)]);
       return eroare(401, 'Email sau parolă greșite');
@@ -249,7 +318,11 @@ export async function raspundeApi(
   if (cale === '/api/stare' && metoda === 'PUT') {
     if (u.rol === 'MANAGER') return eroare(403, 'Managerii nu pot modifica starea comună');
     const corp = corpObiect(c);
-    if (!pareStare(corp.stare)) return eroare(400, 'Corpul nu conține o stare FRYDAY validă');
+    const lipsa = colectiiLipsa(corp.stare);
+    if (lipsa.length) {
+      return eroare(400, `Corpul nu conține o stare FRYDAY validă: lipsesc colecțiile ${lipsa.join(', ')}`);
+    }
+    const stareTrimisa = corp.stare as AppState;
     const m = await meta(db);
     const rCurent = m?.revizie ?? 0;
     const trimisa = corp.revizie;
@@ -258,7 +331,17 @@ export async function raspundeApi(
       return eroare(409, 'Starea a fost modificată de altcineva între timp', { revizieServer: rCurent });
     }
     const nou = rCurent + 1;
-    const scris = await scrieStarea(db, corp.stare, nou, acum, u.email);
+    let scris: { bucati: number; octeti: number };
+    try {
+      scris = await scrieStarea(db, stareTrimisa, nou, acum, u.email);
+    } catch (e) {
+      // verificarea de mai sus e necesară, dar nu suficientă: două cereri concurente o trec
+      // amândouă. Publicarea condiționată decide, iar perdanta primește tot 409.
+      if (e instanceof ConflictRevizie) {
+        return eroare(409, 'Starea a fost modificată de altcineva între timp', { revizieServer: e.revizieServer });
+      }
+      throw e;
+    }
     await db.lot([jurnal(u.email, 'SALVARE_STARE', acum, `revizia ${nou} · ${scris.bucati} bucăți · ${scris.octeti} octeți`)]);
     return ras(200, { revizie: nou, actualizatLa: acum, bucati: scris.bucati, octeti: scris.octeti });
   }
@@ -279,6 +362,16 @@ export async function raspundeApi(
     if (parola.length < 8) return eroare(400, 'Parola trebuie să aibă cel puțin 8 caractere');
     if (!ROLURI.includes(rol)) return eroare(400, `Rolul trebuie să fie unul dintre: ${ROLURI.join(', ')}`);
     if (rol === 'MANAGER' && !locatie) return eroare(400, 'Un manager are nevoie de restaurantul lui');
+    // aceeași invariantă ca la ștergere: upsertul putea retrograda ULTIMUL administrator (chiar
+    // pe el însuși), lăsând serverul fără nimeni care să mai creeze conturi — iar `seedAdmin` nu
+    // repară asta, fiindcă el rulează doar pe o bază fără utilizatori
+    if (rol !== 'ADMIN') {
+      const existent = await db.toate<{ rol: RolServer }>('SELECT rol FROM utilizatori WHERE email = ?', [email]);
+      if (existent[0]?.rol === 'ADMIN') {
+        const admini = await db.toate<{ n: number }>("SELECT COUNT(*) n FROM utilizatori WHERE rol = 'ADMIN'");
+        if ((admini[0]?.n ?? 0) <= 1) return eroare(400, 'Ultimul administrator nu se poate retrograda');
+      }
+    }
     const sare = parole.sareNoua();
     const h = await parole.hash(parola, sare);
     await db.lot([

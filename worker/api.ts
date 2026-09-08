@@ -50,6 +50,19 @@ function pregateste(db: AdaptorDb, env: EnvApi, acum: string): Promise<void> {
   return pregatire;
 }
 
+/**
+ * Antetele CORS. Clientul poate rula pe altă origine decât workerul (dezvoltare pe :5173 cu
+ * serverul pe :8787, sau interfața servită de altundeva): fără ele, browserul oprește cererea
+ * înainte s-o trimită. Nu punem `credentials`: jetonul călătorește într-un antet, nu în cookie,
+ * deci nu există cerere autentificată „din oficiu" de pe altă origine.
+ */
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'access-control-allow-headers': 'content-type, authorization, x-fryday-token',
+  'access-control-max-age': '86400',
+};
+
 const json = (cod: number, corp: unknown): Response =>
   new Response(JSON.stringify(corp), {
     status: cod,
@@ -57,14 +70,43 @@ const json = (cod: number, corp: unknown): Response =>
       'content-type': 'application/json; charset=utf-8',
       // răspunsurile conțin date de business: nu se cachează nicăieri pe drum
       'cache-control': 'private, no-store',
+      ...CORS,
     },
   });
+
+/**
+ * Corpul, citit cu un plafon REAL: `request.text()` ar aduna tot în memorie înainte de orice
+ * verificare, iar o cerere fără `content-length` (chunked) trecea de plafon. Numărăm octeții
+ * pe măsură ce vin și ne oprim la primul care depășește — înainte să existe alocarea.
+ */
+async function corpLimitat(request: Request, limita: number): Promise<string | null> {
+  const declarata = Number(request.headers.get('content-length') ?? 0);
+  if (declarata > limita) return null;
+  const flux = request.body;
+  if (!flux) return '';
+  const cititor = flux.getReader();
+  const parti: Uint8Array[] = [];
+  let octeti = 0;
+  for (;;) {
+    const { done, value } = await cititor.read();
+    if (done) break;
+    octeti += value.byteLength;
+    if (octeti > limita) { await cititor.cancel(); return null; }
+    parti.push(value);
+  }
+  const tot = new Uint8Array(octeti);
+  let i = 0;
+  for (const p of parti) { tot.set(p, i); i += p.byteLength; }
+  return new TextDecoder().decode(tot);
+}
 
 /** Corpul JSON al cererii, cu o limită: un corp uriaș nu trebuie să doboare izolatul. */
 const LIMITA_CORP = 60 * 1024 * 1024;
 
 export async function raspundeApiHttp(request: Request, env: EnvApi): Promise<Response> {
   const url = new URL(request.url);
+  // preflight-ul nu poartă jeton și nu trebuie să atingă baza: i se răspunde primul
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (!env.DB) {
     return json(503, { eroare: 'Serverul comun nu e configurat: lipsește legătura D1 „DB". Vezi wrangler.toml.' });
   }
@@ -79,10 +121,8 @@ export async function raspundeApiHttp(request: Request, env: EnvApi): Promise<Re
 
   let corp: unknown;
   if (request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE') {
-    const lungime = Number(request.headers.get('content-length') ?? 0);
-    if (lungime > LIMITA_CORP) return json(413, { eroare: 'Corpul cererii e prea mare' });
-    const text = await request.text();
-    if (text.length > LIMITA_CORP) return json(413, { eroare: 'Corpul cererii e prea mare' });
+    const text = await corpLimitat(request, LIMITA_CORP);
+    if (text === null) return json(413, { eroare: 'Corpul cererii e prea mare' });
     if (text) {
       try { corp = JSON.parse(text); } catch { return json(400, { eroare: 'Corpul nu e JSON valid' }); }
     }

@@ -36,7 +36,7 @@ export const tokenNou = (): string => aleator(32);
 
 /** Adaptorul cerut de `server-api`, gata legat. */
 export const adaptorParole = {
-  hash: (parola: string, sare: string) => hashParola(parola, sare),
+  hash: (parola: string, sare: string, iteratii?: number) => hashParola(parola, sare, iteratii),
   sareNoua,
   tokenNou,
 };

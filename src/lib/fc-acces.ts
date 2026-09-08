@@ -241,6 +241,20 @@ export function stareAutorizata(state: AppState, a: ContextAutorizare): AppState
     labor: state.labor.filter(x => alMeu(x.locatie)),
     costuriOperare: state.costuriOperare.filter(x => alMeu(x.locatie)),
     locatii: state.locatii.filter(l => alMeu(l.cod)),
+    // evenimentele 2.8 și declarațiile de includere sunt datate PE RESTAURANT, exact ca materiale29:
+    // fără filtrul ăsta, `...state` le lăsa să treacă întregi și un manager primea waste-ul și
+    // declarațiile celorlalte restaurante (semnalat de review, 08.09.2026)
+    ...(state.evenimente28 ? {
+      evenimente28: state.evenimente28.filter(x => x.locatie === null || alMeu(x.locatie)),
+    } : {}),
+    ...(state.declaratiiIncludere ? {
+      declaratiiIncludere: state.declaratiiIncludere.filter(x => x.locatie === null || alMeu(x.locatie)),
+    } : {}),
+    // urma de audit e a actorului: cine altcineva ce a cerut și pe ce scop nu e treaba lui
+    // (serverul îi refuză deja /api/jurnal — starea nu trebuie să spună altceva)
+    ...(state.auditAcces ? {
+      auditAcces: state.auditAcces.filter(x => x.actor === a.actor),
+    } : {}),
     // ținta de rețea rămâne: e un prag comun, nu o cifră a altui restaurant
     tinte: state.tinte.filter(t => t.locatie === 'RETEA' || alMeu(t.locatie)),
     // metadate de import: doar sursele comune și cele ale restaurantelor permise
