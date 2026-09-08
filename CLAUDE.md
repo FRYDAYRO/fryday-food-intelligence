@@ -75,6 +75,13 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   limita pe rând a lui D1 și scris sub o revizie NOUĂ; pointerul se mută la final, deci o scriere
   căzută la jumătate lasă revizia veche întreagă. Fără server configurat, aplicația rămâne
   mono-utilizator, cu starea în `localStorage` (local) sau `window.storage` (artifact).
+- Filtrarea pe rol e o listă EXPLICITĂ de colecții, nu un `...state` cu câteva excepții: orice colecție
+  nouă datată pe restaurant trebuie adăugată în `stareAutorizata`, altfel trece întreagă. Testul „ce
+  primește managerul = `stareAutorizata(starea)`" NU prinde asta — compară serverul cu funcția pe care o
+  apelează. Proba se face pe DATE (`test-server-intariri.ts`).
+- Starea se publică printr-un compare-and-swap: fiecare încercare de scriere are un `idScriere` propriu,
+  bucățile se scriu sub el, iar pointerul se mută doar dacă revizia activă e încă cea de plecare. Cine
+  pierde cursa primește 409, nu o confirmare. O revizie deja publicată nu se rescrie niciodată.
 - Blob-ul de stare are un orizont: ~356 KB per restaurant per lună (măsurat). La 30 de restaurante,
   peste vreo 6 luni de date pe toată rețeaua, încărcarea întregii stări în browser devine lentă.
   Atunci rândurile grele (`materiale29`, `vanzari`) trec în tabele proprii, cerute pe perioadă —

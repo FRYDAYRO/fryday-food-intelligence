@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { autentifica, configServer, migreaza, setConfigServer, useStore, validInstantaneu } from '../lib/store';
+import { autentifica, configServer, deconecteaza, migreaza, setConfigServer, useStore, validInstantaneu } from '../lib/store';
 import { Btn, Camp, In, T, Td, Th, Titlu } from '../lib/ui';
 
 function PanouServer() {
@@ -34,7 +34,7 @@ function PanouServer() {
           {serverStare?.eroare
             ? <div className="mt-1 rounded border-2 border-danger/60 bg-danger/5 p-2 text-danger">{serverStare.eroare}</div>
             : <div className="mt-1 text-muted-foreground">revizia {serverStare?.revizie ?? '—'}{serverStare?.filtrat ? ' · vezi datele filtrate pe restaurantul tău' : ''}</div>}
-          <Btn className="mt-2" varianta="linie" onClick={() => { setConfigServer(null); location.reload(); }}>Deconectează (revino la datele locale)</Btn>
+          <Btn className="mt-2" varianta="linie" onClick={() => { void deconecteaza().then(() => location.reload()); }}>Deconectează (revino la datele locale)</Btn>
         </div>
       ) : (
         <div className="mt-2 flex flex-wrap items-end gap-2">

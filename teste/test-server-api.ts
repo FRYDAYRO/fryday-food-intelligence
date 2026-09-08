@@ -6,8 +6,12 @@
  *   · tăierea în bucăți e reversibilă, oricare ar fi mărimea;
  *   · o scriere refuzată (revizie veche) nu schimbă NIMIC;
  *   · o scriere căzută la jumătate lasă revizia veche întreagă și citibilă;
- *   · ce primește un manager e EXACT `stareAutorizata(...)` — aceeași regulă ca în interfață,
- *     deci niciun rând al altui restaurant nu iese pe ușa serverului.
+ *   · ce primește un manager e EXACT `stareAutorizata(...)` — aceeași regulă ca în interfață.
+ *
+ * ATENȚIE la ultima: e o identitate adevărată, dar NU dovedește că nu se scurg date. Compară
+ * serverul cu exact funcția pe care serverul o apelează, deci rămâne adevărată și când funcția
+ * lasă o colecție întreagă să treacă — cum chiar s-a întâmplat cu `evenimente28` (review,
+ * 08.09.2026). Proba pe DATE, nu pe acordul a două apeluri, e în `test-server-intariri.ts`.
  */
 process.removeAllListeners('warning');
 process.on('warning', () => { /* node:sqlite e experimental; avertismentul nu ne spune nimic */ });

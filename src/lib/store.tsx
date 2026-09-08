@@ -51,6 +51,25 @@ export async function autentifica(url: string, email: string, parola: string): P
   return { url: url.replace(/\/$/, ''), token: d.token, utilizator: d.utilizator };
 }
 
+/**
+ * Deconectare: jetonul se ANULEAZĂ pe server, nu doar se uită local. Altfel el rămâne valabil
+ * până la expirare (30 de zile) — ceea ce contează pe un calculator folosit în comun sau dacă
+ * a fost copiat între timp. Dacă serverul nu răspunde, tot ștergem configurația locală:
+ * utilizatorul a cerut deconectarea, iar un server picat nu trebuie să-l țină conectat.
+ */
+export async function deconecteaza(): Promise<void> {
+  const c = configServer();
+  if (c) {
+    try {
+      await fetch(`${c.url}/api/deconectare`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${c.token}` },
+      });
+    } catch { /* serverul e inaccesibil: jetonul expiră singur, deconectarea locală merge oricum */ }
+  }
+  setConfigServer(null);
+}
+
 interface Store {
   state: AppState;
   ctx: Ctx;                 // contextul de calcul, memorat o singură dată per schimbare de stare
