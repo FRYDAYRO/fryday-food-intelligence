@@ -1,10 +1,8 @@
-# Publică aplicația pe GitHub Pages la fiecare push pe main.
-# Activare (o singură dată): Settings → Pages → Source: "GitHub Actions".
-# După primul push, aplicația e la: https://<utilizator>.github.io/<repo>/
+# Publică aplicația pe GitHub Pages DOAR la cerere (Actions → „Publică pe GitHub Pages" → Run workflow).
+# Site-ul Pages e public, fără parolă: adresa de lucru a pilotului e workerul Cloudflare, protejat cu parolă.
+# Nu se mai publică automat la push pe main; site-ul deja publicat se depublică din Settings → Pages.
 name: Publică pe GitHub Pages
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
