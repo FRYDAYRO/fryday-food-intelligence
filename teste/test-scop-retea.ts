@@ -13,6 +13,10 @@ import { parseRaport29, parsatDin29 } from '../src/lib/nbo-29';
 import { parseRaport28, parsatDin28 } from '../src/lib/nbo-28';
 import { parseRaport41, parsatDin41 } from '../src/lib/nbo-41';
 import { matriceDinText, parseSalesMix } from '../src/lib/salesmix';
+import { importaPrinCentru } from '../src/lib/import-center';
+import { stareGoala } from '../src/lib/seed';
+import type { AppState } from '../src/lib/types';
+import type { Parsat } from '../src/lib/importer';
 
 let ok = 0, fail = 0;
 const t = (n: string, c: boolean, d = '') => { if (c) { ok++; console.log('  ✔', n, d); } else { fail++; console.log('  ✘', n, d); } };
@@ -123,6 +127,35 @@ for (const e of ETICHETE) {
   const sm = parseSalesMix(matriceDinText(R47('FRYDAY CLUJ MEMO')));
   t('un restaurant real e listat ca magazin, nu ca scop',
     sm.corporativ === false && sm.magazine.includes('FRYDAY CLUJ MEMO'), JSON.stringify(sm.magazine));
+}
+
+console.log('\n— 6. Prin poarta de import: cele trei scopuri ajung unde trebuie —');
+// identitatea de aici e a stratului de import, nu a parserului: un raport care își declară
+// scopul intră la nivel de COMPANIE (fără restaurante), unul de unitate la RESTAURANT
+const BAZA: AppState = { ...stareGoala(), locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }] };
+const ACUM = '2026-09-08T12:00:00.000Z';
+const importa = (fisier: string, parsat: Parsat, tip: 'NBO_29' | 'NBO_28' | 'NBO_41', de: string, la: string) =>
+  importaPrinCentru(BAZA, { fisier, parsat, tip, interval: { de, la }, acum: ACUM });
+
+for (const [et, tip, face] of [
+  ['2.9', 'NBO_29', (n: string) => parsatDin29(parseRaport29(R29(n)))],
+  ['2.8', 'NBO_28', (n: string) => parsatDin28(parseRaport28(R28(n)))],
+  ['4.1', 'NBO_41', (n: string) => parsatDin41(parseRaport41(R41([`${n} Fiscal Year: 2026`, 'Period: 8 Week: 4', '01.08.2026 - 31.08.2026'])))],
+] as [string, 'NBO_29' | 'NBO_28' | 'NBO_41', (n: string) => Parsat][]) {
+  const cRest = importa(`${et}-restaurant.pdf`, face('FRYDAY CLUJ MEMO'), tip, '2026-08-01', '2026-08-31');
+  t(`${et} pe unitate ⇒ scop=RESTAURANT, pe L01`,
+    cRest.rezultat?.scop === 'RESTAURANT' && cRest.rezultat?.restaurante.join() === 'L01',
+    `${cRest.rezultat?.scop} ${JSON.stringify(cRest.rezultat?.restaurante)}`);
+  for (const e of ETICHETE) {
+    const c = importa(`${et}-${e}.pdf`, face(e), tip, '2026-08-01', '2026-08-31');
+    t(`${et} „${e}" ⇒ scop=COMPANIE, fără restaurante`,
+      c.rezultat?.scop === 'COMPANIE' && c.rezultat?.restaurante.length === 0,
+      `${c.rezultat?.scop} ${JSON.stringify(c.rezultat?.restaurante)}`);
+    // proba care contează pentru utilizator: eticheta nu s-a transformat într-o locație nouă
+    t(`… și nu s-a creat o locație numită „${e}"`,
+      !c.stareNoua.locatii.some(l => etichetaScopRetea(l.nume)),
+      JSON.stringify(c.stareNoua.locatii.map(l => l.nume)));
+  }
 }
 
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
