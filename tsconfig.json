@@ -9,6 +9,9 @@
     },
     {
       "path": "./tsconfig.teste.json"
+    },
+    {
+      "path": "./tsconfig.worker.json"
     }
   ],
   "compilerOptions": {

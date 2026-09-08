@@ -69,7 +69,16 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
 
 - FC operațional / Curat / Paper doar pe Total: raportul 2.9 nu conține canalul.
 - Proiecția de profit este o regresie liniară pe istoric, fără sezonalitate — și e declarată ca atare în UI.
-- Aplicația e mono-utilizator; starea trăiește în `localStorage` (local) sau `window.storage` (artifact).
+- Serverul comun (`src/lib/server-api.ts`, pur; `worker/api.ts` îl leagă de D1) ține starea partajată,
+  conturi pe email, roluri și jurnal. Filtrarea pe rol NU e scrisă a doua oară acolo: vine din
+  `stareAutorizata`, aceeași funcție ca în interfață. Starea e un singur JSON, tăiat în bucăți sub
+  limita pe rând a lui D1 și scris sub o revizie NOUĂ; pointerul se mută la final, deci o scriere
+  căzută la jumătate lasă revizia veche întreagă. Fără server configurat, aplicația rămâne
+  mono-utilizator, cu starea în `localStorage` (local) sau `window.storage` (artifact).
+- Blob-ul de stare are un orizont: ~356 KB per restaurant per lună (măsurat). La 30 de restaurante,
+  peste vreo 6 luni de date pe toată rețeaua, încărcarea întregii stări în browser devine lentă.
+  Atunci rândurile grele (`materiale29`, `vanzari`) trec în tabele proprii, cerute pe perioadă —
+  o schimbare a stratului de date, nu a motorului.
 - Prețurile din 2.9 sunt intrări „valabil de la": o măsurătoare săptămânală rămâne în vigoare până la
   următoarea intrare datată (săptămâna următoare sau luna), nu doar în fereastra ei.
 - Nomenclatorul ține un singur preț pe ingredient: raportul 2.9 al altui restaurant pe aceeași

@@ -7,12 +7,15 @@
  *   npx wrangler secret put FRYDAY_PAROLA        # o dată, la configurare
  *   npx wrangler deploy
  *
- * Limitare pe care e important s-o știi: e o parolă COMUNĂ pentru toată echipa, nu conturi
- * individuale. Oprește accesul întâmplător și indexarea, dar nu spune cine a intrat și nu se
- * revocă pe persoană. Pentru asta e nevoie de Zero Trust (cont pe email) sau de serverul propriu.
+ * Parola e COMUNĂ: oprește accesul întâmplător și indexarea, dar nu spune cine a intrat.
+ * Conturile pe persoană, cu roluri, vin din serverul comun de sub `/api/` (vezi `api.ts`):
+ * acela are autentificarea lui și trece înaintea porții, fiindcă antetul `authorization` e
+ * deja folosit aici. Parola comună rămâne zidul exterior al interfeței.
  */
 
-interface Env {
+import { raspundeApiHttp, type EnvApi } from './api';
+
+interface Env extends EnvApi {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
   FRYDAY_PAROLA?: string;
   FRYDAY_UTILIZATOR?: string;
@@ -38,6 +41,13 @@ const cereAutentificare = () =>
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // API-ul serverului comun trece ÎNAINTEA porții de parolă: are autentificarea lui, pe
+    // conturi și jetoane. Dacă ar sta în spatele ei, clientul n-ar putea trimite `Bearer`,
+    // fiindcă antetul `authorization` e deja luat de parola comună.
+    if (new URL(request.url).pathname.startsWith('/api/')) {
+      return raspundeApiHttp(request, env);
+    }
+
     const parola = env.FRYDAY_PAROLA;
     // Fără secret configurat, refuzăm tot: mai bine inaccesibil decât deschis din greșeală.
     if (!parola) {
