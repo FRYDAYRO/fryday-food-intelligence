@@ -167,6 +167,20 @@ export const LOCATIE_RETEA = 'RETEA';
 /** `false` pentru codurile rezervate — singura poartă prin care se decide ce e restaurant. */
 export const eLocatieReala = (cod: string): boolean => cod !== LOCATIE_RETEA;
 
+/**
+ * Vocabularul prin care un raport NBO își declară scopul de rețea. Eticheta stă exact în locul
+ * în care ar sta numele unității („Corporate Fiscal Year: 2026"), deci un adaptor care n-o
+ * cunoaște fabrică un restaurant numit „Corporate" și îi pune pe el cifrele întregii companii.
+ * Lista e explicită și e aceeași pentru 2.9, 2.8, 4.1 și 4.7 — un singur loc de întreținut.
+ */
+const SCOP_RETEA = /^(corporate|all\s+stores|multiple\s+selection)\b/i;
+
+/** Eticheta de scop din text, sau `null` dacă textul e (probabil) un nume de restaurant. */
+export function etichetaScopRetea(text: string): string | null {
+  const m = SCOP_RETEA.exec(text.trim());
+  return m ? m[1] : null;
+}
+
 export const etichetaNivel = (n: FCLevel) => (n.tip === 'COMPANY' ? 'Companie (toată rețeaua)' : n.locatie);
 
 // ————————————————————————————————————————————————————————— componenta de cost
