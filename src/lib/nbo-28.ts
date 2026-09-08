@@ -13,6 +13,7 @@
  * Ce nu se poate citi rămâne raportat în `nerecunoscute`, nu dispare.
  */
 import type { Parsat } from './importer';
+import { etichetaScopRetea } from './fc-domeniu';
 
 export interface Rand28 {
   /** Linia din textul PDF pe care începe rândul (1 = prima linie). */
@@ -135,7 +136,12 @@ export function parseRaport28(text: string): Raport28 {
     // ——— cadrul paginii
     if (/^=== PAGINA \d+ ===$/.test(l)) { precedent = 'CADRU'; return; }
     const an = /^(.*?) Fiscal Year: (\d{4})$/.exec(l);
-    if (an) { r.restaurant ??= an[1].trim(); r.anFiscal ??= an[2]; precedent = 'CADRU'; return; }
+    if (an) {
+      // ca la 2.9: „Corporate Fiscal Year" declară scopul, nu un restaurant pe nume „Corporate"
+      const scop = etichetaScopRetea(an[1]);
+      if (scop) r.agregat = true; else r.restaurant ??= an[1].trim();
+      r.anFiscal ??= an[2]; precedent = 'CADRU'; return;
+    }
     if (TITLU.test(l)) { r.titlu ??= l; precedent = 'CADRU'; return; }
     const per = /^(Period|Week): (.+)$/.exec(l);
     if (per) { r.perioadaEticheta ??= l; precedent = 'CADRU'; return; }

@@ -19,6 +19,7 @@
  *   · antetul paginii (restaurant, perioadă, coloane) și subsolul se repetă pe fiecare pagină.
  */
 import type { Parsat } from './importer';
+import { etichetaScopRetea } from './fc-domeniu';
 
 export interface Trio { actual: number; teoretic: number; varianta: number; }
 
@@ -294,7 +295,11 @@ export function parseRaport29(text: string): Raport29 {
       precedent = precedent === 'ANTET' && eCadruPagina(l) ? 'ANTET' : 'STRUCTURA';
       let m: RegExpExecArray | null;
       if ((m = /^(.*?)\s*Fiscal Year:\s*(\d{4})/i.exec(l))) {
-        if (m[1] && !r.restaurant) r.restaurant = m[1].trim();
+        // „Corporate Fiscal Year: 2026" — eticheta de scop stă unde ar sta numele unității;
+        // fără verificarea asta, raportul consolidat intra ca restaurantul „Corporate"
+        const scop = m[1] ? etichetaScopRetea(m[1]) : null;
+        if (scop) r.agregat = true;
+        else if (m[1] && !r.restaurant) r.restaurant = m[1].trim();
         r.anFiscal ??= m[2];
       } else if (/^2\.9 Food Cost/i.test(l)) {
         r.titlu ??= l;

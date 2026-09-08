@@ -14,7 +14,7 @@
  */
 import type { Parsat } from './importer';
 import { numar29, numar29EN } from './nbo-29';
-import { LOCATIE_RETEA } from './fc-domeniu';
+import { LOCATIE_RETEA, etichetaScopRetea } from './fc-domeniu';
 
 export type Canal41 = 'DINE_IN' | 'TAKE_OUT' | 'DELIVERY' | 'DRIVE_THRU';
 export interface Valoare41 { net: number; bonuri: number | null; mediu: number | null; }
@@ -111,7 +111,10 @@ export function parseRaport41(text: string): Raport41 {
   }
   if (!r.agregat && fragmenteNume.length) {
     const nume = fragmenteNume.join(' ').replace(/\s+/g, ' ').trim();
-    if (nume && !/[$%]/.test(nume) && nume.length <= 60) r.restaurant = nume;
+    // numele adunat din fragmente poate fi de fapt eticheta de scop („All Stores"), când
+    // antetul n-o poartă lângă „Start Date": și atunci e rețea, nu un restaurant cu acel nume
+    if (etichetaScopRetea(nume)) r.agregat = true;
+    else if (nume && !/[$%]/.test(nume) && nume.length <= 60) r.restaurant = nume;
   }
   if (!r.de || !r.la) r.avertismente.push('Raportul nu declară fereastra (Start/End Date sau interval) — rămâne nedeclarată.');
   if (!r.restaurant && !r.agregat) r.avertismente.push('Raportul nu declară restaurantul în antet.');

@@ -8,6 +8,7 @@
 //  · raportul acoperă o perioadă (5 zile) și toate restaurantele, agregat.
 import type { Canal } from './types';
 import { norm } from './engine';
+import { etichetaScopRetea } from './fc-domeniu';
 
 export interface LinieSalesMix {
   nume: string;              // denumirea așa cum apare în raport
@@ -86,9 +87,6 @@ const GUNOI = [
 ];
 
 /** Extrage liniile de vânzare dintr-o matrice brută (Excel sau text tabelat). */
-/** Etichetele prin care rapoartele NCR declară că acoperă toată rețeaua, nu un restaurant. */
-const SCOP_RETEA = /^(corporate|all\s+stores|multiple\s+selection)\b/i;
-
 export function parseSalesMix(matrice: unknown[][]): SalesMix {
   const linii: LinieSalesMix[] = [];
   const magazine: string[] = [];
@@ -160,8 +158,8 @@ export function parseSalesMix(matrice: unknown[][]): SalesMix {
         //   „Multiple Selection" — 4.7 Sales Mix (care are și lista explicită de magazine)
         // Lista e explicită, nu ghicită: o etichetă necunoscută rămâne scop nedeclarat,
         // fiindcă „nu știu ce acoperă" e un răspuns mai bun decât o presupunere.
-        const mScop = SCOP_RETEA.exec(stanga);
-        if (mScop) { corporativ = true; etichetaScop ??= mScop[1]; continue; }
+        const eScop = etichetaScopRetea(stanga);
+        if (eScop) { corporativ = true; etichetaScop ??= eScop; continue; }
         if (sd || ed) continue;   // rând de dată, nu de nume
         const eTitlu = /^\d+\.\d+\b/.test(stanga);
         if (stanga && !eTitlu && !/\d{1,2}\/\d{1,2}\/\d{4}/.test(stanga)
