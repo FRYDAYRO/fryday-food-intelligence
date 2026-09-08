@@ -102,14 +102,26 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 Fără server, datele stau în browserul fiecărui utilizator și se împart prin instantaneu.
 Cu server, toți văd aceleași cifre, iar accesul e limitat pe rol.
 
+Serverul rulează pe **aceeași adresă cu aplicația**, în Cloudflare Worker, cu baza D1 —
+nu e nimic de pornit sau de întreținut. Se configurează o singură dată:
+
 ```bash
-node server/server.mjs                       # :8787, bază în server/fryday.db
-PORT=9000 DB=/date/fryday.db ADMIN_PAROLA=… node server/server.mjs
-node server/test-server.mjs                  # 26 teste pe roluri, concurență și audit
+npx wrangler secret put FRYDAY_ADMIN_EMAIL     # ex. valentin@fryday.ro
+npx wrangler secret put FRYDAY_ADMIN_PAROLA    # parola primului administrator
 ```
 
-Contul inițial: `admin@fryday.ro` / `fryday` (schimbă parola imediat).
-În aplicație: **Setări → Server comun** → adresa, email, parolă.
+Contul inițial se creează la prima cerere după ce ambele secrete există, și numai dacă nu
+există deja niciun utilizator. Pe urmă, în aplicație: **Setări → Server comun** → adresa
+aplicației, emailul și parola ta. Conturile următoare se creează prin `POST /api/utilizatori`
+(doar administratorii), cu `email`, `parola` (minimum 8 caractere), `rol` și, pentru manageri,
+`locatie`.
+
+Varianta de sine stătătoare, pentru rulare locală sau pe un server propriu, rămâne disponibilă:
+
+```bash
+node server/server.mjs                       # :8787, bază în server/fryday.db
+node server/test-server.mjs                  # teste pe roluri, concurență și audit
+```
 
 | Rol | Citește | Scrie | Administrează |
 | --- | --- | --- | --- |
