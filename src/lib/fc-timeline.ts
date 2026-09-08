@@ -496,7 +496,8 @@ export function analizaTimeline(state: AppState, ctx: CtxFC, cerere: CerereTimel
   };
   if (!inScop.length) {
     const motiv = `Nu există vânzări (PMIX) pe ${cerere.perioada.cheie}${loc ? ` la ${loc}` : ''}`
-      + `${cerere.canal !== 'TOTAL' ? ` pe canalul ${cerere.canal}` : ''} — nu e nimic de analizat.`;
+      + `${cerere.canal !== 'TOTAL' ? ` pe canalul ${cerere.canal}` : ''}: analiza completă nu e disponibilă `
+      + 'până la importul raportului 4.7 Sales Mix pe această perioadă.';
     return {
       cerere, disponibil: false, motivIndisponibil: motiv,
       metrici: null, comparatie: null, magazine: null, nboFaraLocatieRON: null, vanzariReteaRON: 0, clasamente: null,

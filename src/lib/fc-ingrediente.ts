@@ -478,7 +478,7 @@ export function analizaIngrediente(
 
   if (!cur.randuri) {
     const c = calitateGoala(); c.pmixLipsa = true;
-    return gol(`Nu există vânzări (PMIX) pe ${per.cheie}${loc ? ` la ${loc}` : ''} — nu e nimic de analizat.`, c, perPrec);
+    return gol(`Nu există vânzări (PMIX) pe ${per.cheie}${loc ? ` la ${loc}` : ''}: analiza completă nu e disponibilă până la importul raportului 4.7 Sales Mix pe această perioadă.`, c, perPrec);
   }
   if (!prec.randuri) {
     const c = calitateGoala(); c.perioadaLipsa = true;
