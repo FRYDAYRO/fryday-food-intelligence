@@ -112,6 +112,15 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   Raportul 4.7 e o grilă fără antete: motorul îi verifică liniile de vânzare și restaurantul pe conținut, prin Store
   Master; un restaurant neidentificat și nedeclarat e refuzat, „Multiple Selection" intră pe locația rețelei. Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
   perioadele din Tower vin din vânzări (4.7): fără 4.7 nu există perioadă, chiar dacă 2.9/2.8 sunt importate.
+- Un raport își declară scopul de rețea printr-o etichetă („Corporate", „All Stores", „Multiple Selection")
+  scrisă exact acolo unde un raport de unitate își scrie numele. Vocabularul e unul singur, `etichetaScopRetea`
+  din `fc-domeniu`, folosit de toate cele patru adaptoare: fiecare raport intră fie pe restaurantul lui, fie la
+  nivel de companie, niciodată pe un restaurant fabricat din etichetă. Lista e explicită — o etichetă
+  necunoscută rămâne scop nedeclarat, nu o presupunere.
+- Consolidatul și rapoartele pe unități NU se însumează automat. La nivel de companie, vânzările de rețea (4.1
+  All Stores) sunt totalul autoritar și rândurile pe restaurant ale aceleiași perioade nu se mai adună peste el;
+  pe consum (2.9), suprapunerea celor două granularități e semnalată ca BLOCANT (`GRANULARITATE_MIXTA`), nu
+  rezolvată tăcut.
 - NBO tipărește 2.9 și 2.8 în două gramatici (RO: „1.610,35 lei", dd.mm.yyyy; EN: „$15,647.76", „($3,221)", m/d/yyyy).
   Formatul se detectează din text („$" în fața cifrelor) și se aplică întregului raport. Raportul consolidat
   („Corporate Start Date / End Date") nu are restaurant: intră doar la nivel de companie. Formatul EN al 2.8 e
