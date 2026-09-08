@@ -12,3 +12,12 @@ compatibility_date = "2026-08-01"
 [assets]
 directory = "./dist"
 binding = "ASSETS"
+
+# Serverul comun: conturi, roluri și starea partajată (vezi worker/api.ts).
+# Contul inițial se creează o singură dată, doar dacă ambele secrete există:
+#   npx wrangler secret put FRYDAY_ADMIN_EMAIL
+#   npx wrangler secret put FRYDAY_ADMIN_PAROLA
+[[d1_databases]]
+binding = "DB"
+database_name = "fryday-fi"
+database_id = "722f1437-9a4f-48c8-ab85-9e4da9f7d5dd"
