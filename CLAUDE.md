@@ -110,7 +110,7 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
 - Rețetarul importat din foaie creează produsele care lipsesc (fără preț de vânzare, cu TVA implicit 11 %: băuturile
   cu 21 % cer TVA-ul corect pe produs, altfel netul din 4.7 iese umflat; prețul intră din 4.7 sau din lista de prețuri).
   Raportul 4.7 e o grilă fără antete: motorul îi verifică liniile de vânzare și restaurantul pe conținut, prin Store
-  Master; un restaurant neidentificat și nedeclarat e refuzat, „Multiple Selection" intră pe locația rețelei. Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
+  Master; un restaurant neidentificat și nedeclarat e refuzat. Un raport care își declară scopul de rețea („Corporate", „All Stores", „Multiple Selection") intră pe locația rețelei ȘI atunci când nu tipărește blocul „Groups/Stores Selected" — eticheta e declarația raportului, nu o deducție. Un antet care declară scop de rețea dar numește totuși un singur magazin se contrazice și rămâne refuzat: decide omul. Locația unui restaurant se creează de primul lui raport activat, cu numele exact din antet;
   perioadele din Tower vin din vânzări (4.7): fără 4.7 nu există perioadă, chiar dacă 2.9/2.8 sunt importate.
 - Un raport își declară scopul de rețea printr-o etichetă („Corporate", „All Stores", „Multiple Selection")
   scrisă exact acolo unde un raport de unitate își scrie numele. Vocabularul e unul singur, `etichetaScopRetea`

@@ -657,7 +657,16 @@ function scopDinGrila47(
     const cod = locatii.find(l => l.cod === nume || norm(l.nume) === norm(nume))?.cod ?? nume;
     return { scop: 'RESTAURANT', restaurante: [cod], mixt: false, cuLocatie: n, faraLocatie: 0 };
   }
-  if (sm.magazine.length > 1) {
+  // Un raport care își DECLARĂ scopul de rețea („Corporate", „All Stores", „Multiple Selection")
+  // și nu numește NICIUN magazin e de rețea, chiar fără blocul „Groups/Stores Selected": eticheta
+  // e o declarație a raportului, din același vocabular explicit ca la 2.9, 2.8 și 4.1. Fără asta,
+  // un 4.7 consolidat fără lista magazinelor cădea pe garda de mai jos și era REFUZAT ca „raport
+  // fără restaurant" — deși spunea limpede că e al rețelei (semnalat din folosire, 09.09.2026).
+  //
+  // Un antet care declară scop de rețea DAR numește exact un magazin se contrazice. Acolo nu se
+  // alege niciuna dintre citiri: rămâne refuzat, ca omul să declare. „Nu știu" e mai bun decât o
+  // presupunere care ori ascunde vânzările unei unități în totalul companiei, ori invers.
+  if ((sm.corporativ && sm.magazine.length === 0) || sm.magazine.length > 1) {
     return { scop: 'COMPANIE', restaurante: [], mixt: false, cuLocatie: 0, faraLocatie: 0, retea: true };
   }
   // un singur restaurant în antet, dar neidentificat în Store Master (sau niciunul): garda veche
