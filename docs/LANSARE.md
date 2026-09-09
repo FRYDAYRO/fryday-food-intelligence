@@ -59,8 +59,13 @@ pe aplicația goală, cu fișierele reale.
 - [ ] Câte un 2.9, 2.8 și 4.7 real pentru fiecare restaurant activ, rulate prin aplicație (nu doar „aproximativ la fel"):
       formatul american (Vâlcea) și cel românesc (Cluj) sunt verificate; un 2.8 în format american încă NU a fost
       văzut pe un raport real.
-- [ ] Raportul 4.7 pe mai multe restaurante („Multiple Selection") se închide pe totalul general (verificat pe 30 de magazine).
-- [ ] Raportul 2.9 consolidat („Corporate") intră doar la nivel de companie; cifrele pe restaurant vin din rapoartele proprii.
+- [x] Raportul 4.7 pe mai multe restaurante („Multiple Selection", 30 de magazine) trece prin calea canonică de
+      import pe o stare cu nomenclator și rețetar: ACTIVAT, scop COMPANIE, 489 de rânduri de vânzări, fără
+      restaurant fabricat din etichetă (08.09.2026).
+- [x] Raportul 2.9 consolidat („Corporate") intră doar la nivel de companie: probat pe fișierul real (561 de
+      rânduri, scop COMPANIE) și pe forma românească a antetului. Până la 08.09.2026, un 2.8 consolidat intra
+      ca `scop=RESTAURANT` pe un restaurant inventat, numit „Corporate", care ajungea și în nomenclatorul de
+      restaurante; eticheta de scop e acum vocabular comun tuturor adaptoarelor (`etichetaScopRetea`).
 - [ ] Store Master complet: toate restaurantele din lista 4.7 „Groups/Stores" au identificator verificat.
 - [x] Decizie luată (06.09.2026): 4.1 Sales Journal în PDF este un rezumat pe fereastră; Take Out și Drive Thru
       intră la InStore, Delivery rămâne Delivery. Rândul se datează pe prima zi a ferestrei, versiunea poartă
