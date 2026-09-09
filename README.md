@@ -94,7 +94,8 @@ starea raportului 2.9 și un scor de încredere 0–100 cu ce anume trebuie core
 - Food Cost operațional, Curat și Paper Cost se calculează doar pe Total: raportul 2.9 nu are canal.
 - Waste și inventarul nu sunt încă în model, deci variance-ul nu poate fi descompus pe cauze.
 - AOV și numărul de bonuri există în Sales Report, dar nu sunt încă folosite.
-- Aplicația este mono-utilizator, fără autentificare — datele stau în browser.
+- Fără server comun configurat, aplicația e mono-utilizator și fără autentificare — datele stau
+  în browser. Cu el, sunt conturi pe email și roluri (vezi mai jos).
 
 
 ## Server comun (multi-utilizator)
@@ -137,8 +138,8 @@ rețetele și ținta de rețea rămân comune. Interfața arată permanent rolul
 Salvările folosesc revizii: dacă altcineva a salvat între timp, serverul răspunde `409` în loc să
 suprascrie silențios, iar aplicația cere reîncărcarea. Fiecare autentificare și salvare intră în jurnal.
 
-Serverul nu are dependențe externe (doar `node:http` și SQLite nativ) și nu servește aplicația —
-aceea rămâne statică, pe GitHub Pages sau oriunde altundeva.
+Serverul de sine stătătoare din `server/` nu are dependențe externe (doar `node:http` și SQLite
+nativ). El rămâne pentru rulare locală; în producție rulează portarea pe Workers + D1.
 
 ## Publicarea online
 
@@ -146,13 +147,19 @@ aceea rămâne statică, pe GitHub Pages sau oriunde altundeva.
 Build-ul complet conține rețetele și costurile, deci adresa **nu** trebuie lăsată deschisă.
 Două variante, ambele gratuite și fără card:
 
-**1. Cu parolă (recomandat).** Un Worker cere utilizator și parolă înainte de a servi aplicația.
+**1. Cu parolă (aceasta e configurația vie).** Un Worker cere utilizator și parolă înainte de a
+servi aplicația. Publicarea se face **automat**, prin integrarea Git a Cloudflare: fiecare
+împingere în `main` construiește și pune în producție workerul `fryday-food-intelligence`.
+Nu e nimic de rulat manual.
 
 ```bash
 npx wrangler secret put FRYDAY_PAROLA     # o dată: parola echipei
-bash scripts/publica-cloudflare.sh        # construiește și publică
 bash worker/ruleaza-teste.sh              # 12 teste pe poarta de acces
+bash scripts/publica-cloudflare.sh        # doar pentru urgențe, când Git nu e disponibil
 ```
+
+Numele workerului din `wrangler.toml` trebuie să rămână `fryday-food-intelligence`: `wrangler`
+citește numele de acolo, iar un nume greșit trimite secretele spre alt worker fără să dea eroare.
 
 Parolă comună pentru toată echipa: oprește accesul întâmplător și indexarea, dar nu spune cine a
 intrat și nu se revocă pe persoană. Pentru conturi individuale e nevoie de Zero Trust (care cere
@@ -168,13 +175,17 @@ FARA_BAZA=1 bash scripts/publica-cloudflare.sh
 Fără linie de comandă: `dash.cloudflare.com → Workers & Pages → Create → Upload assets` și tragi
 `FRYDAY-FI-cloudflare.zip` (varianta completă) sau `FRYDAY-FI-cloudflare-public.zip` (fără date).
 
-Serverul multi-utilizator (`server/server.mjs`) **nu** rulează pe Cloudflare Workers: folosește
-`node:http` și SQLite nativ. Pentru Cloudflare ar trebui portat pe Workers + D1 — sau rulat pe orice
-VPS mic, ceea ce e mai simplu.
+Serverul multi-utilizator rulează pe Cloudflare, portat pe Workers + D1 (`worker/api.ts` peste
+`src/lib/server-api.ts`). Varianta `server/server.mjs`, pe `node:http` și SQLite nativ, rămâne
+pentru rulare locală.
 
-### GitHub Pages (alternativă)
+### GitHub Pages — retras
 
-**Aplicația live: https://valentin845.github.io/fryday-fi/** — build-ul de producție, publicat din repository-ul public `fryday-fi` (doar aplicația compilată; sursa și testele rămân în acest repository privat). Republicare după modificări: `GH_TOKEN=... bash scripts/publica-app.sh`.
+Aplicația a fost publicată o vreme pe `valentin845.github.io/fryday-fi`, dintr-un repository
+PUBLIC. Nu mai e adresa oficială și nu trebuie să rămână în picioare: build-ul complet conține
+rețetele și costurile. Workflow-ul din `.github/workflows/pages.yml` rulează acum doar la cerere
+(`workflow_dispatch`), dar asta nu retrage un site deja publicat — dezactivarea Pages și
+ștergerea repository-ului public sunt pași manuali, în GitHub.
 
 Aplicația e un singur fișier static — orice găzduire de fișiere statice o poate servi.
 
