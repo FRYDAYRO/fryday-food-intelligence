@@ -158,5 +158,64 @@ for (const [et, tip, face] of [
   }
 }
 
+console.log('\n— 7. Un 4.7 de rețea fără lista magazinelor —');
+// Reprodus din folosire reală (09.09.2026): un 4.7 „corporație" își declara scopul în antet, dar
+// nu tipărea blocul „Groups/Stores Selected for this Report". Decizia de scop se lua după LISTA de
+// magazine, nu după eticheta de scop, deci raportul era REFUZAT ca „raport fără restaurant" — exact
+// tratamentul rezervat unui raport care nu spune nimic, deși el spunea limpede că e al rețelei.
+{
+  const BAZA47: AppState = { ...stareGoala(), locatii: [], produse: [
+    { cod: 'CORONA', denumire: 'Bere Corona', categorie: 'BERE', tip: 'SIMPLU', tva: 11, pretInstore: 15.99, activ: true, aliasuri: ['Bere Corona'] },
+  ] };
+  const grila = (linii: string[]): Parsat =>
+    ({ foaie: 'PDF', antete: [], randuri: [], matrice: matriceDinText(linii.join('\n')) } as Parsat);
+  const CORP = (nume: string, cuLista: boolean) => [
+    `${nume} Fiscal Year: 2026`, '4.7 Sales Mix', 'Period: 8 Week: 4', '8/17/2026 - 8/23/2026',
+    'Menu Item Name Qty Price Extension', 'CATEGORY BERE', 'Bere Corona new 132 15.990 $2,110.68',
+    'Total BERE 132 $2,110.68', 'Total 132 $2,110.68',
+    ...(cuLista ? ['Groups/Stores Selected for this Report', 'FRYDAY CLUJ MEMO, FRYDAY TIMISOARA IULIUS TOWN'] : []),
+  ];
+  for (const e of ETICHETE) {
+    for (const cuLista of [true, false]) {
+      const c = importaPrinCentru(BAZA47, {
+        fisier: `4.7-${e}.pdf`, parsat: grila(CORP(e, cuLista)), tip: 'PMIX_47',
+        interval: { de: '2026-08-17', la: '2026-08-23' }, acum: ACUM,
+      });
+      const et = `„${e}" ${cuLista ? 'cu' : 'FĂRĂ'} lista magazinelor`;
+      t(`${et} ⇒ scop COMPANIE`, c.rezultat?.scop === 'COMPANIE', String(c.rezultat?.scop));
+      t('… nu e refuzat ca „raport fără restaurant"',
+        !(c.rezultat?.diagnostice ?? []).some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'BLOCANT'),
+        (c.rezultat?.diagnostice ?? []).filter(d => d.nivel === 'BLOCANT').map(d => d.cod).join() || '—');
+      t('… iar rândurile intră pe locația rețelei, nu pe un restaurant',
+        c.rezultat?.restaurante.length === 0);
+    }
+  }
+  // antetul care se CONTRAZICE — declară scop de rețea și numește totuși un magazin — rămâne
+  // refuzat: nici „al rețelei", nici „al acelui magazin" nu se pot susține, deci decide omul
+  {
+    const contra = importaPrinCentru(BAZA47, {
+      fisier: '4.7-contradictoriu.pdf',
+      parsat: grila(['FRYDAY TIMISOARA IULIUS TOWN Fiscal Year: 2026', '4.7 Sales Mix',
+        'Corporate Start Date: 08/17/2026', 'End Date: 08/23/2026',
+        'Menu Item Name Qty Price Extension', 'CATEGORY BERE', 'Bere Corona new 1 15.990 $15.99', 'Total 1 $15.99']),
+      tip: 'PMIX_47', interval: { de: '2026-08-17', la: '2026-08-23' }, acum: ACUM,
+    });
+    t('un antet care declară rețea DAR numește un magazin rămâne refuzat',
+      (contra.rezultat?.diagnostice ?? []).some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'BLOCANT'),
+      (contra.rezultat?.diagnostice ?? []).filter(d => d.nivel === 'BLOCANT').map(d => d.cod).join() || '—');
+  }
+
+  // reversul: un raport care NU declară niciun scop și n-are restaurant identificabil rămâne refuzat
+  const anonim = importaPrinCentru(BAZA47, {
+    fisier: '4.7-anonim.pdf',
+    parsat: grila(['Fiscal Year: 2026', '4.7 Sales Mix', 'Period: 8 Week: 4', '8/17/2026 - 8/23/2026',
+      'Menu Item Name Qty Price Extension', 'CATEGORY BERE', 'Bere Corona new 1 15.990 $15.99', 'Total 1 $15.99']),
+    tip: 'PMIX_47', interval: { de: '2026-08-17', la: '2026-08-23' }, acum: ACUM,
+  });
+  t('un raport care nu declară nimic rămâne REFUZAT',
+    (anonim.rezultat?.diagnostice ?? []).some(d => d.cod === 'LOCATIE_LIPSA' && d.nivel === 'BLOCANT'),
+    (anonim.rezultat?.diagnostice ?? []).filter(d => d.nivel === 'BLOCANT').map(d => d.cod).join() || '—');
+}
+
 console.log(`\nRezultat: ${ok} teste trecute, ${fail} eșuate`);
 if (fail) process.exit(1);
