@@ -12,6 +12,23 @@ t('„ new" nu e canal', despartaCanal('HOMESTYLE CHICKEN PESTO new').canal === 
 t('„ D" → Delivery', despartaCanal('PUI BURGER new D').canal === 'DELIVERY');
 t('„ M D" → Delivery + componentă de meniu', (() => { const r = despartaCanal('Hamburger M D new'); return r.canal === 'DELIVERY' && r.meniuComponenta; })());
 t('„ MD" → același lucru', despartaCanal('Cartofi 112g MD new').meniuComponenta === true);
+
+// NBO versionează denumirile POS cu anul („Pepsi -Cola 500ML new2026"). Sufixul nu era curățat,
+// deci produsul NU se mai potrivea cu rețeta lui — vânzarea rămânea fără cost, iar Food Cost-ul
+// ieșea mai MIC decât realitatea, fiindcă numitorul o număra și numărătorul nu.
+// Măsurat pe 4.7 Timișoara (09.09.2026): 8.571 lei din 21.433 fără cost erau exact aceste băuturi.
+t('„ new2026" e marcaj de versiune, nu parte din nume',
+  despartaCanal('Pepsi -Cola 500ML new2026').numeBaza === 'Pepsi -Cola 500ML');
+t('… indiferent de majuscule și de spațiu', despartaCanal('LIPTON 500 ML NEW 2026').numeBaza === 'LIPTON 500 ML');
+t('… și nu schimbă canalul', despartaCanal('Pepsi Zero 500ML new2026').canal === 'INSTORE');
+t('… combinat cu sufixul de canal', (() => {
+  const r = despartaCanal('Mirinda Zero Zahar 500ML new2026 D');
+  return r.numeBaza === 'Mirinda Zero Zahar 500ML' && r.canal === 'DELIVERY';
+})(), despartaCanal('Mirinda Zero Zahar 500ML new2026 D').numeBaza);
+// un an care NU urmează după „new" e parte din nume și rămâne acolo
+t('un an din mijlocul numelui nu se atinge',
+  despartaCanal('Meniu Nr 2026 Special').numeBaza === 'Meniu Nr 2026 Special');
+t('un număr la final, fără „new", rămâne', despartaCanal('Doza Pepsi 330ml').numeBaza === 'Doza Pepsi 330ml');
 t('„ M" singur → meniu InStore', (() => { const r = despartaCanal('Cartofi 112g M'); return r.canal === 'INSTORE' && r.meniuComponenta; })());
 t('denumirea curată nu pierde cifre', despartaCanal('CARTOFI CRISS CUT 140G new').numeBaza === 'CARTOFI CRISS CUT 140G');
 t('cheia unifică variantele de canal', cheieDenumire('Homestyle Chicken Pesto D new') === cheieDenumire('HOMESTYLE CHICKEN PESTO new'));
