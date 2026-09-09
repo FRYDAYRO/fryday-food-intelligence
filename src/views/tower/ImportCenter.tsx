@@ -16,7 +16,7 @@ import {
 } from '../../lib/import-center';
 import { fmtInterval } from '../../lib/engine';
 import { Btn, Camp, In, Insigna, Sel, cx } from '../../lib/ui';
-import { randImport, type RandImportTower } from '../../lib/fc-tower';
+import { optiuniRestaurant, randImport, type RandImportTower } from '../../lib/fc-tower';
 import { verificaImport, verificaScriere } from '../../lib/fc-acces';
 import { useTower } from './context';
 import { Sectiune } from './parti';
@@ -41,6 +41,8 @@ export default function ImportCenter() {
   const [mesaj, setMesaj] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
+  // restaurantele pe care le poate declara: cele cu date + cele oficiale, încă fără date
+  const opt = optiuniRestaurant(state, acces);
   const poateScrie = verificaScriere(acces.context);
   if (!poateScrie.permis) {
     return (
@@ -171,9 +173,26 @@ export default function ImportCenter() {
             </Sel>
           </Camp>
           <Camp eticheta="Restaurant (dacă fișierul nu îl conține)">
+            {/*
+              Lista NU se limitează la restaurantele care au deja date: un raport fără restaurant în
+              antet e refuzat până când cineva îl declară, iar pe o aplicație proaspătă nu există încă
+              nicio locație — deci selectorul ar fi gol exact când e mai necesar. Restaurantele
+              oficiale FRYDAY se oferă separat, marcate „fără date încă": alegerea rămâne a omului,
+              nu o ghicire a motorului, iar drepturile sunt cele din `optiuniRestaurant` (un manager
+              vede doar unitatea lui).
+            */}
             <Sel data-camp="locatie-import" value={locatie} onChange={e => setLocatie(e.target.value)}>
               <option value="">— din fișier —</option>
-              {state.locatii.map(l => <option key={l.cod} value={l.cod}>{l.nume}</option>)}
+              {opt.dinDate.length > 0 && (
+                <optgroup label="Cu date în aplicație">
+                  {opt.dinDate.map(o => <option key={o.valoare} value={o.valoare}>{o.eticheta}</option>)}
+                </optgroup>
+              )}
+              {opt.reale.length > 0 && (
+                <optgroup label="Restaurante FRYDAY — fără date încă">
+                  {opt.reale.map(o => <option key={o.valoare} value={o.valoare}>{o.eticheta}</option>)}
+                </optgroup>
+              )}
             </Sel>
           </Camp>
           <Camp eticheta="Valabil de la">
