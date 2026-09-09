@@ -12,7 +12,7 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { importaPrinCentru, type CerereImport } from '../src/lib/import-center';
 import { identitateSeRezolva, type Parsat } from '../src/lib/importer';
-import { coadaAprobare, codIngredientPentru, felNemapat } from '../src/lib/aprobare';
+import { coadaAprobare, codIngredientPentru, felNemapat, scorPotrivire, sugereaza } from '../src/lib/aprobare';
 import { reconciliationMaterialFC, identificaIngredient } from '../src/lib/fc-material';
 import { CoadaAprobare } from '../src/views/shared/Nemapate';
 import { buildCtx } from '../src/lib/engine';
@@ -134,5 +134,35 @@ t('doar materialul PAPER necunoscut intră în coadă', c7.join(',') === 'P9', c
 t('uniforma și birotica sunt importate ca rânduri 2.9, dar nu cer aprobare', (r7.stareNoua.materiale29 ?? []).some(m => m.material === 'U1') && !c7.includes('U1') && !c7.includes('B1'));
 t('categoria neclasificată („Servicii externe") e semnalată, nu pusă în coadă', r7.rezultat.diagnostice.some(d => d.cod === 'CATEGORIE_NECUNOSCUTA' && d.exemple.includes('Servicii externe')) && !c7.includes('X9'));
 t('versiunea reține ca nemapate doar identitățile din coadă', ((r7.stareNoua.versiuniImport ?? [])[0]?.nemapate ?? []).join(',') === 'P9');
+
+
+// ————————————————————————————————————————————————————————— sugestii pe denumiri apropiate
+//
+// Potrivirea pe cuvinte întregi nu vede o literă greșită sau două cuvinte lipite. Pe 4.7-ul real
+// (09.09.2026), „APPLE TOFFEE FRYPIE" (440 lei) și „M JuniorNuggetts4*" (364 lei) nu primeau NICIO
+// sugestie, deși perechea lor exista în rețetar: „APPLE PIE TOFFIE", „Junior Meal 4 Nuggets".
+// Semnalul pe litere e mai slab și rămâne plafonat sub orice potrivire pe cuvinte — e o ordonare
+// a candidaților, nu o autorizare: omul confirmă oricum.
+
+console.log('\n— Sugestii pentru denumiri scrise altfel —');
+t('un cuvânt comun rămâne semnalul principal', scorPotrivire('9 COUNTRY HOT WINGS', '9 HOT COUNTRY WINGS') === 100);
+t('denumiri fără niciun cuvânt comun primesc totuși un scor', scorPotrivire('APPLE TOFFEE FRYPIE', 'APPLE PIE TOFFIE') > 0);
+t('… dar plafonat sub o potrivire reală pe cuvinte',
+  scorPotrivire('APPLE TOFFEE FRYPIE', 'APPLE PIE TOFFIE') < scorPotrivire('CARTOFI CRISS CUT', 'CARTOFI CRISS CUT 140G'),
+  `${scorPotrivire('APPLE TOFFEE FRYPIE', 'APPLE PIE TOFFIE')} < ${scorPotrivire('CARTOFI CRISS CUT', 'CARTOFI CRISS CUT 140G')}`);
+t('cuvinte lipite se recunosc', scorPotrivire('M JuniorNuggetts4', 'Junior Meal 4 Nuggets') > 0);
+t('două denumiri fără nicio legătură rămân jos', scorPotrivire('Bere Corona', 'Junior Meal Hamburger') < 25);
+
+{
+  const candidati = ['APPLE PIE TOFFIE', 'Junior Meal 4 Nuggets', 'CARTOFI CRISS CUT 140G', '9 HOT COUNTRY WINGS'];
+  const prima = (v: string) => sugereaza(v, candidati)[0]?.tinta ?? '—';
+  t('„APPLE TOFFEE FRYPIE" primește perechea lui', prima('APPLE TOFFEE FRYPIE') === 'APPLE PIE TOFFIE', prima('APPLE TOFFEE FRYPIE'));
+  t('„M JuniorNuggetts4" primește perechea lui', prima('M JuniorNuggetts4') === 'Junior Meal 4 Nuggets', prima('M JuniorNuggetts4'));
+  t('potrivirea pe cuvinte trece ÎNAINTEA celei pe litere',
+    prima('9 COUNTRY HOT WINGS') === '9 HOT COUNTRY WINGS', prima('9 COUNTRY HOT WINGS'));
+  const slaba = sugereaza('APPLE TOFFEE FRYPIE', candidati)[0];
+  t('… iar semnalul slab e declarat ca atare',
+    /seamănă ca scriere/.test(slaba?.explicatie ?? '') && /[Ss]ugestie/.test(slaba?.explicatie ?? ''), slaba?.explicatie);
+}
 
 console.log(`\n${ok} teste trecute, ${fail} eșuate`);
