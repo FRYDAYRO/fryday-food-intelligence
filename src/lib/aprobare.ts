@@ -71,11 +71,36 @@ export function scorPotrivire(a: string, b: string): number {
   if (!A.size || !B.size) return 0;
   let comune = 0;
   for (const w of A) if (B.has(w)) comune++;
+  const peCuvinte = Math.round((comune / Math.max(A.size, B.size)) * 100);
+  // Potrivirea pe cuvinte întregi nu vede o literă greșită sau două cuvinte lipite:
+  // „APPLE TOFFEE FRYPIE" și „APPLE PIE TOFFIE 2X" n-au NICIUN cuvânt comun, iar
+  // „JuniorNuggetts4" n-are niciunul cu „Junior Meal 4 Nuggets". Fără un al doilea semnal,
+  // astfel de denumiri nu primeau nicio sugestie și omul trebuia să le caute singur.
+  // Semnalul pe litere e mai SLAB, deci se ia în seamă doar când cel pe cuvinte nu spune nimic,
+  // și rămâne plafonat: nu trebuie să ajungă niciodată în fața unei potriviri pe cuvinte.
+  return peCuvinte > 0 ? peCuvinte : Math.min(scorPeLitere(a, b), PRAG_LITERE_MAX);
+}
+
+/** Cât de mult seamănă două șiruri ca secvențe de trei litere. Semnal slab, doar de ordonare. */
+export function scorPeLitere(a: string, b: string): number {
+  const trigrame = (s: string): Set<string> => {
+    const t = ` ${norm(s).replace(/\s+/g, ' ')} `;
+    const set = new Set<string>();
+    for (let i = 0; i + 3 <= t.length; i++) set.add(t.slice(i, i + 3));
+    return set;
+  };
+  const A = trigrame(a), B = trigrame(b);
+  if (!A.size || !B.size) return 0;
+  let comune = 0;
+  for (const g of A) if (B.has(g)) comune++;
   return Math.round((comune / Math.max(A.size, B.size)) * 100);
 }
 
+/** Plafonul semnalului pe litere: sub orice potrivire reală pe cuvinte. */
+const PRAG_LITERE_MAX = 39;
+
 /** Cele mai apropiate candidate, peste un prag. Lista poate fi goală — și e în regulă. */
-export function sugereaza(valoare: string, candidati: string[], prag = 40, max = 5): SugestieAprobare[] {
+export function sugereaza(valoare: string, candidati: string[], prag = 25, max = 5): SugestieAprobare[] {
   return candidati
     .map(t => ({ tinta: t, scor: scorPotrivire(valoare, t) }))
     .filter(x => x.scor >= prag)
@@ -85,7 +110,10 @@ export function sugereaza(valoare: string, candidati: string[], prag = 40, max =
       ...x,
       explicatie: x.scor === 100
         ? 'Aceleași cuvinte — dar tot trebuie confirmat: două produse pot diferi printr-un singur cuvânt.'
-        : `${x.scor}% din cuvinte coincid. Sugestie, nu potrivire.`,
+        : x.scor > PRAG_LITERE_MAX
+          ? `${x.scor}% din cuvinte coincid. Sugestie, nu potrivire.`
+          : 'Niciun cuvânt comun, dar denumirile seamănă ca scriere (literă cu literă). '
+            + 'Sugestie slabă, nu potrivire — verific-o cu atenție înainte de a fi confirmată.',
     }));
 }
 
