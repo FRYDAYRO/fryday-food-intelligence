@@ -1,11 +1,14 @@
 # Publicare pe Cloudflare, cu poartă de parolă (fără Zero Trust, fără card).
 #
-#   npx wrangler secret put FRYDAY_PAROLA     # o dată: introduci parola echipei
-#   bash scripts/publica-cloudflare.sh        # construiește și publică
+# Numele de aici trebuie să fie EXACT numele workerului viu: comenzile `wrangler` îl citesc
+# din acest fișier, deci un nume greșit pune secretele pe alt worker, în tăcere, iar aplicația
+# rămâne fără ele fără să spună de ce. Publicarea se face automat, din integrarea Git a
+# Cloudflare, la fiecare împingere în `main` — `wrangler deploy` e doar pentru urgențe.
 #
-# Fără worker (aplicație deschisă, doar dacă build-ul e fără date):
-#   npx wrangler pages deploy dist --project-name fryday-fi
-name = "fryday-fi"
+#   npx wrangler secret put FRYDAY_PAROLA          # parola comună a interfeței
+#   npx wrangler secret put FRYDAY_ADMIN_EMAIL     # contul inițial al serverului comun
+#   npx wrangler secret put FRYDAY_ADMIN_PAROLA
+name = "fryday-food-intelligence"
 main = "worker/index.ts"
 compatibility_date = "2026-08-01"
 
