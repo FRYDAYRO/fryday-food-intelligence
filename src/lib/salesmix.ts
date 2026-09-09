@@ -59,6 +59,7 @@ export function despartaCanal(nume: string): { numeBaza: string; canal: Canal; m
   const sufixe: RegExp[] = [
     /\s+m\s*d$/i,          // MD / M D → meniu, pe Delivery
     /\s+d$/i,              // D → Delivery
+    /\s+new\s*\d{2,4}$/i,   // „new2026", „NEW 2026" — marcaj de versiune cu an
     /\s+new$/i,            // marcaj de versiune, fără sens de canal
     /\s+nou$/i,
     /\s+m$/i,              // M → meniu, InStore
