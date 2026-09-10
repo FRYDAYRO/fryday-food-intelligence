@@ -80,8 +80,9 @@ const s0: AppState = {
 
 const A_TOP = contextAutorizare(s0, { rol: 'ADMIN', email: 'admin@fryday.ro' }, false);
 const A_ANALIST = contextAutorizare(s0, { rol: 'ANALIST', email: 'analist@fryday.ro' }, true);
-const A_MGR = contextAutorizare(s0, { rol: 'MANAGER', locatie: 'L02', email: 'mgr@fryday.ro' }, true);
-const A_MGR_NEFILTRAT = contextAutorizare(s0, { rol: 'MANAGER', locatie: 'L02' }, false);
+const s0Restrans = { ...s0, setari: { ...s0.setari, managerVedeToataReteaua: false } };
+const A_MGR = contextAutorizare(s0Restrans, { rol: 'MANAGER', locatie: 'L02', email: 'mgr@fryday.ro' }, true);
+const A_MGR_NEFILTRAT = contextAutorizare(s0Restrans, { rol: 'MANAGER', locatie: 'L02' }, false);
 const A_LOCAL = contextAutorizare(s0, null, false);
 
 const SEL: SelectieFC = {
@@ -243,7 +244,7 @@ t('un canal restricționat cade pe primul permis',
   scopDinParametri(s0, { ...A_MGR, channelAccess: ['INSTORE'] }, { canal: 'DELIVERY' }).canal === 'INSTORE');
 
 console.log('\n— Manipularea filtrelor și a stării nu ajută —');
-const accMgr = accesTower(s0, { rol: 'MANAGER', locatie: 'L02' }, true);
+const accMgr = accesTower(s0Restrans, { rol: 'MANAGER', locatie: 'L02' }, true);
 t('o selecție „Companie" fabricată de mână devine restaurantul propriu',
   normalizeazaSelectie(s0, { ...SEL, scop: 'COMPANIE' }, accMgr).locatie === 'L02');
 t('o selecție care țintește alt restaurant e corectată',

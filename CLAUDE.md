@@ -75,6 +75,12 @@ engine.ts → decizii.ts → portofoliu.ts / simulare.ts → strategie.ts / scor
   limita pe rând a lui D1 și scris sub o revizie NOUĂ; pointerul se mută la final, deci o scriere
   căzută la jumătate lasă revizia veche întreagă. Fără server configurat, aplicația rămâne
   mono-utilizator, cu starea în `localStorage` (local) sau `window.storage` (artifact).
+- Vizibilitate pe toată rețeaua (decizia din 10.09.2026): TOȚI văd cifrele tuturor restaurantelor,
+  inclusiv managerii de unitate. E o SETARE declarată (`setari.managerVedeToataReteaua`, implicit
+  activă), nu ștergerea filtrării: pe `false`, filtrarea pe unitate revine întreagă, iar suitele
+  o verifică în continuare pe ambele ramuri. Ce NU se lărgește e dreptul de SCRIERE — un manager
+  vede tot, dar tot nu poate importa, activa, vedea utilizatorii sau jurnalul. Motivul apare în
+  `motivEnforcement`, deci ecranul spune ce vede omul, nu se presupune.
 - Filtrarea pe rol e o listă EXPLICITĂ de colecții, nu un `...state` cu câteva excepții: orice colecție
   nouă datată pe restaurant trebuie adăugată în `stareAutorizata`, altfel trece întreagă. Testul „ce
   primește managerul = `stareAutorizata(starea)`" NU prinde asta — compară serverul cu funcția pe care o

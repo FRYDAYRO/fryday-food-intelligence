@@ -198,6 +198,9 @@ async function server() {
 console.log('\n— 6. Rolurile: un manager nu primește niciun rând al altui restaurant —');
 const S_RETEA: AppState = {
   ...stareGoala(),
+  // filtrarea pe unitate se verifică aici, deci starea o cere explicit: implicit,
+  // prin decizia din 10.09.2026, managerii văd cifrele întregii rețele
+  setari: { ...stareGoala().setari, managerVedeToataReteaua: false },
   locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }, { cod: 'L02', nume: 'FRYDAY TIMISOARA IULIUS TOWN' }],
   vanzari: [
     { data: '2026-08-05', locatie: 'L01', canal: 'INSTORE', produs: 'P1', cant: 3, brut: 60, net: 54 },

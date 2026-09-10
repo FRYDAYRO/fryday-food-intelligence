@@ -63,7 +63,8 @@ const MATERIALE: Material29[] = [
 const s0: AppState = { ...genereazaSeed(), materiale29: MATERIALE };
 const ctx0 = buildCtx(s0);
 const ACCES_TOP = accesTower(s0, { rol: 'ADMIN' }, false);
-const ACCES_MANAGER = accesTower(s0, { rol: 'MANAGER', locatie: 'L02' }, true);
+const s0Restrans = { ...s0, setari: { ...s0.setari, managerVedeToataReteaua: false } };
+const ACCES_MANAGER = accesTower(s0Restrans, { rol: 'MANAGER', locatie: 'L02' }, true);
 
 const SEL: SelectieFC = {
   ancora: '2026-07-15', granularitate: 'LUNA', comparatie: 'PERIOADA_PRECEDENTA',
@@ -565,7 +566,7 @@ t('fără server, se spune clar că restricția nu e reală',
 t('manager cu date filtrate de server → fără avertisment',
   ACCES_MANAGER.enforcatPeServer && ACCES_MANAGER.avertismentEnforcement === null);
 t('manager NEfiltrat de server → avertisment explicit',
-  (() => { const a = accesTower(s0, { rol: 'MANAGER', locatie: 'L02' }, false);
+  (() => { const a = accesTower(s0Restrans, { rol: 'MANAGER', locatie: 'L02' }, false);
     return !a.enforcatPeServer && !!a.avertismentEnforcement
       && a.avertismentEnforcement.includes('securitate'); })());
 t('banda arată lipsa de enforcement',
