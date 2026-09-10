@@ -93,6 +93,25 @@ export function contextAutorizare(
 
   if (eManager) {
     const loc = utilizator!.locatie!;
+    // Decizia de business din 10.09.2026: toată lumea vede cifrele întregii rețele. Rolul NU
+    // dispare — managerul rămâne fără drept de scriere, iar restaurantul lui rămâne cel implicit;
+    // se lărgește doar ce are voie să VADĂ. Setarea pe `false` readuce filtrarea pe unitate.
+    const vedeTot = state.setari.managerVedeToataReteaua !== false;
+    if (vedeTot) {
+      return {
+        role: 'STORE_MANAGER',
+        storeId: loc,
+        allowedStoreIds: toate,
+        companyAccess: true,
+        channelAccess: [...TOATE_CANALELE],
+        rolSursa,
+        enforcement: filtratDeServer ? 'SERVER' : 'CLIENT_ONLY',
+        motivEnforcement: 'Vizibilitate pe toată rețeaua, prin decizie declarată: managerii văd '
+          + 'cifrele tuturor restaurantelor. Scrierea rămâne rezervată analiștilor și '
+          + 'administratorilor. Se poate reveni din Setări.',
+        actor,
+      };
+    }
     return {
       role: 'STORE_MANAGER',
       storeId: loc,

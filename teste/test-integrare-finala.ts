@@ -549,10 +549,11 @@ t('… iar naratiunea o repetă', naratorDeterminist(dosarGol).includes(MESAJ_IN
 // ————————————————————————————————————————————————————————— L. autorizare
 
 console.log('\n— L. Autorizare: nicio scurgere între restaurante —');
-const aMgr = contextAutorizare(STRES, { rol: 'MANAGER', locatie: 'L02', email: 'm@f.ro' }, true);
+const STRES_RESTRANS = { ...STRES, setari: { ...STRES.setari, managerVedeToataReteaua: false } };
+const aMgr = contextAutorizare(STRES_RESTRANS, { rol: 'MANAGER', locatie: 'L02', email: 'm@f.ro' }, true);
 const aTop = contextAutorizare(STRES, { rol: 'ADMIN', email: 'a@f.ro' }, false);
 const sMgr = stareAutorizata(STRES, aMgr);
-const accMgr = accesTower(STRES, { rol: 'MANAGER', locatie: 'L02' }, true);
+const accMgr = accesTower(STRES_RESTRANS, { rol: 'MANAGER', locatie: 'L02' }, true);
 t('proiecția nu lasă niciun rând străin', scurgeri(sMgr, aMgr).length === 0);
 t('dosarul managerului nu pomenește alt restaurant',
   !new RegExp('\\bL01\\b').test(JSON.stringify(dosarAdvisor(STRES, CTX_STRES, { selectie: SEL, acces: accMgr }))));

@@ -63,7 +63,8 @@ const SEL: SelectieFC = {
   scop: 'COMPANIE', locatie: null, canal: 'TOTAL',
 };
 const ADMIN = accesTower(S, { rol: 'ADMIN' }, false);
-const MGR = accesTower(S, { rol: 'MANAGER', locatie: 'L02' }, true);
+const S_RESTRANS = { ...S, setari: { ...S.setari, managerVedeToataReteaua: false } };
+const MGR = accesTower(S_RESTRANS, { rol: 'MANAGER', locatie: 'L02' }, true);
 
 const ctxTower = (acces = ADMIN, extra: Partial<TowerCtx> = {}): TowerCtx => ({
   state: S, ctx: CTX, sel: SEL, setSel: () => undefined, acces, update: () => undefined, ...extra,
@@ -171,7 +172,7 @@ t('… dar un restaurant real FĂRĂ date importate rămâne nemapat',
 t('… iar un manager tot nu ajunge la el dacă nu e al lui',
   (() => {
     const cuDate: AppState = { ...S, locatii: [...S.locatii, { cod: 'FRYDAY CLUJ MEMO', nume: 'FRYDAY CLUJ MEMO' }] };
-    const accM = accesTower(cuDate, { rol: 'MANAGER', locatie: 'L02' }, true);
+    const accM = accesTower({ ...cuDate, setari: { ...cuDate.setari, managerVedeToataReteaua: false } }, { rol: 'MANAGER', locatie: 'L02' }, true);
     return alegeRestaurant(cuDate, SEL, accM, 'FRYDAY CLUJ MEMO').fel === 'REFUZAT';
   })());
 t('două restaurante din același oraș nu se confundă la căutare',
@@ -224,7 +225,7 @@ t('… deși aceleași date randează normal fără restaurantul nemapat',
   'dovada că blocarea vine din selecție, nu din lipsa datelor');
 
 console.log('\n— I. Autorizarea rămâne cea din PR #14, neschimbată de selector —');
-const aMgr = contextAutorizare(S, { rol: 'MANAGER', locatie: 'L02', email: 'm@f.ro' }, true);
+const aMgr = contextAutorizare(S_RESTRANS, { rol: 'MANAGER', locatie: 'L02', email: 'm@f.ro' }, true);
 const sMgr = stareAutorizata(S, aMgr);
 t('proiecția managerului nu are scurgeri', scurgeri(sMgr, aMgr).length === 0);
 t('selectorul nu adaugă niciun drept: opțiunile managerului rămân una singură',

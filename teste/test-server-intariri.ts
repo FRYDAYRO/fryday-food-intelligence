@@ -53,6 +53,9 @@ async function server() {
 /** O stare completă (toate colecțiile pe care le parcurge filtrarea), cu date pe două restaurante. */
 const S: AppState = {
   ...stareGoala(),
+  // filtrarea pe unitate se verifică aici, deci starea o cere explicit: implicit,
+  // prin decizia din 10.09.2026, managerii văd cifrele întregii rețele
+  setari: { ...stareGoala().setari, managerVedeToataReteaua: false },
   locatii: [{ cod: 'L01', nume: 'FRYDAY CLUJ MEMO' }, { cod: 'L02', nume: 'FRYDAY TIMISOARA IULIUS TOWN' }],
   evenimente28: [
     { locatie: 'L01', fereastra: { de: '2026-08-01', la: '2026-08-31' }, cod: 'M1', denumire: 'Cheddar', motiv: 'End of Day', um: 'KG', cant: 2, costUnitar: 11.27, lei: 22.54 },
@@ -107,6 +110,43 @@ console.log('— 1. Managerul nu primește rânduri ale altui restaurant (verifi
   const a = stareAutorizata(S, ctx);
   t('analistul primește toate evenimentele 2.8', (a.evenimente28 ?? []).length === 3);
   t('analistul primește toată urma de audit', (a.auditAcces ?? []).length === 3);
+}
+
+console.log('\n— 1b. Decizia din 10.09.2026: managerii văd cifrele întregii rețele —');
+{
+  // Aceeași stare ca mai sus, dar FĂRĂ setarea de restrângere: implicit, toată lumea vede tot.
+  // Ce NU se schimbă e dreptul de scriere — acolo e valoarea rolului, nu în ce poate citi.
+  const TOTI: AppState = { ...S, setari: { ...S.setari, managerVedeToataReteaua: true } };
+  const { api, login } = await server();
+  const admin = await login('admin@fryday.ro', 'parola-admin');
+  await api(cer('/api/utilizatori', 'POST', { token: admin.token, corp: { email: 'mgr@f.ro', parola: 'parola-lunga', rol: 'MANAGER', locatie: 'L02' } }));
+  await api(cer('/api/stare', 'PUT', { token: admin.token, corp: { stare: TOTI, revizie: 0 } }));
+  const mgr = await login('mgr@f.ro', 'parola-lunga');
+  const r = await api(cer('/api/stare', 'GET', { token: mgr.token }));
+  const primita = (r.corp as { stare: AppState; filtrat: boolean });
+  const s2 = primita.stare;
+
+  t('managerul primește ambele restaurante', s2.locatii.length === 2, JSON.stringify(s2.locatii.map(l => l.cod)));
+  t('… inclusiv evenimentele 2.8 ale celuilalt', (s2.evenimente28 ?? []).some(x => x.locatie === 'L01'));
+  t('… și declarațiile lui', (s2.declaratiiIncludere ?? []).some(x => x.locatie === 'L01'));
+  t('… iar cifrele celuilalt restaurant chiar ajung la el', JSON.stringify(s2).includes('Cheddar'));
+
+  // partea care NU se lărgește: rolul rămâne fără drept de scriere
+  t('dar tot NU poate scrie starea comună',
+    (await api(cer('/api/stare', 'PUT', { token: mgr.token, corp: { stare: TOTI, revizie: 1 } }))).cod === 403);
+  t('… și tot nu vede lista de utilizatori', (await api(cer('/api/utilizatori', 'GET', { token: mgr.token }))).cod === 403);
+  t('… și tot nu vede jurnalul', (await api(cer('/api/jurnal', 'GET', { token: mgr.token }))).cod === 403);
+
+  // reversul, ca decizia să rămână reversibilă printr-o singură setare
+  const ctxRestrans = contextAutorizare({ ...TOTI, setari: { ...TOTI.setari, managerVedeToataReteaua: false } },
+    { rol: 'MANAGER', locatie: 'L02', email: 'mgr@f.ro' }, true);
+  t('setarea pe false readuce filtrarea pe unitate',
+    stareAutorizata({ ...TOTI, setari: { ...TOTI.setari, managerVedeToataReteaua: false } }, ctxRestrans)
+      .locatii.every(l => l.cod === 'L02'));
+  const ctxTot = contextAutorizare(TOTI, { rol: 'MANAGER', locatie: 'L02', email: 'mgr@f.ro' }, true);
+  t('… iar cu vizibilitate completă, motivul e declarat, nu tăcut',
+    /toată rețeaua/i.test(ctxTot.motivEnforcement), ctxTot.motivEnforcement.slice(0, 60));
+  t('… restaurantul lui rămâne cel implicit', ctxTot.storeId === 'L02');
 }
 
 console.log('\n— 2. Ultimul administrator nu se poate pierde —');

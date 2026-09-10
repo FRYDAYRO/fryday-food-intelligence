@@ -205,6 +205,14 @@ export interface VariantaRnD {
 
 export interface Setari {
   tvaImplicit: number;
+  /**
+   * Decizia de business din 10.09.2026: TOATĂ lumea vede cifrele întregii rețele, inclusiv
+   * managerii de restaurant. `false` readuce filtrarea pe unitate, fără altă modificare.
+   *
+   * Nu atinge dreptul de SCRIERE: un manager vede tot, dar tot nu poate importa sau activa.
+   * Lipsa cheii înseamnă `true` — starea salvată înainte de decizie nu trebuie migrată.
+   */
+  managerVedeToataReteaua?: boolean;
   tintaLaborPct?: number;         // ținta de Labor % din vânzări nete (pentru Prime Cost)
   comisionDeliveryPct?: number;   // comisionul agregatorului pe vânzările Delivery (FRYDAY: 16%)
   tolerantaReconciliere: number;  // %

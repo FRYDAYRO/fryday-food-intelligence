@@ -49,7 +49,8 @@ const MATERIALE: Material29[] = [
 const s0: AppState = { ...genereazaSeed(), materiale29: MATERIALE };
 const ctx0 = buildCtx(s0);
 const ACCES_TOP = accesTower(s0, { rol: 'ADMIN' }, false);
-const ACCES_MANAGER = accesTower(s0, { rol: 'MANAGER', locatie: 'L02' }, true);
+const s0Restrans = { ...s0, setari: { ...s0.setari, managerVedeToataReteaua: false } };
+const ACCES_MANAGER = accesTower(s0Restrans, { rol: 'MANAGER', locatie: 'L02' }, true);
 
 const SEL: SelectieFC = {
   ancora: '2026-07-15', granularitate: 'LUNA', comparatie: 'PERIOADA_PRECEDENTA',
@@ -299,7 +300,7 @@ t('dosarul de companie menționează, în schimb, ambele restaurante',
 t('naratiunea managerului nu scapă alt restaurant',
   !new RegExp('\\bL01\\b').test(naratorDeterminist(dManager)));
 t('dosarPentru derivă accesul din rolul serverului',
-  dosarPentru(s0, ctx0, SEL, { rol: 'MANAGER', locatie: 'L02' }, true).scop.nivel === 'L02'
+  dosarPentru(s0Restrans, ctx0, SEL, { rol: 'MANAGER', locatie: 'L02' }, true).scop.nivel === 'L02'
   && dosarPentru(s0, ctx0, SEL, { rol: 'ADMIN' }, false).scop.nivel === 'COMPANIE');
 
 // ————————————————————————————————————————————————————————— calitatea datelor
